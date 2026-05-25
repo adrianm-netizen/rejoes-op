@@ -1267,12 +1267,163 @@ window.addEventListener('load', () => {
   else setSyncStatus('offline');
 });
 
+
+// ══════════════════════════════════════════════════
+// REMINDER & ZIUA ANTERIOARĂ CHECK
+// ══════════════════════════════════════════════════
+
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/rejoes-op/sw.js')
+    .then(reg => {
+      console.log('SW registered');
+      window._swReg = reg;
+    }).catch(err => console.log('SW error:', err));
+}
+
+// Request notification permission
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  const perm = await Notification.requestPermission();
+  return perm === 'granted';
+}
+
+// Schedule daily reminder at 21:00
+function scheduleDailyReminder() {
+  const now = new Date();
+  const reminder = new Date();
+  reminder.setHours(21, 0, 0, 0);
+  if (reminder <= now) reminder.setDate(reminder.getDate() + 1);
+  const msUntil = reminder - now;
+
+  setTimeout(async () => {
+    const perm = await requestNotificationPermission();
+    if (!perm) return;
+    
+    // Check if today's report is done
+    const todayIso = new Date().toISOString().slice(0,10);
+    const todayRaport = entries.filter(e => e.type==='raportare' && e.date===todayIso);
+    
+    if (todayRaport.length === 0) {
+      // Show notification
+      if (Notification.permission === 'granted') {
+        new Notification('⏰ Rejoes · Reminder Raport', {
+          body: 'Mai ai o oră! Nu uita să completezi raportul de azi înainte de 22:00 📊',
+          icon: '/rejoes-op/icon-192.png',
+          badge: '/rejoes-op/icon-192.png',
+          vibrate: [200, 100, 200, 100, 200],
+          tag: 'rejoes-reminder',
+          requireInteraction: true
+        });
+      }
+    }
+    // Reschedule for next day
+    scheduleDailyReminder();
+  }, msUntil);
+
+  console.log('Reminder scheduled in', Math.round(msUntil/60000), 'minutes');
+}
+
+// Check if yesterday's report is missing
+function checkPreviousDayReport() {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  // Skip Sundays (day off)
+  if (yesterday.getDay() === 0) return;
+  
+  const yesterdayIso = yesterday.toISOString().slice(0,10);
+  const dd = String(yesterday.getDate()).padStart(2,'0');
+  const mm = String(yesterday.getMonth()+1).padStart(2,'0');
+  const yesterdayFmt = dd+'.'+mm+'.'+yesterday.getFullYear();
+  
+  const yesterdayRaport = entries.filter(e => e.type==='raportare' && e.date===yesterdayIso);
+  const yesterdayPontaj = entries.filter(e => e.type==='pontaj' && e.date===yesterdayIso);
+  
+  if (yesterdayRaport.length === 0 || yesterdayPontaj.length === 0) {
+    showMissingDayAlert(yesterdayFmt, yesterdayIso, yesterdayRaport.length > 0, yesterdayPontaj.length > 0);
+  }
+}
+
+function showMissingDayAlert(dateFmt, dateIso, hasRaport, hasPontaj) {
+  const missing = [];
+  if (!hasPontaj)  missing.push('⏰ Pontaj');
+  if (!hasRaport)  missing.push('💰 Raportare');
+  
+  const ov = document.createElement('div');
+  ov.id = 'missingDayOverlay';
+  ov.setAttribute('style',
+    'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:600;'+
+    'display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)');
+  
+  const box = document.createElement('div');
+  box.setAttribute('style',
+    'background:#182e1e;border:2px solid rgba(224,80,80,.4);border-radius:20px;'+
+    'padding:28px 24px;width:100%;max-width:420px;text-align:center');
+  
+  box.innerHTML = 
+    '<div style="font-size:48px;margin-bottom:12px">⚠️</div>'+
+    '<div style="font-family:Cormorant Garamond,serif;font-size:22px;color:#e05050;margin-bottom:8px">Raport Incomplet!</div>'+
+    '<div style="font-size:14px;color:#ddd8c4;margin-bottom:6px">Nu ai completat pentru <strong style="color:#c9a84c">' + dateFmt + '</strong>:</div>'+
+    '<div style="margin:14px 0;display:flex;flex-direction:column;gap:8px">'+
+      missing.map(m => 
+        '<div style="background:rgba(224,80,80,.1);border:1px solid rgba(224,80,80,.3);'+
+        'border-radius:10px;padding:10px;color:#e05050;font-weight:600">'+m+' lipsește</div>'
+      ).join('') +
+    '</div>'+
+    '<div style="font-size:12px;color:#7a9080;margin-bottom:20px;line-height:1.6">'+
+    'Completează înregistrările lipsă pentru ziua anterioară înainte de a continua.</div>'+
+    '<div style="display:flex;gap:10px">'+
+    '<button id="btnCompletezAcum" style="flex:2;padding:14px;border-radius:10px;border:none;'+
+    'background:linear-gradient(135deg,#c9a84c,#e4c878);color:#0a1e14;font-size:14px;'+
+    'font-weight:700;cursor:pointer;font-family:inherit">✏️ Completez acum</button>'+
+    '<button id="btnIgnorAlert" style="flex:1;padding:14px;border-radius:10px;'+
+    'border:1px solid rgba(201,168,76,.2);background:transparent;color:#7a9080;'+
+    'font-size:12px;cursor:pointer;font-family:inherit">Continuă oricum</button>'+
+    '</div>';
+  
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  
+  document.getElementById('btnCompletezAcum').onclick = function() {
+    ov.remove();
+    // Go to the missing section
+    if (!hasPontaj) openTab('pontaj');
+    else openTab('raportare');
+    // Pre-set date to yesterday
+    if (!hasPontaj) {
+      pontState.data.date = dateIso;
+    } else {
+      rapState.data.date = dateIso;
+    }
+  };
+  
+  document.getElementById('btnIgnorAlert').onclick = function() {
+    ov.remove();
+    renderHome();
+  };
+}
+
+// Init reminders
+async function initReminders() {
+  // Ask permission on first open
+  const alreadyAsked = localStorage.getItem('rejoes_notif_asked');
+  if (!alreadyAsked && 'Notification' in window) {
+    localStorage.setItem('rejoes_notif_asked', '1');
+    await requestNotificationPermission();
+  }
+  scheduleDailyReminder();
+  // Check previous day after short delay
+  setTimeout(checkPreviousDayReport, 1500);
+}
+
 // ══════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
   // Setup header date
   document.getElementById('hdrDate').textContent = todayStr();
+  initReminders();
   document.getElementById('homeSubtitle').textContent = '';
 
   // Splash → App
