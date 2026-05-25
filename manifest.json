@@ -1,0 +1,25 @@
+{
+  "name": "Rejoes Operation Management",
+  "short_name": "Rejoes OpMgmt",
+  "description": "Pontaj si raportare zilnica S Colect REC",
+  "start_url": "/rejoes-op/",
+  "scope": "/rejoes-op/",
+  "display": "standalone",
+  "background_color": "#0a1e14",
+  "theme_color": "#0a1e14",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/rejoes-op/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/rejoes-op/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
