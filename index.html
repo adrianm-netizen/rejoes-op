@@ -1512,6 +1512,7 @@ let tasks = JSON.parse(localStorage.getItem('rejoes_tasks') || '[]');
 function saveTasks() { localStorage.setItem('rejoes_tasks', JSON.stringify(tasks)); }
 
 // ── Comment Store ──
+function closeModal() { document.querySelector('.modal-overlay')?.remove(); }
 function openCommentStore() {
   var d = document;
   var ov = d.createElement('div'); ov.className='modal-overlay';
@@ -1535,7 +1536,7 @@ function openCommentStore() {
     '<div class="f-group"><label class="f-label">Comentariu</label>'+
     '<textarea class="f-input" id="cm-text" rows="4" placeholder="Scrie observațiile tale..." style="resize:none"></textarea></div>'+
     '<div class="btn-row">'+
-    '<button onclick="this.closest('.modal-overlay').remove()" class="btn btn-ghost" style="flex:1">Anulează</button>'+
+    '<button onclick="closeModal()" class="btn btn-ghost" style="flex:1">Anulează</button>'+
     '<button onclick="saveCommentStore()" class="btn btn-primary" style="flex:2">💾 Salvează</button>'+
     '</div>';
 
@@ -1570,7 +1571,7 @@ function openCommentFree() {
     '<div class="f-group"><label class="f-label">Mesaj</label>'+
     '<textarea class="f-input" id="cf-text" rows="5" placeholder="Notă liberă..." style="resize:none"></textarea></div>'+
     '<div class="btn-row">'+
-    '<button onclick="this.closest('.modal-overlay').remove()" class="btn btn-ghost" style="flex:1">Anulează</button>'+
+    '<button onclick="closeModal()" class="btn btn-ghost" style="flex:1">Anulează</button>'+
     '<button onclick="saveCommentFree()" class="btn btn-primary" style="flex:2">💾 Salvează</button>'+
     '</div>';
   ov.appendChild(box);
@@ -1714,7 +1715,7 @@ function openAddTask() {
     '<div class="f-group"><label class="f-label">Reminder (oră)</label>'+
     '<input type="time" class="f-input" id="tk-reminder" value="09:00"></div>'+
     '<div class="btn-row">'+
-    '<button onclick="this.closest('.modal-overlay').remove()" class="btn btn-ghost" style="flex:1">Anulează</button>'+
+    '<button onclick="closeModal()" class="btn btn-ghost" style="flex:1">Anulează</button>'+
     '<button onclick="saveTask()" class="btn btn-primary" style="flex:2">💾 Salvează Task</button>'+
     '</div>';
   ov.appendChild(box);
