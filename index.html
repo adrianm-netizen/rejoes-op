@@ -2172,8 +2172,7 @@ function setupRoleUI() {
     if (tabPontaj)  tabPontaj.style.display = 'none';
     if (tabRap)     tabRap.style.display    = 'none';
   } else if (u.role === 'operator') {
-    // Ana: all except task creation (handled by PIN in tasks tab)
-    if (tabTasks)   tabTasks.style.display = 'none'; // tasks visible on home only
+    // Ana: sees tasks, can respond but not add (PIN protected)
   }
   // Admin: sees everything
 }
