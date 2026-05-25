@@ -3353,7 +3353,7 @@ async function loadAdminData() {
   }
 
   try {
-    var r = await fetch(SHEETS_URL + '?action=getEntries&date=' + adminDashDate);
+    var r = await fetch(SHEETS_URL + '?action=getEntries&date=' + adminDashDate, {redirect:'follow'});
     var j = await r.json();
     adminData = j;
     renderAdminTables(j);
