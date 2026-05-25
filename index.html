@@ -1324,8 +1324,41 @@ function showSettings() {
   
   btnRow.appendChild(btnCancel);
   btnRow.appendChild(btnSave);
+
+  // PIN Manager section
+  var divider = d.createElement('div');
+  divider.setAttribute('style','height:1px;background:rgba(201,168,76,.15);margin:16px 0');
+
+  var pinTitle = d.createElement('div');
+  pinTitle.setAttribute('style','font-size:12px;color:#7a9080;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px');
+  pinTitle.textContent = '🔒 PIN Manager (pentru adaugare task-uri)';
+
+  var pinRow = d.createElement('div');
+  pinRow.setAttribute('style','display:flex;gap:8px');
+
+  var pinInp = d.createElement('input');
+  pinInp.id = 'pinInput';
+  pinInp.type = 'password';
+  pinInp.placeholder = 'PIN nou (min 4 cifre)';
+  pinInp.setAttribute('style','flex:1;background:#0a1e14;border:1px solid rgba(201,168,76,.25);border-radius:10px;padding:11px 12px;color:#ddd8c4;font-size:16px;font-family:Plus Jakarta Sans,sans-serif;-webkit-appearance:none');
+
+  var pinBtn = d.createElement('button');
+  pinBtn.setAttribute('style','padding:11px 16px;border-radius:10px;border:1px solid rgba(201,168,76,.3);background:rgba(201,168,76,.1);color:#c9a84c;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap');
+  pinBtn.textContent = 'Seteaza PIN';
+  pinBtn.onclick = function() {
+    var p = d.getElementById('pinInput').value;
+    if (!p || p.length < 4) { alert('PIN-ul trebuie sa aiba minim 4 caractere!'); return; }
+    localStorage.setItem('rejoes_manager_pin', p);
+    alert('✅ PIN setat cu succes!');
+    d.getElementById('pinInput').value = '';
+  };
+
+  pinRow.appendChild(pinInp);
+  pinRow.appendChild(pinBtn);
+
   box.appendChild(title); box.appendChild(desc); box.appendChild(lbl);
   box.appendChild(inp); box.appendChild(btnRow);
+  box.appendChild(divider); box.appendChild(pinTitle); box.appendChild(pinRow);
   ov.appendChild(box);
   d.body.appendChild(ov);
   ov.addEventListener('click', function(e){ if(e.target===ov) ov.remove(); });
