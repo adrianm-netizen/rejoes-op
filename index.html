@@ -1731,9 +1731,11 @@ async function initReminders() {
     localStorage.setItem('rejoes_notif_asked', '1');
     await requestNotificationPermission();
   }
-  scheduleDailyReminder();
-  // Check previous day after short delay
-  setTimeout(checkPreviousDayReport, 1500);
+  // Reminder si check zi anterioara - doar pentru Ana
+  if (currentUser && currentUser.role === 'operator') {
+    scheduleDailyReminder();
+    setTimeout(checkPreviousDayReport, 1500);
+  }
 }
 
 
