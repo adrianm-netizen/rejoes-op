@@ -359,6 +359,71 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
 
 /* ── PIN ── */
 .pin-input { letter-spacing:8px; font-size:24px; text-align:center; font-weight:700; }
+
+/* ── AUTH SCREENS ── */
+.auth-screen { position:fixed; inset:0; background:var(--bg); z-index:900;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:24px; transition:opacity .5s, transform .5s; }
+.auth-screen.out { opacity:0; transform:scale(1.05); pointer-events:none; }
+
+/* Gate */
+.gate-logo { font-family:'Cormorant Garamond',serif; font-size:42px; font-weight:700;
+  color:var(--gold); letter-spacing:3px; margin-bottom:4px; }
+.gate-sub { font-size:12px; color:var(--muted); letter-spacing:3px; margin-bottom:36px; }
+.gate-question { font-family:'Cormorant Garamond',serif; font-size:24px; color:var(--text);
+  text-align:center; margin-bottom:8px; line-height:1.4; }
+.gate-hint { font-size:13px; color:var(--muted); text-align:center; margin-bottom:32px; }
+.gate-yes { width:100%; max-width:340px; padding:18px; border-radius:var(--r); border:none;
+  background:linear-gradient(135deg,var(--gold),var(--gold-l)); color:#0a1e14;
+  font-size:16px; font-weight:700; cursor:pointer; font-family:inherit; margin-bottom:12px;
+  box-shadow:0 8px 24px rgba(201,168,76,.3); transition:transform .2s; }
+.gate-yes:active { transform:scale(.97); }
+.gate-no { background:transparent; border:1px solid var(--border); color:var(--muted);
+  width:100%; max-width:340px; padding:14px; border-radius:var(--r);
+  font-size:14px; cursor:pointer; font-family:inherit; transition:all .2s; }
+.gate-no:active { background:var(--card); }
+.gate-sorry { text-align:center; padding:20px; }
+.gate-sorry-ico { font-size:60px; display:block; margin-bottom:16px; }
+.gate-sorry-title { font-family:'Cormorant Garamond',serif; font-size:26px; color:var(--gold); margin-bottom:8px; }
+.gate-sorry-txt { font-size:14px; color:var(--muted); line-height:1.7; }
+
+/* User select */
+.usr-title { font-family:'Cormorant Garamond',serif; font-size:26px; color:var(--text);
+  text-align:center; margin-bottom:6px; }
+.usr-sub { font-size:13px; color:var(--muted); text-align:center; margin-bottom:28px; }
+.usr-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; width:100%; max-width:380px; }
+.usr-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r);
+  padding:20px 14px; cursor:pointer; text-align:center; transition:all .2s; }
+.usr-card:active { transform:scale(.96); }
+.usr-avatar { width:64px; height:64px; border-radius:50%; display:flex; align-items:center;
+  justify-content:center; font-size:28px; margin:0 auto 10px; border:2px solid; }
+.usr-name { font-size:15px; font-weight:700; color:var(--text); }
+.usr-role { font-size:11px; color:var(--muted); margin-top:3px; }
+
+/* PIN screen */
+.pin-title { font-family:'Cormorant Garamond',serif; font-size:24px; color:var(--text);
+  text-align:center; margin-bottom:6px; }
+.pin-sub { font-size:13px; color:var(--muted); text-align:center; margin-bottom:24px; }
+.pin-avatar-big { width:80px; height:80px; border-radius:50%; display:flex; align-items:center;
+  justify-content:center; font-size:36px; margin:0 auto 20px; border:2px solid; }
+.pin-dots { display:flex; gap:14px; justify-content:center; margin-bottom:28px; }
+.pin-dot { width:16px; height:16px; border-radius:8px; border:2px solid var(--border);
+  transition:all .2s; }
+.pin-dot.filled { background:var(--gold); border-color:var(--gold); }
+.pin-pad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:100%; max-width:300px; }
+.pin-key { background:var(--card); border:1px solid var(--border); border-radius:var(--rs);
+  padding:18px; font-size:22px; font-weight:600; cursor:pointer; text-align:center;
+  color:var(--text); font-family:inherit; transition:all .18s; }
+.pin-key:active { background:rgba(201,168,76,.2); border-color:var(--gold); transform:scale(.93); }
+.pin-key.del { font-size:18px; }
+.pin-error { color:var(--red); font-size:13px; text-align:center; margin-top:8px;
+  animation:shake .3s ease; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+.pin-back { background:transparent; border:none; color:var(--muted); font-size:13px;
+  cursor:pointer; font-family:inherit; margin-top:16px; text-decoration:underline; }
+
+/* Role badge in header */
+.role-badge { font-size:10px; color:var(--muted); letter-spacing:1px; }
 </style>
 </head>
 <body>
@@ -377,6 +442,54 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
 </div>
 
 <!-- ═══════════════════ APP ═══════════════════ -->
+
+<!-- ═══════════════════ AUTH SCREENS ═══════════════════ -->
+<div id="auth-gate" class="auth-screen" style="display:none">
+  <div class="gate-logo">REJOES</div>
+  <div class="gate-sub">S COLECT REC · OPERATION</div>
+  <div id="gate-content">
+    <div class="gate-question">👋 Hei! Ești parte din<br>echipa Rejoes?</div>
+    <div class="gate-hint">Doar membrii echipei au acces la această aplicație.</div>
+    <button class="gate-yes" onclick="gateYes()">🚀 Da, cu mândrie!</button>
+    <button class="gate-no"  onclick="gateNo()">Nu... deocamdată 😅</button>
+  </div>
+</div>
+
+<div id="auth-users" class="auth-screen" style="display:none">
+  <div class="usr-title">Cine ești? 👤</div>
+  <div class="usr-sub">Selectează profilul tău</div>
+  <div class="usr-grid" id="userGrid"></div>
+  <button class="pin-back" onclick="backToGate()" style="margin-top:20px">← Înapoi</button>
+</div>
+
+<div id="auth-pin" class="auth-screen" style="display:none">
+  <div id="pin-avatar-wrap"></div>
+  <div class="pin-title" id="pinTitle">Introdu PIN-ul</div>
+  <div class="pin-sub"  id="pinSub">PIN-ul tău personal de 4 cifre</div>
+  <div class="pin-dots" id="pinDots">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+  <div class="pin-pad">
+    <button class="pin-key" onclick="pinKey('1')">1</button>
+    <button class="pin-key" onclick="pinKey('2')">2</button>
+    <button class="pin-key" onclick="pinKey('3')">3</button>
+    <button class="pin-key" onclick="pinKey('4')">4</button>
+    <button class="pin-key" onclick="pinKey('5')">5</button>
+    <button class="pin-key" onclick="pinKey('6')">6</button>
+    <button class="pin-key" onclick="pinKey('7')">7</button>
+    <button class="pin-key" onclick="pinKey('8')">8</button>
+    <button class="pin-key" onclick="pinKey('9')">9</button>
+    <button class="pin-key" onclick="pinKey('*')" style="opacity:.3">＊</button>
+    <button class="pin-key" onclick="pinKey('0')">0</button>
+    <button class="pin-key del" onclick="pinKey('del')">⌫</button>
+  </div>
+  <div id="pinError" style="height:20px"></div>
+  <button class="pin-back" onclick="backToUsers()">← Schimbă utilizatorul</button>
+</div>
+
 <div id="app" style="display:none">
   <header class="app-hdr">
     <div class="hdr-brand">
@@ -395,6 +508,10 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
           style="background:var(--card);border:1px solid var(--border);border-radius:8px;
             width:28px;height:28px;display:flex;align-items:center;justify-content:center;
             cursor:pointer;font-size:14px;color:var(--muted)">⚙️</button>
+        <button onclick="logout()" title="Ieși din cont"
+          style="background:var(--card);border:1px solid var(--border);border-radius:8px;
+            width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+            cursor:pointer;font-size:14px;color:var(--muted)">🚪</button>
       </div>
       <div style="font-size:10px;color:var(--muted);text-align:right;margin-top:2px" id="hdrCount"></div>
     </div>
@@ -1843,6 +1960,254 @@ async function fetchTasksFromSheets() {
 
 
 
+
+// ══════════════════════════════════════════════════
+// MULTI-USER AUTH SYSTEM
+// ══════════════════════════════════════════════════
+const USERS_DB = [
+  { id:'adrian', name:'Adrian',  initials:'AM', emoji:'👑', role:'admin',
+    roleLabel:'Admin · S Colect REC', color:'#c9a84c', bg:'rgba(201,168,76,.18)',
+    email:'adrian.m@tm-res.com', phone:'0744574242' },
+  { id:'ana',    name:'Ana',     initials:'AO', emoji:'⚙️', role:'operator',
+    roleLabel:'Operation Manager L2', color:'#4caf7a', bg:'rgba(76,175,122,.18)',
+    email:'ana@rejoes.com',      phone:'0740596354' },
+  { id:'dana',   name:'Dana',    initials:'DU', emoji:'📊', role:'contabila',
+    roleLabel:'Contabilitate',        color:'#64b5f6', bg:'rgba(100,181,246,.18)',
+    email:'dana.lucean@yahoo.com',    phone:'0745308098' },
+  { id:'gabi',   name:'Gabi',    initials:'GC', emoji:'📦', role:'warehouse',
+    roleLabel:'Manager Depozit',      color:'#ce93d8', bg:'rgba(206,147,216,.18)',
+    email:'gabriela.iacobanu@yahoo.com', phone:'0771139088' }
+];
+
+let currentUser = null;
+let pinBuffer   = '';
+let pinMode     = 'enter'; // 'enter' | 'setup' | 'confirm'
+let pinSetupTemp = '';
+
+function getStoredPin(userId) {
+  return localStorage.getItem('rejoes_pin_' + userId);
+}
+function storePin(userId, pin) {
+  localStorage.setItem('rejoes_pin_' + userId, pin);
+}
+
+// ── Gate ──
+function gateYes() {
+  document.getElementById('auth-gate').classList.add('out');
+  setTimeout(function() {
+    document.getElementById('auth-gate').style.display = 'none';
+    showUserSelect();
+  }, 400);
+}
+
+function gateNo() {
+  document.getElementById('gate-content').innerHTML =
+    '<div class="gate-sorry">' +
+    '<span class="gate-sorry-ico">😅</span>' +
+    '<div class="gate-sorry-title">Ne pare rău!</div>' +
+    '<div class="gate-sorry-txt">Această aplicație e rezervată<br>echipei Rejoes · S Colect REC.<br><br>' +
+    'Rămâne să ne convingi<br>că faci parte din echipă! 😄</div>' +
+    '</div>';
+}
+
+function backToGate() {
+  document.getElementById('auth-users').style.display = 'none';
+  document.getElementById('auth-gate').style.display  = 'flex';
+  document.getElementById('auth-gate').classList.remove('out');
+}
+
+// ── User Select ──
+function showUserSelect() {
+  var screen = document.getElementById('auth-users');
+  screen.style.display = 'flex';
+  var grid = document.getElementById('userGrid');
+  grid.innerHTML = '';
+  USERS_DB.forEach(function(u) {
+    var card = document.createElement('div');
+    card.className = 'usr-card';
+    card.innerHTML =
+      '<div class="usr-avatar" style="background:' + u.bg + ';border-color:' + u.color + ';color:' + u.color + '">' + u.emoji + '</div>' +
+      '<div class="usr-name">' + u.name + '</div>' +
+      '<div class="usr-role">' + u.roleLabel + '</div>';
+    card.onclick = (function(uid) { return function() { selectUser(uid); }; })(u.id);
+    grid.appendChild(card);
+  });
+}
+
+function selectUser(userId) {
+  currentUser = USERS_DB.find(function(u) { return u.id === userId; });
+  document.getElementById('auth-users').style.display = 'none';
+  showPinScreen();
+}
+
+function backToUsers() {
+  document.getElementById('auth-pin').style.display = 'none';
+  pinBuffer = ''; pinMode = 'enter'; pinSetupTemp = '';
+  showUserSelect();
+}
+
+// ── PIN Screen ──
+function showPinScreen() {
+  var screen = document.getElementById('auth-pin');
+  screen.style.display = 'flex';
+  pinBuffer = '';
+  var hasPin = !!getStoredPin(currentUser.id);
+  pinMode = hasPin ? 'enter' : 'setup';
+
+  // Avatar
+  document.getElementById('pin-avatar-wrap').innerHTML =
+    '<div class="pin-avatar-big" style="background:' + currentUser.bg +
+    ';border-color:' + currentUser.color + ';color:' + currentUser.color + '">' +
+    currentUser.emoji + '</div>';
+
+  // Title/sub
+  document.getElementById('pinTitle').textContent = hasPin
+    ? 'Bun venit, ' + currentUser.name + '! 👋'
+    : 'Setează PIN-ul tău 🔐';
+  document.getElementById('pinSub').textContent = hasPin
+    ? 'Introdu PIN-ul tău personal'
+    : 'Alege un PIN de 4 cifre — prima și ultima oară!';
+
+  updatePinDots();
+  document.getElementById('pinError').textContent = '';
+}
+
+function pinKey(k) {
+  if (k === 'del') {
+    pinBuffer = pinBuffer.slice(0, -1);
+    updatePinDots(); return;
+  }
+  if (k === '*') return;
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += k;
+  updatePinDots();
+
+  if (pinBuffer.length === 4) {
+    setTimeout(function() { processPinEntry(); }, 180);
+  }
+}
+
+function updatePinDots() {
+  for (var i = 0; i < 4; i++) {
+    var dot = document.getElementById('d' + i);
+    if (dot) dot.className = 'pin-dot' + (i < pinBuffer.length ? ' filled' : '');
+  }
+}
+
+function processPinEntry() {
+  if (pinMode === 'enter') {
+    var stored = getStoredPin(currentUser.id);
+    if (pinBuffer === stored) {
+      enterApp();
+    } else {
+      document.getElementById('pinError').innerHTML =
+        '<div class="pin-error">PIN incorect. Încearcă din nou!</div>';
+      pinBuffer = ''; updatePinDots();
+    }
+  } else if (pinMode === 'setup') {
+    pinSetupTemp = pinBuffer;
+    pinBuffer = '';
+    pinMode = 'confirm';
+    document.getElementById('pinTitle').textContent = 'Confirmă PIN-ul 🔐';
+    document.getElementById('pinSub').textContent   = 'Introdu din nou același PIN';
+    document.getElementById('pinError').textContent = '';
+    updatePinDots();
+  } else if (pinMode === 'confirm') {
+    if (pinBuffer === pinSetupTemp) {
+      storePin(currentUser.id, pinBuffer);
+      enterApp();
+    } else {
+      document.getElementById('pinError').innerHTML =
+        '<div class="pin-error">PIN-urile nu coincid. Încearcă din nou!</div>';
+      pinBuffer = ''; pinMode = 'setup'; pinSetupTemp = '';
+      document.getElementById('pinTitle').textContent = 'Setează PIN-ul tău 🔐';
+      document.getElementById('pinSub').textContent   = 'Alege un PIN de 4 cifre';
+      updatePinDots();
+    }
+  }
+}
+
+// ── Enter App ──
+function enterApp() {
+  document.getElementById('auth-pin').classList.add('out');
+  setTimeout(function() {
+    document.getElementById('auth-pin').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    setupRoleUI();
+    renderHome();
+    initReminders();
+    if (SHEETS_URL) { setTimeout(flushQueue, 2000); setSyncStatus(syncQueue.length?'error':'ok'); }
+    else setSyncStatus('offline');
+  }, 400);
+}
+
+// ── Role-based UI ──
+function setupRoleUI() {
+  if (!currentUser) return;
+  var u = currentUser;
+
+  // Update header with user info
+  var brand = document.querySelector('.hdr-brand');
+  if (brand) {
+    var badge = document.createElement('div');
+    badge.setAttribute('style',
+      'display:flex;flex-direction:column;gap:1px;margin-left:6px;border-left:1px solid var(--border);padding-left:8px');
+    badge.innerHTML =
+      '<div style="font-size:11px;font-weight:700;color:' + u.color + '">' + u.name + '</div>' +
+      '<div style="font-size:10px;color:var(--muted)">' + u.roleLabel + '</div>';
+    brand.appendChild(badge);
+  }
+
+  // Show/hide nav tabs based on role
+  var tabTasks   = document.getElementById('tab-tasks');
+  var tabRap     = document.getElementById('tab-raportare');
+  var tabPontaj  = document.getElementById('tab-pontaj');
+
+  if (u.role === 'contabila') {
+    // Dana: no pontaj/raportare entry, just view
+    if (tabPontaj)  tabPontaj.querySelector('.tab-lbl').textContent  = 'Pontaje';
+    if (tabRap)     tabRap.style.display = 'none';
+    if (tabTasks)   tabTasks.style.display = 'none';
+  } else if (u.role === 'warehouse') {
+    // Gabi: no pontaj/raportare, yes tasks
+    if (tabPontaj)  tabPontaj.style.display = 'none';
+    if (tabRap)     tabRap.style.display    = 'none';
+  } else if (u.role === 'operator') {
+    // Ana: all except task creation (handled by PIN in tasks tab)
+    if (tabTasks)   tabTasks.style.display = 'none'; // tasks visible on home only
+  }
+  // Admin: sees everything
+}
+
+// ── WhatsApp notification ──
+function notifyWhatsApp(userId, message) {
+  var u = USERS_DB.find(function(x) { return x.id === userId; });
+  if (!u) return;
+  var phone = u.phone.replace(/^0/, '40'); // Romanian prefix
+  var url   = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(message);
+  window.open(url, '_blank');
+}
+
+// ── Current user helpers ──
+function isAdmin()     { return currentUser && currentUser.role === 'admin'; }
+function isOperator()  { return currentUser && currentUser.role === 'operator'; }
+function isContabila() { return currentUser && currentUser.role === 'contabila'; }
+function isWarehouse() { return currentUser && currentUser.role === 'warehouse'; }
+
+// ── Logout ──
+function logout() {
+  if (!confirm('Ieși din cont?')) return;
+  currentUser = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-gate').style.display = 'flex';
+  document.getElementById('auth-gate').classList.remove('out');
+  document.getElementById('gate-content').innerHTML =
+    '<div class="gate-question">👋 Hei! Ești parte din<br>echipa Rejoes?</div>' +
+    '<div class="gate-hint">Doar membrii echipei au acces la această aplicație.</div>' +
+    '<button class="gate-yes" onclick="gateYes()">🚀 Da, cu mândrie!</button>' +
+    '<button class="gate-no"  onclick="gateNo()">Nu... deocamdată 😅</button>';
+}
+
 // ══════════════════════════════════════════════════
 // MESAJE ZILNICE VESELE PENTRU ANA
 // ══════════════════════════════════════════════════
@@ -2239,13 +2604,13 @@ window.addEventListener('DOMContentLoaded', () => {
   initReminders();
   document.getElementById('homeSubtitle').textContent = '';
 
-  // Splash → App
+  // Splash → Auth gate
   setTimeout(() => {
     document.getElementById('splash').classList.add('out');
     setTimeout(() => {
       document.getElementById('splash').remove();
-      document.getElementById('app').style.display='flex';
-      renderHome();
+      // Show auth gate instead of app directly
+      document.getElementById('auth-gate').style.display = 'flex';
     }, 700);
   }, 2200);
 });
