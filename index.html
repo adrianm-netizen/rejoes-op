@@ -545,8 +545,8 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
 
     <!-- ─── HOME PAGE ─── -->
     <div class="page active" id="pg-home">
-      <div class="pg-title" id="homeTitle">Bună ziua, Ana! 👋</div>
-      <div class="pg-sub" id="homeSubtitle"></div>
+      <div class="pg-title" id="homeTitle">👋 Bună ziua!</div>
+      <div class="pg-sub" id="homeSubtitle">Se încarcă...</div>
 
       <div class="stats-grid">
         <div class="stat-c">
@@ -3633,7 +3633,7 @@ function logout() {
 // MESAJE ZILNICE VESELE PENTRU ANA
 // ══════════════════════════════════════════════════
 function getDailyMessage() {
-  var uname = currentUser ? currentUser.name : 'Ana';
+  var uname = currentUser ? currentUser.name : '';
   var now  = new Date();
   var hour = now.getHours();
   var day  = now.getDay(); // 0=dum, 1=lun, ..., 5=vin, 6=sam
@@ -3641,10 +3641,10 @@ function getDailyMessage() {
 
   // Mesaje de dimineata (6-11)
   var dimineata = [
-    '☀️ Bună dimineața, Ana! O nouă zi, o nouă oportunitate — hai că merge! 💪',
+    '☀️ Bună dimineața, ' + uname + '! O nouă zi, o nouă oportunitate — hai că merge! 💪',
     '🌞 Dimineață bună! Cafeaua e gata, agenda e plină — să începem! ☕',
     '🚀 Bună dimineața! Ziua de azi nu știe cu cine are de-a face — tu ești pregătită! 😄',
-    '⚡ Dimineață bună, Ana! Echipa contează pe tine — și nu dezamăgești niciodată! ✅',
+    '⚡ Dimineață bună, ' + uname + '! Echipa contează pe tine — și nu dezamăgești niciodată! ✅',
     '🌤️ Bună dimineața! O zi nouă în S Colect — hai să fie una bună! 💛',
     '📋 Ana, bună dimineața! Agenda te așteaptă — să dăm drumul la treabă! 💼',
     '🎯 Dimineață bună! Focus, energie, rezultate — exact stilul tău! 👊'
@@ -3653,20 +3653,20 @@ function getDailyMessage() {
   var pranz = [
     '🌻 Bună ziua! Spor la muncă — jumătate din zi e deja bifată! ✅',
     '💼 Salut! Cum merge treaba? Sper că totul curge bine pe la magazine! 📊',
-    '🎯 Bună ziua, Ana! La jumătate de drum — continuă tot așa! 💪',
+    '🎯 Bună ziua, ' + uname + '! La jumătate de drum — continuă tot așa! 💪',
     '⏰ Prânz bun! Nu uita să tragi un pic de suflet înainte de a doua parte a zilei! 😊',
     '📈 Salut! Cifrele de azi arată bine? Spor la raportare mai târziu! 💰',
     '🌟 Bună ziua! Magazinele sunt în mâini bune când ești tu la treabă! 👍',
-    '☕ O pauză meritată, Ana! Reîncarcă bateriile — mai e de lucru! 😄'
+    '☕ O pauză meritată, ' + uname + '! Reîncarcă bateriile — mai e de lucru! 😄'
   ];
 
   var seara = [
     '🌙 Bună seara! Aproape gata — nu uita de raport înainte de 22:00! 📊',
-    '📋 Seară bună, Ana! Hai să închidem ziua frumos cu toate datele la zi! ✅',
+    '📋 Seară bună, ' + uname + '! Hai să închidem ziua frumos cu toate datele la zi! ✅',
     '🏁 Seară bună! Linia de finish e aproape — ultimele înregistrări și ziua e completă! 💪',
     '🌆 Bună seara! O altă zi de muncă bine făcută — cum au mers magazinele? 📈',
     '⭐ Seară bună! Nu lăsa raportul pe ultimul moment — hai să-l facem acum! 😄',
-    '🌛 Bună seara, Ana! Ultima tură — raportul și gata pentru azi! 📝',
+    '🌛 Bună seara, ' + uname + '! Ultima tură — raportul și gata pentru azi! 📝',
     '🎇 Seară bună! Zi grea sau ușoară — important e că s-a terminat cu bine! 👏'
   ];
 
@@ -3680,7 +3680,7 @@ function getDailyMessage() {
 
   // Mesaje speciale pe date
   var dateSpeciale = {
-    1:  '🎊 Prima zi din lună! Un nou început — totul e posibil, Ana! ✨',
+    1:  '🎊 Prima zi din lună! Un nou început — totul e posibil, ' + uname + '! ✨',
     25: '📅 Ziua de 25 — salariile bat la ușă! Spor la toate înregistrările! 💰'
   };
 
