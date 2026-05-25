@@ -2164,10 +2164,9 @@ function setupRoleUI() {
   var tabPontaj  = document.getElementById('tab-pontaj');
 
   if (u.role === 'contabila') {
-    // Dana: no pontaj/raportare entry, just view
+    // Dana: no pontaj/raportare entry, yes tasks (view + respond)
     if (tabPontaj)  tabPontaj.querySelector('.tab-lbl').textContent  = 'Pontaje';
     if (tabRap)     tabRap.style.display = 'none';
-    if (tabTasks)   tabTasks.style.display = 'none';
   } else if (u.role === 'warehouse') {
     // Gabi: no pontaj/raportare, yes tasks
     if (tabPontaj)  tabPontaj.style.display = 'none';
