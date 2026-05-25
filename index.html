@@ -391,7 +391,7 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
 .usr-title { font-family:'Cormorant Garamond',serif; font-size:26px; color:var(--text);
   text-align:center; margin-bottom:6px; }
 .usr-sub { font-size:13px; color:var(--muted); text-align:center; margin-bottom:28px; }
-.usr-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; width:100%; max-width:380px; }
+.usr-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%; max-width:400px; max-height:65vh; overflow-y:auto; padding-bottom:4px; }
 .usr-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r);
   padding:20px 14px; cursor:pointer; text-align:center; transition:all .2s; }
 .usr-card:active { transform:scale(.96); }
@@ -3364,7 +3364,10 @@ const USERS_DB = [
     email:'dana.lucean@yahoo.com',    phone:'0745308098' },
   { id:'gabi',   name:'Gabi',    initials:'GC', emoji:'📦', role:'warehouse',
     roleLabel:'Manager Depozit',      color:'#ce93d8', bg:'rgba(206,147,216,.18)',
-    email:'gabriela.iacobanu@yahoo.com', phone:'0771139088' }
+    email:'gabriela.iacobanu@yahoo.com', phone:'0771139088' },
+  { id:'olga',   name:'Olga',    initials:'OB', emoji:'🗂️', role:'contabila',
+    roleLabel:'Administrator',        color:'#80cbc4', bg:'rgba(128,203,196,.18)',
+    email:'olikvp@gmail.com',         phone:'0773338188' }
 ];
 
 let currentUser = null;
