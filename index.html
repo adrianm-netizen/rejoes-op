@@ -1854,49 +1854,47 @@ function getDailyMessage() {
 
   // Mesaje de dimineata (6-11)
   var dimineata = [
-    '☀️ Bună dimineața, Ana! O zi nouă, o șansă nouă — hai că ești cea mai tare! 💪',
-    '🌸 Bună dimineața! Cafeaua e gata, tu ești gata — hai să facem ziua de astăzi minunată! ☕',
-    '🌞 Ziua bună, Ana dragă! Zâmbetul tău face diferența în fiecare magazin! 😊',
-    '🦋 Dimineață bună! Astăzi e o zi perfectă să fii versiunea cea mai bună a ta! ✨',
-    '🌺 Salut, Ana! Soarele a răsărit și tu deja faci lucrurile să meargă bine! 🌟',
-    '☕ Bună dimineața! O zi nouă înseamnă noi oportunități — ești pregătită? 🚀',
-    '🌈 Ana, bună dimineața! Echipa S Colect e norocoasă că te are! Hai să strălucim! ⭐'
+    '☀️ Bună dimineața, Ana! O nouă zi, o nouă oportunitate — hai că merge! 💪',
+    '🌞 Dimineață bună! Cafeaua e gata, agenda e plină — să începem! ☕',
+    '🚀 Bună dimineața! Ziua de azi nu știe cu cine are de-a face — tu ești pregătită! 😄',
+    '⚡ Dimineață bună, Ana! Echipa contează pe tine — și nu dezamăgești niciodată! ✅',
+    '🌤️ Bună dimineața! O zi nouă în S Colect — hai să fie una bună! 💛',
+    '📋 Ana, bună dimineața! Agenda te așteaptă — să dăm drumul la treabă! 💼',
+    '🎯 Dimineață bună! Focus, energie, rezultate — exact stilul tău! 👊'
   ];
 
-  // Mesaje de pranz (12-16)
   var pranz = [
-    '🌻 Bună ziua, Ana! Spor la muncă — ești la jumătatea drumului, merge grozav! 💛',
-    '🎯 Salut! Cum merge ziua? Sper că totul e sub control și că ai timp și de un zâmbet! 😄',
-    '🌟 Ana, ești o stea! Continuă tot așa — echipa se bazează pe tine! 💪',
-    '🍀 Bună ziua! Norocul îi favorizează pe cei harnici — și tu ești cea mai harnică! 🌸',
-    '💫 Salut, Ana! Jumătate din zi e deja câștigată — restul e floare la ureche pentru tine! 🌺',
-    '🎉 Bună ziua! Dacă ziua ar fi un concurs, tu ai câștiga! Continuă! 🏆',
-    '🌼 Ana, ești minunată! Spor la tot ce faci astăzi! 💖'
+    '🌻 Bună ziua! Spor la muncă — jumătate din zi e deja bifată! ✅',
+    '💼 Salut! Cum merge treaba? Sper că totul curge bine pe la magazine! 📊',
+    '🎯 Bună ziua, Ana! La jumătate de drum — continuă tot așa! 💪',
+    '⏰ Prânz bun! Nu uita să tragi un pic de suflet înainte de a doua parte a zilei! 😊',
+    '📈 Salut! Cifrele de azi arată bine? Spor la raportare mai târziu! 💰',
+    '🌟 Bună ziua! Magazinele sunt în mâini bune când ești tu la treabă! 👍',
+    '☕ O pauză meritată, Ana! Reîncarcă bateriile — mai e de lucru! 😄'
   ];
 
-  // Mesaje de seara (17-22)
   var seara = [
-    '🌙 Bună seara, Ana! Aproape gata — mai puțin și ziua e completă! Ești super! 🌟',
-    '⭐ Seară bună! Hai să terminăm ziua în forță — ești aproape de linia de finish! 🏁',
-    '🌆 Bună seara, Ana dragă! Nu uita de raport înainte de 22:00 — te știu responsabilă! 📊',
-    '🕯️ Seară liniștită, Ana! Zi grea? Respiră adânc — ai reușit din nou! 💪',
-    '🌛 Bună seara! Dacă ziua a fost dificilă, amintește-ți: tu ai gestionat totul perfect! 🌸',
-    '✨ Seară bună! Ultimele ore din zi — hai să le facem să conteze! 💫',
-    '🎇 Ana, bună seara! O zi în plus în care ai făcut lucrurile să funcționeze — bravo! 🏆'
+    '🌙 Bună seara! Aproape gata — nu uita de raport înainte de 22:00! 📊',
+    '📋 Seară bună, Ana! Hai să închidem ziua frumos cu toate datele la zi! ✅',
+    '🏁 Seară bună! Linia de finish e aproape — ultimele înregistrări și ziua e completă! 💪',
+    '🌆 Bună seara! O altă zi de muncă bine făcută — cum au mers magazinele? 📈',
+    '⭐ Seară bună! Nu lăsa raportul pe ultimul moment — hai să-l facem acum! 😄',
+    '🌛 Bună seara, Ana! Ultima tură — raportul și gata pentru azi! 📝',
+    '🎇 Seară bună! Zi grea sau ușoară — important e că s-a terminat cu bine! 👏'
   ];
 
-  // Mesaje speciale pe zile
+    // Mesaje speciale pe zile
   var speciale = {
-    1: '💪 Luni, ziua campionilor! Tu ești campioana S Colect — start puternic, Ana! 🚀',
-    5: '🎉 Vineri! Ultima zi de muncă din săptămână — hai să o terminăm în forță! 🏁',
-    6: '🌸 Sâmbătă, Ana! Chiar și în weekend, tu faci totul să funcționeze — mulțumim! 💛',
-    0: '☀️ Duminică bună, Ana! O zi mai liniștită — bucură-te de fiecare moment! 🌺'
+    1: '💪 Luni! Start puternic pentru o săptămână productivă — hai că merge! 🚀',
+    5: '🎉 Vineri! Ultima zi din săptămână — hai să o terminăm cu toate la zi! 🏁',
+    6: '📋 Sâmbătă! Dacă lucrezi azi, spor — magazinele nu se opresc! 💛',
+    0: '☀️ Duminică! Zi de odihnă binevenită — sau zi de rapoarte? 😄'
   };
 
   // Mesaje speciale pe date
   var dateSpeciale = {
     1:  '🎊 Prima zi din lună! Un nou început — totul e posibil, Ana! ✨',
-    25: '🌟 Ziua de 25! Spor la toate, Ana draga noastra! 💖'
+    25: '📅 Ziua de 25 — salariile bat la ușă! Spor la toate înregistrările! 💰'
   };
 
   // Prioritate: date speciale > zile speciale > ora
