@@ -424,6 +424,30 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
 
 /* Role badge in header */
 .role-badge { font-size:10px; color:var(--muted); letter-spacing:1px; }
+
+/* ── DANA / GABI VIEWS ── */
+.ov-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+.ov-card { border-radius:var(--rs); padding:14px; text-align:center; }
+.ov-card-gold { background:linear-gradient(135deg,#1a3828,#0f2018); border:1px solid rgba(201,168,76,.3); }
+.ov-card-green { background:rgba(76,175,100,.1); border:1px solid rgba(76,175,100,.25); }
+.ov-card-blue  { background:rgba(100,181,246,.1); border:1px solid rgba(100,181,246,.25); }
+.ov-card-red   { background:rgba(224,80,80,.1);   border:1px solid rgba(224,80,80,.25); }
+.ov-val { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:700; }
+.ov-lbl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-top:3px; }
+.fin-table { background:var(--card); border:1px solid var(--border); border-radius:var(--rs); margin-bottom:14px; overflow:hidden; }
+.fin-row { display:flex; justify-content:space-between; padding:11px 16px; border-bottom:1px solid var(--border); font-size:13px; }
+.fin-row:last-child { border-bottom:none; }
+.fin-key { color:var(--muted); }
+.fin-val { font-weight:700; }
+.dl-btn-full { width:100%; padding:14px; border-radius:var(--rs); border:none;
+  font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:700;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+  margin-bottom:10px; transition:all .18s; }
+.dl-btn-full:active { transform:scale(.97); }
+.dl-primary { background:linear-gradient(135deg,var(--gold),var(--gold-l)); color:#0a1e14; }
+.dl-outline  { background:transparent; border:1px solid var(--border); color:var(--muted); }
+.wh-coming { background:var(--card); border:2px dashed rgba(206,147,216,.3);
+  border-radius:var(--r); padding:40px 20px; text-align:center; margin-top:16px; }
 </style>
 </head>
 <body>
@@ -599,6 +623,30 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
       <div id="tasksList"></div>
     </div>
 
+    <!-- ─── DANA PAGE ─── -->
+    <div class="page" id="pg-dana">
+      <div class="pg-title">📊 Overview General</div>
+      <div class="pg-sub">Date live · actualizate zilnic</div>
+      <div id="danaContent">
+        <div style="text-align:center;padding:40px 20px;color:var(--muted)">
+          <div style="font-size:40px;margin-bottom:12px">⏳</div>
+          <div>Se încarcă datele...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── GABI PAGE ─── -->
+    <div class="page" id="pg-gabi">
+      <div class="pg-title">📦 Warehouse</div>
+      <div class="pg-sub">Task-urile și activitățile mele</div>
+      <div id="gabiContent">
+        <div style="text-align:center;padding:40px 20px;color:var(--muted)">
+          <div style="font-size:40px;margin-bottom:12px">⏳</div>
+          <div>Se încarcă...</div>
+        </div>
+      </div>
+    </div>
+
     <!-- ─── ISTORIC PAGE ─── -->
     <div class="page" id="pg-istoric">
       <div class="pg-title">Istoric</div>
@@ -728,7 +776,11 @@ function openTab(tab) {
   if (tab === 'pontaj') { pontState = {step:0, data:{date:todayIso()}}; renderPontaj(); }
   if (tab === 'raportare') { rapState = {step:0, data:{date:todayIso()}}; renderRaportare(); }
   if (tab === 'historic' || tab === 'istoric') renderHistory();
-  if (tab === 'home') { renderHome(); renderHomeTaskPreview(); }
+  if (tab === 'home') {
+    if (currentUser && currentUser.role === 'contabila') renderDanaView();
+    else if (currentUser && currentUser.role === 'warehouse') renderGabiView();
+    else { renderHome(); renderHomeTaskPreview(); }
+  }
   if (tab === 'tasks') renderTasks();
 }
 
@@ -1961,6 +2013,132 @@ async function fetchTasksFromSheets() {
 
 
 
+
+// ══════════════════════════════════════════════════
+// DANA & GABI VIEWS
+// ══════════════════════════════════════════════════
+
+async function renderDanaView() {
+  var el = document.getElementById('danaContent');
+  if (!el) return;
+
+  // Fetch live overview from Apps Script
+  var ov = null;
+  if (SHEETS_URL) {
+    try {
+      var r = await fetch(SHEETS_URL + '?action=getOverview');
+      var j = await r.json();
+      if (j.status === 'ok') ov = j.overview;
+    } catch(e) { console.warn('Overview fetch failed:', e); }
+  }
+
+  // Dana's tasks
+  var danaTasks = tasks.filter(function(t) {
+    return !t.done && (t.assignedTo === 'Dana' || t.assignedTo === 'Dana (Contabil Șef)');
+  });
+
+  var difColor = ov && Math.abs(ov.totalDif) < 0.01 ? 'var(--green)' :
+                 ov && Math.abs(ov.totalDif) <= 20   ? 'var(--orange)' : 'var(--red)';
+
+  el.innerHTML =
+    '<div class="ov-grid">' +
+    '<div class="ov-card ov-card-gold"><div class="ov-val" style="color:var(--gold)">' +
+      (ov ? ov.nrMagazine : '8') + '</div><div class="ov-lbl">Magazine</div></div>' +
+    '<div class="ov-card ov-card-green"><div class="ov-val" style="color:var(--green)">' +
+      (ov ? ov.nrAngajati : '15') + '</div><div class="ov-lbl">Angajați</div></div>' +
+    '<div class="ov-card ov-card-blue"><div class="ov-val" style="color:#64b5f6">' +
+      (ov ? ov.nrRaportari + '/8' : '—') + '</div><div class="ov-lbl">Raportări azi</div></div>' +
+    '<div class="ov-card ' + (ov && Math.abs(ov.totalDif)>0.01 ? 'ov-card-red' : 'ov-card-green') + '">' +
+      '<div class="ov-val" style="color:' + difColor + '">' +
+      (ov ? (ov.totalDif>=0?'+':'') + ov.totalDif.toFixed(0) + ' RON' : '—') +
+      '</div><div class="ov-lbl">Diferență casă</div></div>' +
+    '</div>' +
+
+    '<div class="section-title">💰 Situație financiară — Azi</div>' +
+    '<div class="fin-table">' +
+    '<div class="fin-row"><span class="fin-key">Total Vânzări Z</span>' +
+      '<span class="fin-val" style="color:var(--gold)">' + (ov ? ov.totalVanzari.toFixed(2)+' RON' : '—') + '</span></div>' +
+    '<div class="fin-row"><span class="fin-key">Încasări POS</span>' +
+      '<span class="fin-val">' + (ov ? ov.totalPOS.toFixed(2)+' RON' : '—') + '</span></div>' +
+    '<div class="fin-row"><span class="fin-key">Numerar predat</span>' +
+      '<span class="fin-val">' + (ov ? ov.totalNumerar.toFixed(2)+' RON' : '—') + '</span></div>' +
+    '<div class="fin-row"><span class="fin-key">Diferență totală</span>' +
+      '<span class="fin-val" style="color:' + difColor + '">' +
+      (ov ? (ov.totalDif>=0?'+':'') + ov.totalDif.toFixed(2)+' RON' : '—') + '</span></div>' +
+    '<div class="fin-row"><span class="fin-key">Magazine raportate</span>' +
+      '<span class="fin-val" style="color:var(--green)">' + (ov ? ov.magazineRaportate+'/8' : '—') + '</span></div>' +
+    '</div>' +
+
+    '<div class="section-title">📥 Export Pontaje</div>' +
+    '<button class="dl-btn-full dl-primary" onclick="downloadPontaje()">⬇️ Export Pontaj — Luna Curentă</button>' +
+    '<button class="dl-btn-full dl-outline" onclick="openGoogleSheets()">📊 Deschide Google Sheets</button>' +
+
+    (danaTasks.length ?
+      '<div class="section-title" style="margin-top:4px">✅ Task-urile mele</div>' +
+      danaTasks.map(function(t) { return taskItemHTML(t, true); }).join('') : '');
+}
+
+function openGoogleSheets() { window.open('https://docs.google.com/spreadsheets/d/1-0JaKKOhOMP5MWpzCOlptbooOQ973e-Acadgpl9x3LY','_blank'); }
+
+function downloadPontaje() {
+  var pontaje = entries.filter(function(e) { return e.type === 'pontaj'; });
+  if (!pontaje.length) { showToast('Nicio inregistrare de pontaj!'); return; }
+  var header = 'Data,Angajat,Locatie,Tip Zi,Ora Start,Ora Sfarsit,Ore Lucrate,Observatii';
+  var rows = pontaje.map(function(e) {
+    return [fmtDate(e.date), e.emp, e.store, e.dayTypeLabel||e.dayType,
+            e.start||'', e.end||'', e.hours ? e.hours.toFixed(1)+' h' : '', e.obs||'']
+      .map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',');
+  });
+  var csv = String.fromCharCode(0xFEFF) + header + '\n' + rows.join('\n');
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Pontaj_Rejoes_' + todayStr().replace(/\./g,'-') + '.csv';
+  a.click();
+  showToast('Export descarcat!');
+}
+
+async function renderGabiView() {
+  var el = document.getElementById('gabiContent');
+  if (!el) return;
+
+  // Gabi's tasks
+  var gabiTasks = tasks.filter(function(t) {
+    return t.assignedTo === 'Gabi' || t.assignedTo === 'CIOBANICA GABRIELA';
+  }).sort(function(a,b) {
+    var ord = {red:0,yellow:1,green:2,done:3};
+    return (ord[getTaskStatus(a)]||2)-(ord[getTaskStatus(b)]||2);
+  });
+
+  var active = gabiTasks.filter(function(t) { return !t.done; });
+  var done   = gabiTasks.filter(function(t) { return t.done; });
+
+  el.innerHTML =
+    '<div class="ov-grid">' +
+    '<div class="ov-card ov-card-green"><div class="ov-val" style="color:var(--green)">' +
+      active.length + '</div><div class="ov-lbl">Tasks active</div></div>' +
+    '<div class="ov-card ov-card-red"><div class="ov-val" style="color:var(--red)">' +
+      active.filter(function(t){return getTaskStatus(t)==='red';}).length +
+      '</div><div class="ov-lbl">Depășite</div></div>' +
+    '</div>' +
+
+    '<div class="section-title">✅ Task-urile mele active</div>' +
+    (active.length ?
+      active.map(function(t) { return taskItemHTML(t, false); }).join('') :
+      '<div class="hist-empty">🎉 Niciun task activ momentan!</div>') +
+
+    (done.length ?
+      '<div class="section-title" style="margin-top:4px;opacity:.6">✓ Finalizate recent</div>' +
+      done.slice(0,3).map(function(t) { return taskItemHTML(t, true); }).join('') : '') +
+
+    '<div class="section-title" style="margin-top:8px">📦 Secțiunea WH</div>' +
+    '<div class="wh-coming">' +
+    '<div style="font-size:48px;margin-bottom:12px">🏗️</div>' +
+    '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--gold);margin-bottom:8px">Coming Soon!</div>' +
+    '<div style="font-size:13px;color:var(--muted);line-height:1.7">Secțiunea Warehouse e în construcție.<br>Gabi, revenim curând cu funcționalități dedicate depozitului! 📦</div>' +
+    '</div>';
+}
+
 // ══════════════════════════════════════════════════
 // MULTI-USER AUTH SYSTEM
 // ══════════════════════════════════════════════════
@@ -2134,7 +2312,20 @@ function enterApp() {
     document.getElementById('auth-pin').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     setupRoleUI();
-    renderHome();
+    if (currentUser && currentUser.role === 'contabila') {
+      document.getElementById('pg-home').id = 'pg-home-admin';
+      document.getElementById('pg-dana').id = 'pg-home';
+      document.getElementById('pg-dana').classList.add('active');
+      renderDanaView();
+    } else if (currentUser && currentUser.role === 'warehouse') {
+      document.getElementById('pg-home').id = 'pg-home-admin';
+      document.getElementById('pg-gabi').id = 'pg-home';
+      document.getElementById('pg-gabi').classList.add('active');
+      renderGabiView();
+    } else {
+      renderHome();
+      renderHomeTaskPreview();
+    }
     initReminders();
     if (SHEETS_URL) { setTimeout(flushQueue, 2000); setSyncStatus(syncQueue.length?'error':'ok'); }
     else setSyncStatus('offline');
@@ -2164,8 +2355,8 @@ function setupRoleUI() {
   var tabPontaj  = document.getElementById('tab-pontaj');
 
   if (u.role === 'contabila') {
-    // Dana: no pontaj/raportare entry, yes tasks (view + respond)
-    if (tabPontaj)  tabPontaj.querySelector('.tab-lbl').textContent  = 'Pontaje';
+    // Dana: Pontaje (view), Tasks, Istoric — no raportare
+    if (tabPontaj)  tabPontaj.querySelector('.tab-lbl').textContent = 'Pontaje';
     if (tabRap)     tabRap.style.display = 'none';
   } else if (u.role === 'warehouse') {
     // Gabi: no pontaj/raportare, yes tasks
