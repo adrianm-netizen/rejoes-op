@@ -1563,7 +1563,7 @@ async function saveSettingsUrl() {
   // Test connection
   try {
     setSyncStatus('syncing');
-    const r = await fetch(url);
+    const r = await fetch(url + '?action=ping');
     const j = await r.json();
     if (j.status === 'alive') {
       setSyncStatus('ok');
@@ -1581,7 +1581,7 @@ window.addEventListener('load', () => {
   if (!localStorage.getItem('rejoes_sheets_url')) {
     localStorage.setItem('rejoes_sheets_url', SHEETS_URL);
   }
-  if (SHEETS_URL) { setTimeout(flushQueue, 2000); setSyncStatus(syncQueue.length?'error':'ok'); }
+  if (SHEETS_URL) { setSyncStatus('ok'); setTimeout(flushQueue, 2000); }
   else setSyncStatus('offline');
 });
 
