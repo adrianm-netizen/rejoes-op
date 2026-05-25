@@ -301,56 +301,64 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
 }
 
 
-/* ── COMMENT BUTTONS ── */
-.comment-btn {
-  width:100%; padding:12px 16px; border-radius:var(--rs);
-  border:1px solid var(--border); cursor:pointer;
-  font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:600;
-  display:flex; align-items:center; gap:10px; margin-bottom:8px;
-  transition:all .18s; text-align:left; }
-.comment-btn-store {
-  background:linear-gradient(145deg,#1e3828,#162e1e);
-  color:var(--text); border-color:rgba(76,175,100,.3); }
-.comment-btn-free {
-  background:linear-gradient(145deg,#1a2e3a,#122030);
-  color:var(--text); border-color:rgba(76,150,200,.3); }
-.comment-btn:active { transform:translateY(2px); opacity:.9; }
 
-/* ── TASKS ── */
-.task-section { margin-bottom:20px; }
-.task-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-.task-add-btn { background:var(--card); border:1px solid var(--border); border-radius:8px;
-  padding:6px 12px; font-size:12px; font-weight:700; color:var(--gold);
-  cursor:pointer; font-family:inherit; }
-.task-item { background:var(--card); border:1px solid var(--border); border-radius:var(--rs);
-  padding:12px 14px; margin-bottom:8px; display:flex; align-items:flex-start; gap:12px;
-  transition:all .2s; }
-.task-item.overdue { border-color:rgba(224,80,80,.5); background:rgba(224,80,80,.05); }
-.task-item.done { opacity:.5; }
-.task-check { width:22px; height:22px; border-radius:6px; border:2px solid var(--border);
-  flex-shrink:0; cursor:pointer; display:flex; align-items:center; justify-content:center;
-  font-size:13px; margin-top:1px; transition:all .2s; }
-.task-check.checked { background:var(--green); border-color:var(--green); }
-.task-info { flex:1; min-width:0; }
-.task-title { font-size:14px; font-weight:700; color:var(--text); }
-.task-item.done .task-title { text-decoration:line-through; color:var(--muted); }
-.task-meta { font-size:11px; color:var(--muted); margin-top:3px; }
-.task-due { font-size:11px; font-weight:600; margin-top:3px; }
-.task-due.overdue { color:var(--red); }
-.task-due.today { color:var(--orange); }
-.task-due.ok { color:var(--green); }
-.task-priority { width:8px; height:8px; border-radius:4px; flex-shrink:0; margin-top:6px; }
-.prio-high { background:var(--red); }
-.prio-med  { background:var(--orange); }
-.prio-low  { background:var(--green); }
-
-/* ── TASK MODAL ── */
-.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:500;
-  display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(4px); }
 .modal-box { background:#182e1e; border:1px solid var(--border); border-radius:20px 20px 0 0;
   padding:24px 18px 40px; width:100%; max-width:480px; max-height:85vh; overflow-y:auto; }
 .modal-title { font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--gold);
   margin-bottom:16px; }
+
+/* ── COMMENT BUTTONS ── */
+.cmt-btn { width:100%; padding:11px 16px; border-radius:var(--rs); border:1px solid var(--border);
+  cursor:pointer; font-family:'Plus Jakarta Sans',sans-serif; font-size:13px; font-weight:600;
+  display:flex; align-items:center; gap:10px; margin-bottom:7px; transition:all .18s; text-align:left; }
+.cmt-btn-store { background:linear-gradient(145deg,#1e3828,#162e1e); color:var(--text); border-color:rgba(76,175,100,.3); }
+.cmt-btn-free  { background:linear-gradient(145deg,#1a2e3a,#122030); color:var(--text); border-color:rgba(76,150,200,.3); }
+.cmt-btn:active { transform:translateY(2px); }
+
+/* ── TASKS ── */
+.task-item { border-radius:var(--rs); padding:14px 16px; margin-bottom:9px;
+  display:flex; align-items:flex-start; gap:12px; border:1px solid transparent; }
+.task-green  { background:rgba(76,175,100,.10); border-color:rgba(76,175,100,.3); }
+.task-yellow { background:rgba(240,160,48,.10);  border-color:rgba(240,160,48,.3); }
+.task-red    { background:rgba(224,80,80,.10);   border-color:rgba(224,80,80,.3); }
+.task-done   { background:var(--card); border-color:var(--border); opacity:.45; }
+.task-check  { width:24px; height:24px; border-radius:7px; border:2px solid currentColor;
+  flex-shrink:0; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:700; transition:all .2s; margin-top:1px; }
+.task-green  .task-check { color:var(--green); }
+.task-yellow .task-check { color:var(--orange); }
+.task-red    .task-check { color:var(--red); }
+.task-done   .task-check { color:var(--muted); background:var(--muted); }
+.task-info { flex:1; min-width:0; }
+.task-title { font-size:14px; font-weight:700; color:var(--text); line-height:1.3; }
+.task-done .task-title { text-decoration:line-through; color:var(--muted); }
+.task-sub   { font-size:11px; color:var(--muted); margin-top:3px; }
+.task-badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px;
+  border-radius:10px; margin-top:5px; }
+.badge-green  { background:rgba(76,175,100,.2); color:var(--green); }
+.badge-yellow { background:rgba(240,160,48,.2);  color:var(--orange); }
+.badge-red    { background:rgba(224,80,80,.2);   color:var(--red); }
+.badge-done   { background:var(--card2); color:var(--muted); }
+.task-del { background:none; border:none; color:var(--muted); font-size:16px;
+  cursor:pointer; padding:4px; flex-shrink:0; opacity:.6; }
+.task-del:active { opacity:1; color:var(--red); }
+
+/* ── MODAL ── */
+.modal-ov { position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:500;
+  display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(5px); }
+.modal-box { background:#182e1e; border:1px solid var(--border); border-radius:20px 20px 0 0;
+  padding:24px 18px 40px; width:100%; max-width:480px; max-height:88vh; overflow-y:auto; }
+.modal-title { font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--gold); margin-bottom:16px; }
+
+/* ── TOAST ── */
+.toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
+  background:#1a3828; border:1px solid var(--gold); border-radius:20px;
+  padding:10px 22px; color:var(--gold); font-size:13px; font-weight:600;
+  z-index:999; white-space:nowrap; pointer-events:none;
+  animation:fadeIn .3s ease; }
+
+/* ── PIN ── */
+.pin-input { letter-spacing:8px; font-size:24px; text-align:center; font-weight:700; }
 </style>
 </head>
 <body>
@@ -425,22 +433,26 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
       </div>
 
       <!-- Comment Buttons -->
-      <button class="comment-btn comment-btn-store" onclick="openCommentStore()">
+      <button class="cmt-btn cmt-btn-store" onclick="openCommentStore()">
         <span style="font-size:18px">📝</span>
-        <div><div>Comentariu Magazin / Angajat</div><div style="font-size:11px;color:var(--muted);font-weight:400">Selectează locație, angajat și scrie observații</div></div>
+        <div><div>Comentariu Magazin / Angajat</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:400">Locație + angajat + observații</div></div>
       </button>
-      <button class="comment-btn comment-btn-free" onclick="openCommentFree()">
+      <button class="cmt-btn cmt-btn-free" onclick="openCommentFree()">
         <span style="font-size:18px">💬</span>
-        <div><div>Comentariu Liber</div><div style="font-size:11px;color:var(--muted);font-weight:400">Notă rapidă fără selecție</div></div>
+        <div><div>Comentariu Liber</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:400">Notă rapidă</div></div>
       </button>
 
-      <!-- Tasks Section -->
-      <div class="task-section">
-        <div class="task-header">
-          <div class="section-title" style="margin-bottom:0">✅ Task-uri</div>
-          <button class="task-add-btn" onclick="openTab('tasks')">+ Adaugă</button>
+      <!-- Task preview on home -->
+      <div style="margin-bottom:4px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div class="section-title" style="margin-bottom:0">✅ Task-uri active</div>
+          <button onclick="openTab('tasks')" style="background:var(--card);border:1px solid var(--border);
+            border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;color:var(--gold);cursor:pointer">
+            Vezi toate →</button>
         </div>
-        <div id="homeTaskList"></div>
+        <div id="homeTaskPreview"></div>
       </div>
 
       <div class="section-title">Ultimele înregistrări</div>
@@ -596,8 +608,7 @@ function openTab(tab) {
   if (tab === 'pontaj') { pontState = {step:0, data:{date:todayIso()}}; renderPontaj(); }
   if (tab === 'raportare') { rapState = {step:0, data:{date:todayIso()}}; renderRaportare(); }
   if (tab === 'historic' || tab === 'istoric') renderHistory();
-  if (tab === 'tasks') { renderTasks(); }
-  if (tab === 'home') renderHome();
+  if (tab === 'home') { renderHome(); renderHomeTaskPreview(); }
   if (tab === 'tasks') renderTasks();
 }
 
@@ -610,7 +621,7 @@ function renderHome() {
   const greeting = hour<12?'Dimineață bună!':hour<17?'Bună ziua!':'Bună seara!';
   document.getElementById('homeSubtitle').textContent = greeting+' '+todayStr();
   const recent = [...entries].sort((a,b)=>b.ts-a.ts).slice(0,5);
-  renderHomeTasks(); rescheduleTaskReminders();
+  renderHomeTaskPreview();
   const el = document.getElementById('homeHistory');
   if (!recent.length) { el.innerHTML = '<div class="hist-empty">Nicio înregistrare încă. Apasă un buton de mai sus pentru a începe.</div>'; return; }
   el.innerHTML = recent.map(e=>histItemHTML(e)).join('');
@@ -1507,9 +1518,7 @@ const ALL_LOCATIONS = [
   'MAG-007 Moravita ™','DEP-001 Sagului ™','OFFICE Timișoara','DEPOZIT Central'
 ];
 
-let tasks = JSON.parse(localStorage.getItem('rejoes_tasks') || '[]');
 
-function saveTasks() { localStorage.setItem('rejoes_tasks', JSON.stringify(tasks)); }
 
 // ── Comment Store ──
 function closeModal() { document.querySelector('.modal-overlay')?.remove(); }
@@ -1793,6 +1802,330 @@ async function fetchTasksFromSheets() {
       }
     }
   } catch(e) { /* offline */ }
+}
+
+
+// ══════════════════════════════════════════════════
+// TASKS & COMMENTS — Clean Implementation
+// ══════════════════════════════════════════════════
+
+
+let tasks = JSON.parse(localStorage.getItem('rejoes_tasks_v2') || '[]');
+let isManager = false;
+
+function saveTasks() {
+  localStorage.setItem('rejoes_tasks_v2', JSON.stringify(tasks));
+}
+
+// ── Task status helper ──
+function getTaskStatus(t) {
+  if (t.done) return 'done';
+  if (!t.dueDate) return 'green';
+  var today = new Date(); today.setHours(0,0,0,0);
+  var due   = new Date(t.dueDate); due.setHours(0,0,0,0);
+  var diff  = Math.round((due - today) / 86400000);
+  if (diff < 0)  return 'red';
+  if (diff === 0) return 'yellow';
+  return 'green';
+}
+
+function taskDueLabel(t) {
+  if (t.done) return '✓ Finalizat';
+  if (!t.dueDate) return 'Fara termen';
+  var today = new Date(); today.setHours(0,0,0,0);
+  var due   = new Date(t.dueDate); due.setHours(0,0,0,0);
+  var diff  = Math.round((due - today) / 86400000);
+  if (diff < 0)  return 'Depasit cu ' + Math.abs(diff) + ' zile';
+  if (diff === 0) return 'Scadent AZI';
+  if (diff === 1) return 'Scadent maine';
+  return 'Termen: ' + fmtDate(t.dueDate);
+}
+
+// ── Render Tasks page ──
+function renderTasks() {
+  var list = document.getElementById('tasksList');
+  if (!list) return;
+
+  var sorted = [...tasks].sort(function(a, b) {
+    var order = {red:0, yellow:1, green:2, done:3};
+    return (order[getTaskStatus(a)]||2) - (order[getTaskStatus(b)]||2);
+  });
+
+  var html = '';
+
+  // Manager add button (PIN protected)
+  if (isManager) {
+    html += '<button onclick="openAddTask()" class="btn btn-primary" style="margin-bottom:16px;width:100%">+ Adauga Task Nou</button>';
+  } else {
+    html += '<button onclick="unlockManager()" class="btn btn-ghost" style="margin-bottom:16px;font-size:12px">🔒 Manager — Adauga Task</button>';
+  }
+
+  if (!sorted.length) {
+    html += '<div class="hist-empty">Niciun task. Apasa butonul de mai sus pentru a adauga!</div>';
+    list.innerHTML = html;
+    return;
+  }
+
+  sorted.forEach(function(t) {
+    var st = getTaskStatus(t);
+    var badgeClass = 'badge-' + st;
+    var lbl = taskDueLabel(t);
+
+    var item = document.createElement('div');
+    item.className = 'task-item task-' + st;
+
+    var chk = document.createElement('div');
+    chk.className = 'task-check';
+    chk.textContent = t.done ? '✓' : '';
+    chk.onclick = (function(tid) { return function() { toggleTask(tid); }; })(t.id);
+
+    var info = document.createElement('div');
+    info.className = 'task-info';
+    info.innerHTML =
+      '<div class="task-title">' + t.title + '</div>' +
+      (t.assignedTo ? '<div class="task-sub">👤 ' + t.assignedTo + (t.location ? ' · ' + t.location : '') + '</div>' : '') +
+      (t.desc ? '<div class="task-sub">' + t.desc + '</div>' : '') +
+      '<span class="task-badge ' + badgeClass + '">' + lbl + '</span>';
+
+    item.appendChild(chk);
+    item.appendChild(info);
+
+    if (isManager) {
+      var del = document.createElement('button');
+      del.className = 'task-del';
+      del.textContent = '🗑';
+      del.onclick = (function(tid) { return function() { deleteTask(tid); }; })(t.id);
+      item.appendChild(del);
+    }
+
+    list.innerHTML = html;
+    list.appendChild(item);
+    html = '';
+  });
+
+  if (html) list.innerHTML += html;
+}
+
+// ── Home task preview (top 3 active) ──
+function renderHomeTaskPreview() {
+  var el = document.getElementById('homeTaskPreview');
+  if (!el) return;
+
+  var active = tasks
+    .filter(function(t) { return !t.done; })
+    .sort(function(a, b) {
+      var order = {red:0, yellow:1, green:2};
+      return (order[getTaskStatus(a)]||2) - (order[getTaskStatus(b)]||2);
+    })
+    .slice(0, 3);
+
+  if (!active.length) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:6px 0 10px">Niciun task activ.</div>';
+    return;
+  }
+
+  el.innerHTML = '';
+  active.forEach(function(t) {
+    var st = getTaskStatus(t);
+    var d = document.createElement('div');
+    d.className = 'task-item task-' + st;
+    d.style.padding = '10px 14px';
+    d.innerHTML =
+      '<div style="width:8px;height:8px;border-radius:4px;background:' +
+      (st==='red'?'var(--red)':st==='yellow'?'var(--orange)':'var(--green)') +
+      ';flex-shrink:0;margin-top:4px"></div>' +
+      '<div class="task-info">' +
+      '<div class="task-title" style="font-size:13px">' + t.title + '</div>' +
+      '<span class="task-badge badge-' + st + '" style="margin-top:3px">' + taskDueLabel(t) + '</span>' +
+      '</div>';
+    el.appendChild(d);
+  });
+}
+
+function toggleTask(id) {
+  var t = tasks.find(function(x) { return x.id === id; });
+  if (!t) return;
+  t.done = !t.done;
+  t.doneAt = t.done ? new Date().toISOString() : null;
+  saveTasks();
+  syncEntry({id: uid(), type: 'task_update', ts: Date.now(), taskId: id, done: t.done});
+  renderTasks();
+  renderHomeTaskPreview();
+}
+
+function deleteTask(id) {
+  if (!confirm('Stergi acest task?')) return;
+  tasks = tasks.filter(function(t) { return t.id !== id; });
+  saveTasks();
+  renderTasks();
+  renderHomeTaskPreview();
+}
+
+// ── Manager PIN unlock ──
+function unlockManager() {
+  var savedPin = localStorage.getItem('rejoes_manager_pin') || '1234';
+  var pin = prompt('PIN Manager:');
+  if (pin === savedPin) {
+    isManager = true;
+    renderTasks();
+    showToast('Manager deblocat!');
+  } else if (pin !== null) {
+    alert('PIN incorect.');
+  }
+}
+
+// ── Add Task modal ──
+function openAddTask() {
+  var empOpts = ['Ana (Op. Manager)', ...EMPLOYEES].map(function(e) {
+    return '<option value="' + e + '">' + e + '</option>';
+  }).join('');
+  var locOpts = ALL_LOCATIONS.map(function(s) {
+    return '<option value="' + s + '">' + s + '</option>';
+  }).join('');
+
+  var ov = document.createElement('div'); ov.className = 'modal-ov';
+  var box = document.createElement('div'); box.className = 'modal-box';
+
+  box.innerHTML =
+    '<div class="modal-title">+ Task Nou</div>' +
+    '<div class="f-group"><label class="f-label">Titlu *</label>' +
+    '<input type="text" class="f-input" id="tk-title" placeholder="Ex: Verificare inventar MAG-005"></div>' +
+    '<div class="f-group"><label class="f-label">Descriere</label>' +
+    '<textarea class="f-input" id="tk-desc" rows="2" placeholder="Detalii..." style="resize:none"></textarea></div>' +
+    '<div class="f-row2">' +
+    '<div class="f-group"><label class="f-label">Responsabil</label>' +
+    '<select class="f-input" id="tk-who"><option value="">—</option>' + empOpts + '</select></div>' +
+    '<div class="f-group"><label class="f-label">Locatie</label>' +
+    '<select class="f-input" id="tk-loc"><option value="">—</option>' + locOpts + '</select></div>' +
+    '</div>' +
+    '<div class="f-row2">' +
+    '<div class="f-group"><label class="f-label">Termen</label>' +
+    '<input type="date" class="f-input" id="tk-due" value="' + todayIso() + '"></div>' +
+    '<div class="f-group"><label class="f-label">Prioritate</label>' +
+    '<select class="f-input" id="tk-prio">' +
+    '<option value="low">Scazuta</option>' +
+    '<option value="med" selected>Medie</option>' +
+    '<option value="high">Ridicata</option>' +
+    '</select></div>' +
+    '</div>' +
+    '<div class="btn-row">' +
+    '<button id="tk-cancel" class="btn btn-ghost" style="flex:1">Anuleaza</button>' +
+    '<button id="tk-save"   class="btn btn-primary" style="flex:2">Salveaza Task</button>' +
+    '</div>';
+
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e) { if (e.target === ov) ov.remove(); });
+  document.getElementById('tk-cancel').onclick = function() { ov.remove(); };
+  document.getElementById('tk-save').onclick   = function() { saveTask(ov); };
+}
+
+function saveTask(ov) {
+  var title = document.getElementById('tk-title')?.value?.trim();
+  if (!title) { alert('Adauga un titlu!'); return; }
+  var task = {
+    id: uid(), done: false, createdAt: new Date().toISOString(),
+    title:      title,
+    desc:       document.getElementById('tk-desc')?.value?.trim() || '',
+    assignedTo: document.getElementById('tk-who')?.value  || '',
+    location:   document.getElementById('tk-loc')?.value  || '',
+    dueDate:    document.getElementById('tk-due')?.value  || '',
+    priority:   document.getElementById('tk-prio')?.value || 'med'
+  };
+  tasks.push(task);
+  saveTasks();
+  syncEntry({id: uid(), type: 'task_add', ts: Date.now(), ...task});
+  ov.remove();
+  renderTasks();
+  renderHomeTaskPreview();
+  showToast('Task adaugat!');
+}
+
+// ── Set Manager PIN (from settings) ──
+function setManagerPin() {
+  var p1 = prompt('PIN nou (4 cifre):');
+  if (!p1 || p1.length < 4) { alert('PIN invalid.'); return; }
+  var p2 = prompt('Confirma PIN:');
+  if (p1 !== p2) { alert('PIN-urile nu coincid.'); return; }
+  localStorage.setItem('rejoes_manager_pin', p1);
+  alert('PIN setat cu succes!');
+}
+
+// ── Comments ──
+function closeModal() { document.querySelector('.modal-ov')?.remove(); }
+
+function openCommentStore() {
+  var storeOpts = ALL_LOCATIONS.map(function(s) { return '<option value="' + s + '">' + s + '</option>'; }).join('');
+  var empOpts   = EMPLOYEES.map(function(e)     { return '<option value="' + e + '">' + e + '</option>'; }).join('');
+  var ov = document.createElement('div'); ov.className = 'modal-ov';
+  var box = document.createElement('div'); box.className = 'modal-box';
+  box.innerHTML =
+    '<div class="modal-title">Comentariu Magazin</div>' +
+    '<div class="f-group"><label class="f-label">Data</label>' +
+    '<input type="date" class="f-input" id="cs-date" value="' + todayIso() + '"></div>' +
+    '<div class="f-group"><label class="f-label">Locatie</label>' +
+    '<select class="f-input" id="cs-store"><option value="">Selecteaza...</option>' + storeOpts + '</select></div>' +
+    '<div class="f-group"><label class="f-label">Angajat</label>' +
+    '<select class="f-input" id="cs-emp"><option value="">Selecteaza...</option>' + empOpts + '</select></div>' +
+    '<div class="f-group"><label class="f-label">Comentariu</label>' +
+    '<textarea class="f-input" id="cs-text" rows="4" placeholder="Observatii..." style="resize:none"></textarea></div>' +
+    '<div class="btn-row">' +
+    '<button id="cs-cancel" class="btn btn-ghost" style="flex:1">Anuleaza</button>' +
+    '<button id="cs-save"   class="btn btn-primary" style="flex:2">Salveaza</button>' +
+    '</div>';
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e) { if (e.target === ov) ov.remove(); });
+  document.getElementById('cs-cancel').onclick = function() { ov.remove(); };
+  document.getElementById('cs-save').onclick   = function() { saveCommentStore(ov); };
+}
+
+function saveCommentStore(ov) {
+  var store = document.getElementById('cs-store')?.value;
+  var text  = document.getElementById('cs-text')?.value?.trim();
+  if (!store) { alert('Selecteaza locatia!'); return; }
+  if (!text)  { alert('Scrie un comentariu!'); return; }
+  var entry = { id: uid(), type: 'comentariu_magazin', ts: Date.now(),
+    date: document.getElementById('cs-date')?.value || todayIso(),
+    store: store, emp: document.getElementById('cs-emp')?.value || '', text: text };
+  entries.push(entry); save(); syncEntry(entry);
+  ov.remove(); renderHome(); showToast('Comentariu salvat!');
+}
+
+function openCommentFree() {
+  var ov = document.createElement('div'); ov.className = 'modal-ov';
+  var box = document.createElement('div'); box.className = 'modal-box';
+  box.innerHTML =
+    '<div class="modal-title">Comentariu Liber</div>' +
+    '<div class="f-group"><label class="f-label">Data</label>' +
+    '<input type="date" class="f-input" id="cf-date" value="' + todayIso() + '"></div>' +
+    '<div class="f-group"><label class="f-label">Mesaj</label>' +
+    '<textarea class="f-input" id="cf-text" rows="5" placeholder="Nota libera..." style="resize:none"></textarea></div>' +
+    '<div class="btn-row">' +
+    '<button id="cf-cancel" class="btn btn-ghost" style="flex:1">Anuleaza</button>' +
+    '<button id="cf-save"   class="btn btn-primary" style="flex:2">Salveaza</button>' +
+    '</div>';
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e) { if (e.target === ov) ov.remove(); });
+  document.getElementById('cf-cancel').onclick = function() { ov.remove(); };
+  document.getElementById('cf-save').onclick   = function() { saveCommentFree(ov); };
+}
+
+function saveCommentFree(ov) {
+  var text = document.getElementById('cf-text')?.value?.trim();
+  if (!text) { alert('Scrie un comentariu!'); return; }
+  var entry = { id: uid(), type: 'comentariu_liber', ts: Date.now(),
+    date: document.getElementById('cf-date')?.value || todayIso(), text: text };
+  entries.push(entry); save(); syncEntry(entry);
+  ov.remove(); renderHome(); showToast('Comentariu salvat!');
+}
+
+// ── Toast ──
+function showToast(msg) {
+  var t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function() { t.remove(); }, 2500);
 }
 
 // ══════════════════════════════════════════════════
