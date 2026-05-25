@@ -300,6 +300,57 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
   50%      { filter:drop-shadow(0 0 9px rgba(76,200,100,.55)) drop-shadow(0 0 22px rgba(76,200,100,.28)); }
 }
 
+
+/* ── COMMENT BUTTONS ── */
+.comment-btn {
+  width:100%; padding:12px 16px; border-radius:var(--rs);
+  border:1px solid var(--border); cursor:pointer;
+  font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:600;
+  display:flex; align-items:center; gap:10px; margin-bottom:8px;
+  transition:all .18s; text-align:left; }
+.comment-btn-store {
+  background:linear-gradient(145deg,#1e3828,#162e1e);
+  color:var(--text); border-color:rgba(76,175,100,.3); }
+.comment-btn-free {
+  background:linear-gradient(145deg,#1a2e3a,#122030);
+  color:var(--text); border-color:rgba(76,150,200,.3); }
+.comment-btn:active { transform:translateY(2px); opacity:.9; }
+
+/* ── TASKS ── */
+.task-section { margin-bottom:20px; }
+.task-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.task-add-btn { background:var(--card); border:1px solid var(--border); border-radius:8px;
+  padding:6px 12px; font-size:12px; font-weight:700; color:var(--gold);
+  cursor:pointer; font-family:inherit; }
+.task-item { background:var(--card); border:1px solid var(--border); border-radius:var(--rs);
+  padding:12px 14px; margin-bottom:8px; display:flex; align-items:flex-start; gap:12px;
+  transition:all .2s; }
+.task-item.overdue { border-color:rgba(224,80,80,.5); background:rgba(224,80,80,.05); }
+.task-item.done { opacity:.5; }
+.task-check { width:22px; height:22px; border-radius:6px; border:2px solid var(--border);
+  flex-shrink:0; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  font-size:13px; margin-top:1px; transition:all .2s; }
+.task-check.checked { background:var(--green); border-color:var(--green); }
+.task-info { flex:1; min-width:0; }
+.task-title { font-size:14px; font-weight:700; color:var(--text); }
+.task-item.done .task-title { text-decoration:line-through; color:var(--muted); }
+.task-meta { font-size:11px; color:var(--muted); margin-top:3px; }
+.task-due { font-size:11px; font-weight:600; margin-top:3px; }
+.task-due.overdue { color:var(--red); }
+.task-due.today { color:var(--orange); }
+.task-due.ok { color:var(--green); }
+.task-priority { width:8px; height:8px; border-radius:4px; flex-shrink:0; margin-top:6px; }
+.prio-high { background:var(--red); }
+.prio-med  { background:var(--orange); }
+.prio-low  { background:var(--green); }
+
+/* ── TASK MODAL ── */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:500;
+  display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(4px); }
+.modal-box { background:#182e1e; border:1px solid var(--border); border-radius:20px 20px 0 0;
+  padding:24px 18px 40px; width:100%; max-width:480px; max-height:85vh; overflow-y:auto; }
+.modal-title { font-family:'Cormorant Garamond',serif; font-size:20px; color:var(--gold);
+  margin-bottom:16px; }
 </style>
 </head>
 <body>
@@ -373,6 +424,25 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
         </button>
       </div>
 
+      <!-- Comment Buttons -->
+      <button class="comment-btn comment-btn-store" onclick="openCommentStore()">
+        <span style="font-size:18px">📝</span>
+        <div><div>Comentariu Magazin / Angajat</div><div style="font-size:11px;color:var(--muted);font-weight:400">Selectează locație, angajat și scrie observații</div></div>
+      </button>
+      <button class="comment-btn comment-btn-free" onclick="openCommentFree()">
+        <span style="font-size:18px">💬</span>
+        <div><div>Comentariu Liber</div><div style="font-size:11px;color:var(--muted);font-weight:400">Notă rapidă fără selecție</div></div>
+      </button>
+
+      <!-- Tasks Section -->
+      <div class="task-section">
+        <div class="task-header">
+          <div class="section-title" style="margin-bottom:0">✅ Task-uri</div>
+          <button class="task-add-btn" onclick="openTab('tasks')">+ Adaugă</button>
+        </div>
+        <div id="homeTaskList"></div>
+      </div>
+
       <div class="section-title">Ultimele înregistrări</div>
       <div id="homeHistory"></div>
     </div>
@@ -391,6 +461,13 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
       <div class="pg-sub">Vânzări, încasări & diferențe</div>
       <div class="prog-bar" id="rapProg"></div>
       <div id="rapWizard"></div>
+    </div>
+
+    <!-- ─── TASKS PAGE ─── -->
+    <div class="page" id="pg-tasks">
+      <div class="pg-title">Task-uri</div>
+      <div class="pg-sub">Planificare și urmărire activități</div>
+      <div id="tasksList"></div>
     </div>
 
     <!-- ─── ISTORIC PAGE ─── -->
@@ -519,7 +596,9 @@ function openTab(tab) {
   if (tab === 'pontaj') { pontState = {step:0, data:{date:todayIso()}}; renderPontaj(); }
   if (tab === 'raportare') { rapState = {step:0, data:{date:todayIso()}}; renderRaportare(); }
   if (tab === 'historic' || tab === 'istoric') renderHistory();
+  if (tab === 'tasks') { renderTasks(); }
   if (tab === 'home') renderHome();
+  if (tab === 'tasks') renderTasks();
 }
 
 // ══════════════════════════════════════════════════
@@ -531,6 +610,7 @@ function renderHome() {
   const greeting = hour<12?'Dimineață bună!':hour<17?'Bună ziua!':'Bună seara!';
   document.getElementById('homeSubtitle').textContent = greeting+' '+todayStr();
   const recent = [...entries].sort((a,b)=>b.ts-a.ts).slice(0,5);
+  renderHomeTasks(); rescheduleTaskReminders();
   const el = document.getElementById('homeHistory');
   if (!recent.length) { el.innerHTML = '<div class="hist-empty">Nicio înregistrare încă. Apasă un buton de mai sus pentru a începe.</div>'; return; }
   el.innerHTML = recent.map(e=>histItemHTML(e)).join('');
@@ -1415,6 +1495,297 @@ async function initReminders() {
   scheduleDailyReminder();
   // Check previous day after short delay
   setTimeout(checkPreviousDayReport, 1500);
+}
+
+
+// ══════════════════════════════════════════════════
+// COMMENTS & TASKS
+// ══════════════════════════════════════════════════
+const ALL_LOCATIONS = [
+  'MAG-001 Aradului ™','MAG-002 Bujorilor ™','MAG-003 Sibiu (SB)',
+  'MAG-004 Arad (AR)','MAG-005 Jimbolia ™','MAG-006 Deta ™',
+  'MAG-007 Moravita ™','DEP-001 Sagului ™','OFFICE Timișoara','DEPOZIT Central'
+];
+
+let tasks = JSON.parse(localStorage.getItem('rejoes_tasks') || '[]');
+
+function saveTasks() { localStorage.setItem('rejoes_tasks', JSON.stringify(tasks)); }
+
+// ── Comment Store ──
+function openCommentStore() {
+  var d = document;
+  var ov = d.createElement('div'); ov.className='modal-overlay';
+  var box = d.createElement('div'); box.className='modal-box';
+
+  var storeOpts = ALL_LOCATIONS.map(function(s) {
+    return '<option value="'+s+'">'+s+'</option>';
+  }).join('');
+  var empOpts = EMPLOYEES.map(function(e) {
+    return '<option value="'+e+'">'+e+'</option>';
+  }).join('');
+
+  box.innerHTML =
+    '<div class="modal-title">📝 Comentariu Magazin</div>'+
+    '<div class="f-group"><label class="f-label">Data</label>'+
+    '<input type="date" class="f-input" id="cm-date" value="'+todayIso()+'"></div>'+
+    '<div class="f-group"><label class="f-label">Locație</label>'+
+    '<select class="f-input" id="cm-store"><option value="">Selectează...</option>'+storeOpts+'</select></div>'+
+    '<div class="f-group"><label class="f-label">Angajat</label>'+
+    '<select class="f-input" id="cm-emp"><option value="">Selectează...</option>'+empOpts+'</select></div>'+
+    '<div class="f-group"><label class="f-label">Comentariu</label>'+
+    '<textarea class="f-input" id="cm-text" rows="4" placeholder="Scrie observațiile tale..." style="resize:none"></textarea></div>'+
+    '<div class="btn-row">'+
+    '<button onclick="this.closest('.modal-overlay').remove()" class="btn btn-ghost" style="flex:1">Anulează</button>'+
+    '<button onclick="saveCommentStore()" class="btn btn-primary" style="flex:2">💾 Salvează</button>'+
+    '</div>';
+
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e) { if(e.target===ov) ov.remove(); });
+}
+
+function saveCommentStore() {
+  var date  = document.getElementById('cm-date')?.value || todayIso();
+  var store = document.getElementById('cm-store')?.value;
+  var emp   = document.getElementById('cm-emp')?.value;
+  var text  = document.getElementById('cm-text')?.value?.trim();
+  if (!store) { alert('Selectează locația!'); return; }
+  if (!text)  { alert('Scrie un comentariu!'); return; }
+  var entry = { id:uid(), type:'comentariu_magazin', ts:Date.now(),
+    date:date, store:store, emp:emp||'—', text:text };
+  entries.push(entry); save(); syncEntry(entry);
+  document.querySelector('.modal-overlay')?.remove();
+  renderHome();
+  showToast('✅ Comentariu salvat!');
+}
+
+// ── Comment Free ──
+function openCommentFree() {
+  var ov = document.createElement('div'); ov.className='modal-overlay';
+  var box = document.createElement('div'); box.className='modal-box';
+  box.innerHTML =
+    '<div class="modal-title">💬 Comentariu Liber</div>'+
+    '<div class="f-group"><label class="f-label">Data</label>'+
+    '<input type="date" class="f-input" id="cf-date" value="'+todayIso()+'"></div>'+
+    '<div class="f-group"><label class="f-label">Mesaj</label>'+
+    '<textarea class="f-input" id="cf-text" rows="5" placeholder="Notă liberă..." style="resize:none"></textarea></div>'+
+    '<div class="btn-row">'+
+    '<button onclick="this.closest('.modal-overlay').remove()" class="btn btn-ghost" style="flex:1">Anulează</button>'+
+    '<button onclick="saveCommentFree()" class="btn btn-primary" style="flex:2">💾 Salvează</button>'+
+    '</div>';
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e) { if(e.target===ov) ov.remove(); });
+}
+
+function saveCommentFree() {
+  var date = document.getElementById('cf-date')?.value || todayIso();
+  var text = document.getElementById('cf-text')?.value?.trim();
+  if (!text) { alert('Scrie un comentariu!'); return; }
+  var entry = { id:uid(), type:'comentariu_liber', ts:Date.now(), date:date, text:text };
+  entries.push(entry); save(); syncEntry(entry);
+  document.querySelector('.modal-overlay')?.remove();
+  renderHome();
+  showToast('✅ Comentariu salvat!');
+}
+
+// ── Toast notification ──
+function showToast(msg) {
+  var t = document.createElement('div');
+  t.setAttribute('style','position:fixed;bottom:90px;left:50%;transform:translateX(-50%);'+
+    'background:#1a3828;border:1px solid var(--gold);border-radius:20px;padding:10px 20px;'+
+    'color:var(--gold);font-size:13px;font-weight:600;z-index:999;white-space:nowrap;'+
+    'animation:fadeIn .3s ease');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function() { t.remove(); }, 2500);
+}
+
+// ══════════════════════════════════════════════════
+// TASK MANAGER
+// ══════════════════════════════════════════════════
+function renderTasks() {
+  var list = document.getElementById('tasksList');
+  if (!list) return;
+  // Fetch fresh tasks from Google Sheets if online
+  fetchTasksFromSheets();
+
+  var sorted = [...tasks].sort(function(a,b) {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return new Date(a.dueDate||'9999') - new Date(b.dueDate||'9999');
+  });
+
+  if (!sorted.length) {
+    list.innerHTML = '<div class="hist-empty">📭 Niciun task. Apasă + pentru a adăuga!</div>';
+    return;
+  }
+
+  list.innerHTML =
+    '<button onclick="openAddTask()" class="btn btn-primary" style="margin-bottom:16px">+ Task Nou</button>' +
+    sorted.map(function(t) { return taskItemHTML(t); }).join('');
+}
+
+function renderHomeTasks() {
+  var el = document.getElementById('homeTaskList');
+  if (!el) return;
+  var active = tasks.filter(function(t) { return !t.done; })
+    .sort(function(a,b) { return new Date(a.dueDate||'9999') - new Date(b.dueDate||'9999'); })
+    .slice(0,3);
+  if (!active.length) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0">✅ Toate task-urile sunt completate!</div>';
+    return;
+  }
+  el.innerHTML = active.map(function(t) { return taskItemHTML(t, true); }).join('');
+}
+
+function taskItemHTML(t, compact) {
+  var today = new Date(); today.setHours(0,0,0,0);
+  var due   = t.dueDate ? new Date(t.dueDate) : null;
+  var dueClass = 'ok', dueLabel = '';
+  if (due) {
+    due.setHours(0,0,0,0);
+    var diff = Math.round((due-today)/(1000*60*60*24));
+    if (diff < 0)      { dueClass='overdue'; dueLabel='⚠️ Întârziat '+Math.abs(diff)+'z'; }
+    else if (diff===0) { dueClass='today';   dueLabel='🔴 Azi!'; }
+    else if (diff===1) { dueClass='today';   dueLabel='🟡 Mâine'; }
+    else               { dueClass='ok';      dueLabel='🟢 '+fmtDate(t.dueDate); }
+  }
+  var prioClass = t.priority==='high'?'prio-high':t.priority==='med'?'prio-med':'prio-low';
+  return '<div class="task-item'+(t.done?' done':'')+(dueClass==='overdue'&&!t.done?' overdue':'')+'" id="task-'+t.id+'">' +
+    '<div class="task-priority '+prioClass+'"></div>'+
+    '<div class="task-check'+(t.done?' checked':'')+'" onclick="toggleTask(''+t.id+'')">'+(t.done?'✓':'')+'</div>'+
+    '<div class="task-info">'+
+      '<div class="task-title">'+t.title+'</div>'+
+      (t.assignedTo?'<div class="task-meta">👤 '+t.assignedTo+(t.location?' · 📍'+t.location:'')+'</div>':'')+
+      (t.desc&&!compact?'<div class="task-meta" style="margin-top:4px">'+t.desc+'</div>':'')+
+      (dueLabel?'<div class="task-due '+dueClass+'">'+dueLabel+'</div>':'')+
+    '</div>'+
+    (!compact?'<button onclick="deleteTask(''+t.id+'')" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px">🗑</button>':'')+
+  '</div>';
+}
+
+function toggleTask(id) {
+  var t = tasks.find(function(x) { return x.id===id; });
+  if (!t) return;
+  t.done = !t.done; t.doneAt = t.done ? new Date().toISOString() : null;
+  saveTasks();
+  syncEntry({id:uid(), type:'task_update', ts:Date.now(), taskId:id, done:t.done});
+  renderTasks(); renderHomeTasks();
+}
+
+function deleteTask(id) {
+  if (!confirm('Ștergi acest task?')) return;
+  tasks = tasks.filter(function(t) { return t.id!==id; });
+  saveTasks(); renderTasks(); renderHomeTasks();
+}
+
+function openAddTask() {
+  var empOpts = ['Ana (Op. Manager)', ...EMPLOYEES].map(function(e) {
+    return '<option value="'+e+'">'+e+'</option>';
+  }).join('');
+  var locOpts = ALL_LOCATIONS.map(function(s) {
+    return '<option value="'+s+'">'+s+'</option>';
+  }).join('');
+
+  var ov = document.createElement('div'); ov.className='modal-overlay';
+  var box = document.createElement('div'); box.className='modal-box';
+  box.innerHTML =
+    '<div class="modal-title">✅ Task Nou</div>'+
+    '<div class="f-group"><label class="f-label">Titlu task *</label>'+
+    '<input type="text" class="f-input" id="tk-title" placeholder="Ex: Verificare inventar MAG-005"></div>'+
+    '<div class="f-group"><label class="f-label">Descriere</label>'+
+    '<textarea class="f-input" id="tk-desc" rows="2" placeholder="Detalii suplimentare..." style="resize:none"></textarea></div>'+
+    '<div class="f-row2">'+
+      '<div class="f-group"><label class="f-label">Responsabil</label>'+
+      '<select class="f-input" id="tk-assigned"><option value="">—</option>'+empOpts+'</select></div>'+
+      '<div class="f-group"><label class="f-label">Locație</label>'+
+      '<select class="f-input" id="tk-loc"><option value="">—</option>'+locOpts+'</select></div>'+
+    '</div>'+
+    '<div class="f-row2">'+
+      '<div class="f-group"><label class="f-label">Termen limită</label>'+
+      '<input type="date" class="f-input" id="tk-due" value="'+todayIso()+'"></div>'+
+      '<div class="f-group"><label class="f-label">Prioritate</label>'+
+      '<select class="f-input" id="tk-prio">'+
+      '<option value="low">🟢 Scăzută</option>'+
+      '<option value="med" selected>🟡 Medie</option>'+
+      '<option value="high">🔴 Ridicată</option>'+
+      '</select></div>'+
+    '</div>'+
+    '<div class="f-group"><label class="f-label">Reminder (oră)</label>'+
+    '<input type="time" class="f-input" id="tk-reminder" value="09:00"></div>'+
+    '<div class="btn-row">'+
+    '<button onclick="this.closest('.modal-overlay').remove()" class="btn btn-ghost" style="flex:1">Anulează</button>'+
+    '<button onclick="saveTask()" class="btn btn-primary" style="flex:2">💾 Salvează Task</button>'+
+    '</div>';
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e) { if(e.target===ov) ov.remove(); });
+}
+
+function saveTask() {
+  var title = document.getElementById('tk-title')?.value?.trim();
+  if (!title) { alert('Adaugă un titlu!'); return; }
+  var task = {
+    id: uid(), done: false, createdAt: new Date().toISOString(),
+    title:      title,
+    desc:       document.getElementById('tk-desc')?.value?.trim()||'',
+    assignedTo: document.getElementById('tk-assigned')?.value||'',
+    location:   document.getElementById('tk-loc')?.value||'',
+    dueDate:    document.getElementById('tk-due')?.value||'',
+    priority:   document.getElementById('tk-prio')?.value||'med',
+    reminder:   document.getElementById('tk-reminder')?.value||'09:00'
+  };
+  tasks.push(task); saveTasks();
+  syncEntry({id:uid(), type:'task_add', ts:Date.now(), ...task});
+  scheduleTaskReminder(task);
+  document.querySelector('.modal-overlay')?.remove();
+  renderTasks(); renderHomeTasks();
+  showToast('✅ Task adăugat!');
+}
+
+function scheduleTaskReminder(task) {
+  if (!task.dueDate || !task.reminder) return;
+  var [h,m] = task.reminder.split(':').map(Number);
+  var reminderTime = new Date(task.dueDate);
+  reminderTime.setHours(h, m, 0, 0);
+  var msUntil = reminderTime - Date.now();
+  if (msUntil <= 0) return;
+  setTimeout(function() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    var t = tasks.find(function(x) { return x.id===task.id; });
+    if (t && !t.done) {
+      new Notification('📋 Rejoes · Task Scadent', {
+        body: task.title + (task.assignedTo?' → '+task.assignedTo:''),
+        icon: '/rejoes-op/icon-192.png',
+        tag: 'task-'+task.id,
+        requireInteraction: true
+      });
+    }
+  }, msUntil);
+}
+
+// Reschedule reminders on load
+function rescheduleTaskReminders() {
+  tasks.forEach(function(t) { if (!t.done) scheduleTaskReminder(t); });
+}
+
+// Fetch tasks from Google Sheets (bidirectional sync)
+async function fetchTasksFromSheets() {
+  if (!SHEETS_URL) return;
+  try {
+    var r = await fetch(SHEETS_URL + '?action=getTasks');
+    if (!r.ok) return;
+    var j = await r.json();
+    if (j.status==='ok' && j.tasks) {
+      // Merge: add tasks from server that don't exist locally
+      var localIds = tasks.map(function(t) { return t.id; });
+      var newTasks = j.tasks.filter(function(t) { return !localIds.includes(t.id); });
+      if (newTasks.length) {
+        tasks = [...tasks, ...newTasks]; saveTasks();
+        renderTasks(); renderHomeTasks();
+      }
+    }
+  } catch(e) { /* offline */ }
 }
 
 // ══════════════════════════════════════════════════
