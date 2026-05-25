@@ -1652,17 +1652,23 @@ function taskItemHTML(t, compact) {
     else               { dueClass='ok';      dueLabel='🟢 '+fmtDate(t.dueDate); }
   }
   var prioClass = t.priority==='high'?'prio-high':t.priority==='med'?'prio-med':'prio-low';
-  return '<div class="task-item'+(t.done?' done':'')+(dueClass==='overdue'&&!t.done?' overdue':'')+'" id="task-'+t.id+'">' +
-    '<div class="task-priority '+prioClass+'"></div>'+
-    '<div class="task-check'+(t.done?' checked':'')+'" onclick="toggleTask(''+t.id+'')">'+(t.done?'✓':'')+'</div>'+
-    '<div class="task-info">'+
-      '<div class="task-title">'+t.title+'</div>'+
-      (t.assignedTo?'<div class="task-meta">👤 '+t.assignedTo+(t.location?' · 📍'+t.location:'')+'</div>':'')+
-      (t.desc&&!compact?'<div class="task-meta" style="margin-top:4px">'+t.desc+'</div>':'')+
-      (dueLabel?'<div class="task-due '+dueClass+'">'+dueLabel+'</div>':'')+
-    '</div>'+
-    (!compact?'<button onclick="deleteTask(''+t.id+'')" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px">🗑</button>':'')+
-  '</div>';
+  var el = document.createElement('div');
+  el.className = 'task-item'+(t.done?' done':'')+(dueClass==='overdue'&&!t.done?' overdue':'');
+  el.id = 'task-'+t.id;
+  var prio = document.createElement('div'); prio.className='task-priority '+prioClass;
+  var chk = document.createElement('div');
+  chk.className = 'task-check'+(t.done?' checked':'');
+  chk.textContent = t.done?'✓':'';
+  chk.onclick = (function(tid){ return function(){ toggleTask(tid); }; })(t.id);
+  var info = document.createElement('div'); info.className='task-info';
+  var ttl = document.createElement('div'); ttl.className='task-title'; ttl.textContent=t.title;
+  info.appendChild(ttl);
+  if (t.assignedTo) { var m2=document.createElement('div'); m2.className='task-meta'; m2.textContent='👤 '+t.assignedTo+(t.location?' · 📍'+t.location:''); info.appendChild(m2); }
+  if (t.desc&&!compact) { var d2=document.createElement('div'); d2.className='task-meta'; d2.style.marginTop='4px'; d2.textContent=t.desc; info.appendChild(d2); }
+  if (dueLabel) { var dl=document.createElement('div'); dl.className='task-due '+dueClass; dl.textContent=dueLabel; info.appendChild(dl); }
+  el.appendChild(prio); el.appendChild(chk); el.appendChild(info);
+  if (!compact) { var db=document.createElement('button'); db.textContent='🗑'; db.style.cssText='background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px'; db.onclick=(function(tid){return function(){deleteTask(tid);};})(t.id); el.appendChild(db); }
+  return el.outerHTML;
 }
 
 function toggleTask(id) {
