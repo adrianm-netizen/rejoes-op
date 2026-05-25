@@ -448,6 +448,48 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
 .dl-outline  { background:transparent; border:1px solid var(--border); color:var(--muted); }
 .wh-coming { background:var(--card); border:2px dashed rgba(206,147,216,.3);
   border-radius:var(--r); padding:40px 20px; text-align:center; margin-top:16px; }
+
+/* ── ADMIN DASHBOARD ── */
+.admin-refresh { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.refresh-btn { background:var(--card); border:1px solid var(--border); border-radius:8px;
+  padding:7px 14px; font-size:12px; font-weight:600; color:var(--gold);
+  cursor:pointer; font-family:inherit; display:flex; align-items:center; gap:6px; }
+.refresh-btn:active { transform:scale(.95); }
+.live-badge { font-size:10px; color:var(--green); display:flex; align-items:center; gap:4px; }
+
+.admin-stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+.as-card { border-radius:var(--rs); padding:13px; }
+.as-gold   { background:linear-gradient(135deg,#1a3828,#0f2018); border:1px solid rgba(201,168,76,.3); }
+.as-green  { background:rgba(76,175,100,.1);  border:1px solid rgba(76,175,100,.25); }
+.as-orange { background:rgba(240,160,48,.1);  border:1px solid rgba(240,160,48,.25); }
+.as-red    { background:rgba(224,80,80,.1);   border:1px solid rgba(224,80,80,.25); }
+.as-val { font-family:'Cormorant Garamond',serif; font-size:26px; font-weight:700; }
+.as-lbl { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-top:2px; }
+
+.admin-table { background:var(--card); border:1px solid var(--border); border-radius:var(--rs);
+  margin-bottom:12px; overflow:hidden; }
+.at-header { background:#1a3828; padding:10px 14px; display:flex; align-items:center;
+  justify-content:space-between; }
+.at-title { font-size:12px; font-weight:700; color:var(--gold); }
+.at-count { font-size:10px; color:var(--muted); }
+.at-row { display:flex; align-items:center; padding:9px 14px;
+  border-bottom:1px solid var(--border); gap:10px; font-size:12px; }
+.at-row:last-child { border-bottom:none; }
+.at-main { flex:1; font-weight:600; color:var(--text); }
+.at-sub { font-size:10px; color:var(--muted); }
+.at-val { font-weight:700; text-align:right; flex-shrink:0; }
+.at-badge { font-size:10px; padding:2px 8px; border-radius:8px; font-weight:700; }
+.at-ok   { background:rgba(76,175,100,.15); color:var(--green); }
+.at-warn { background:rgba(240,160,48,.15);  color:var(--orange); }
+.at-err  { background:rgba(224,80,80,.15);   color:var(--red); }
+.at-empty { text-align:center; padding:20px; font-size:12px; color:var(--muted); }
+
+.admin-date-nav { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+.date-btn { background:var(--card); border:1px solid var(--border); border-radius:8px;
+  padding:7px 12px; font-size:13px; cursor:pointer; color:var(--text); }
+.date-btn:active { background:var(--card2); }
+.date-display { flex:1; text-align:center; font-family:'Cormorant Garamond',serif;
+  font-size:16px; color:var(--gold); font-weight:600; }
 </style>
 </head>
 <body>
@@ -788,8 +830,9 @@ function openTab(tab) {
   if (tab === 'raportare') { rapState = {step:0, data:{date:todayIso()}}; renderRaportare(); }
   if (tab === 'historic' || tab === 'istoric') renderHistory();
   if (tab === 'home') {
-    if (currentUser && currentUser.role === 'contabila') renderDanaView();
+    if (currentUser && currentUser.role === 'contabila')   renderDanaView();
     else if (currentUser && currentUser.role === 'warehouse') renderGabiView();
+    else if (currentUser && currentUser.role === 'admin')  renderAdminDashboard();
     else { renderHome(); renderHomeTaskPreview(); }
   }
   if (tab === 'tasks') renderTasks();
@@ -3227,6 +3270,189 @@ function openCerereMarfaWH() {
 }
 
 
+
+// ══════════════════════════════════════════════════
+// ADMIN LIVE DASHBOARD
+// ══════════════════════════════════════════════════
+var adminDashDate = new Date().toISOString().slice(0,10);
+var adminData     = null;
+var adminLoading  = false;
+
+async function renderAdminDashboard() {
+  var el = document.getElementById('pg-home');
+  if (!el) return;
+
+  // Build the dashboard UI
+  el.innerHTML =
+    '<div class="content">' +
+    '<div class="admin-refresh">' +
+    '<div>' +
+    '<div style="font-family:Cormorant Garamond,serif;font-size:26px;color:var(--text)" id="adminGreeting"></div>' +
+    '<div style="font-size:12px;color:var(--muted)" id="adminMsg"></div>' +
+    '</div>' +
+    '<button class="refresh-btn" onclick="loadAdminData()">' +
+    '<span id="refreshIco">🔄</span> Actualizează</button>' +
+    '</div>' +
+
+    // Date navigation
+    '<div class="admin-date-nav">' +
+    '<button class="date-btn" onclick="adminDateNav(-1)">◀</button>' +
+    '<div class="date-display" id="adminDateDisp"></div>' +
+    '<button class="date-btn" onclick="adminDateNav(1)">▶</button>' +
+    '</div>' +
+
+    // Stats
+    '<div class="admin-stats" id="adminStats">' +
+    '<div class="as-card as-gold"><div class="as-val" style="color:var(--gold)">—</div><div class="as-lbl">Pontaje</div></div>' +
+    '<div class="as-card as-green"><div class="as-val" style="color:var(--green)">—</div><div class="as-lbl">Raportări</div></div>' +
+    '<div class="as-card as-gold"><div class="as-val" style="color:var(--gold)">—</div><div class="as-lbl">Vânzări (RON)</div></div>' +
+    '<div class="as-card as-orange"><div class="as-val" style="color:var(--orange)">—</div><div class="as-lbl">Diferență casă</div></div>' +
+    '</div>' +
+
+    '<div id="adminTables"></div>' +
+    '</div>';
+
+  // Set greeting
+  var h = new Date().getHours();
+  var uname = currentUser ? currentUser.name : 'Adrian';
+  document.getElementById('adminGreeting').textContent =
+    (h<12?'🌅 Bună dimineața, ':h<17?'☀️ Bună ziua, ':'🌙 Bună seara, ') + uname + '!';
+  document.getElementById('adminMsg').textContent = getDailyMessage();
+  updateAdminDateDisplay();
+
+  // Load data
+  await loadAdminData();
+}
+
+function updateAdminDateDisplay() {
+  var d    = new Date(adminDashDate + 'T12:00:00');
+  var days = ['Duminică','Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă'];
+  var months = ['Ian','Feb','Mar','Apr','Mai','Iun','Iul','Aug','Sep','Oct','Nov','Dec'];
+  var el = document.getElementById('adminDateDisp');
+  if (el) el.textContent = days[d.getDay()] + ', ' +
+    d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+function adminDateNav(dir) {
+  var d = new Date(adminDashDate + 'T12:00:00');
+  d.setDate(d.getDate() + dir);
+  adminDashDate = d.toISOString().slice(0,10);
+  updateAdminDateDisplay();
+  loadAdminData();
+}
+
+async function loadAdminData() {
+  if (adminLoading) return;
+  adminLoading = true;
+  var ico = document.getElementById('refreshIco');
+  if (ico) ico.textContent = '⏳';
+
+  if (!SHEETS_URL) {
+    renderAdminTables({pontaje:[], raportari:[], comentarii:[], summary:{}, status:'offline'});
+    adminLoading = false; return;
+  }
+
+  try {
+    var r = await fetch(SHEETS_URL + '?action=getEntries&date=' + adminDashDate);
+    var j = await r.json();
+    adminData = j;
+    renderAdminTables(j);
+  } catch(e) {
+    renderAdminTables({status:'error', pontaje:[], raportari:[], comentarii:[], summary:{}});
+  }
+  if (ico) ico.textContent = '🔄';
+  adminLoading = false;
+}
+
+function renderAdminTables(data) {
+  var s    = data.summary || {};
+  var pons = data.pontaje  || [];
+  var raps = data.raportari || [];
+  var coms = data.comentarii || [];
+
+  // Update stats
+  var statsEl = document.getElementById('adminStats');
+  if (statsEl) {
+    var difColor = Math.abs(s.totalDif||0)<0.01?'var(--green)':Math.abs(s.totalDif||0)<=20?'var(--orange)':'var(--red)';
+    var difClass = Math.abs(s.totalDif||0)<0.01?'as-green':Math.abs(s.totalDif||0)<=20?'as-orange':'as-red';
+    statsEl.innerHTML =
+      '<div class="as-card as-gold"><div class="as-val" style="color:var(--gold)">' + (s.nrPontaje||0) + '</div><div class="as-lbl">Pontaje</div></div>' +
+      '<div class="as-card as-green"><div class="as-val" style="color:var(--green)">' + (s.nrRaportari||0) + '/8</div><div class="as-lbl">Raportări</div></div>' +
+      '<div class="as-card as-gold"><div class="as-val" style="color:var(--gold);font-size:18px">' + ((s.totalVanzari||0).toFixed(0)) + '</div><div class="as-lbl">Vânzări (RON)</div></div>' +
+      '<div class="as-card ' + difClass + '"><div class="as-val" style="color:' + difColor + ';font-size:20px">' +
+      ((s.totalDif||0)>=0?'+':'') + ((s.totalDif||0).toFixed(2)) + '</div><div class="as-lbl">Diferență casă</div></div>';
+  }
+
+  var tablesEl = document.getElementById('adminTables');
+  if (!tablesEl) return;
+
+  var html = '';
+
+  // Pontaje table
+  html += '<div class="admin-table">' +
+    '<div class="at-header"><div class="at-title">⏰ Pontaje</div>' +
+    '<div class="at-count">' + pons.length + ' înregistrări</div></div>';
+  if (pons.length) {
+    pons.forEach(function(p) {
+      html += '<div class="at-row">' +
+        '<div><div class="at-main">' + p.emp + '</div>' +
+        '<div class="at-sub">' + p.store + '</div></div>' +
+        '<div style="text-align:right"><div class="at-val" style="color:var(--gold)">' + (p.hours||'—') + '</div>' +
+        '<div class="at-sub">' + (p.start&&p.end?p.start+'→'+p.end:p.dayType||'') + '</div></div>' +
+        '</div>';
+    });
+  } else {
+    html += '<div class="at-empty">Nicio înregistrare</div>';
+  }
+  html += '</div>';
+
+  // Raportari table
+  html += '<div class="admin-table">' +
+    '<div class="at-header"><div class="at-title">💰 Raportări</div>' +
+    '<div class="at-count">' + raps.length + ' magazine</div></div>';
+  if (raps.length) {
+    raps.forEach(function(r) {
+      var dif = parseFloat(r.difCasa)||0;
+      var bc  = Math.abs(dif)<0.01?'at-ok':Math.abs(dif)<=20?'at-warn':'at-err';
+      html += '<div class="at-row">' +
+        '<div style="flex:1"><div class="at-main">' + r.store + '</div>' +
+        '<div class="at-sub">' + r.casier + '</div></div>' +
+        '<div style="text-align:right;flex-shrink:0">' +
+        '<div class="at-val" style="color:var(--gold)">' + (parseFloat(r.vanzariZ)||0).toFixed(0) + ' RON</div>' +
+        '<span class="at-badge ' + bc + '">' + (dif>=0?'+':'') + dif.toFixed(2) + ' RON</span>' +
+        '</div></div>';
+    });
+  } else {
+    html += '<div class="at-empty">Nicio raportare</div>';
+  }
+  html += '</div>';
+
+  // Comentarii
+  if (coms.length) {
+    html += '<div class="admin-table">' +
+      '<div class="at-header"><div class="at-title">💬 Comentarii</div>' +
+      '<div class="at-count">' + coms.length + '</div></div>';
+    coms.forEach(function(c) {
+      html += '<div class="at-row"><div>' +
+        '<div class="at-main">' + (c.store!=='—'?c.store:'Comentariu liber') + '</div>' +
+        '<div class="at-sub">' + c.text + '</div></div></div>';
+    });
+    html += '</div>';
+  }
+
+  if (data.status === 'error') {
+    html = '<div style="background:rgba(224,80,80,.1);border:1px solid rgba(224,80,80,.3);border-radius:var(--rs);padding:16px;text-align:center">' +
+      '<div style="font-size:20px;margin-bottom:8px">⚠️</div>' +
+      '<div style="font-size:13px;color:var(--red)">Nu se pot încărca datele.<br>Verifică conexiunea sau actualizează Apps Script.</div></div>';
+  } else if (data.status === 'offline') {
+    html = '<div style="text-align:center;padding:30px;color:var(--muted)">' +
+      '<div style="font-size:30px;margin-bottom:8px">📡</div>' +
+      '<div style="font-size:13px">Configurează Google Sheets sync din ⚙️</div></div>';
+  }
+
+  tablesEl.innerHTML = html;
+}
+
 // ══════════════════════════════════════════════════
 // DANA & GABI VIEWS
 // ══════════════════════════════════════════════════
@@ -3554,6 +3780,9 @@ function enterApp() {
       };
       document.getElementById('tab-home').classList.add('active');
       renderGabiView();
+    } else if (role === 'admin') {
+      document.getElementById('pg-home').classList.add('active');
+      renderAdminDashboard();
     } else {
       document.getElementById('pg-home').classList.add('active');
       renderHome();
