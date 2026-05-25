@@ -585,6 +585,9 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
         <div style="font-size:11px;color:var(--muted);font-weight:400">Notă rapidă</div></div>
       </button>
 
+      <!-- Ana WH buttons (operator only) -->
+      <div id="anaWhButtons"></div>
+
       <!-- Task preview on home -->
       <div style="margin-bottom:4px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -633,6 +636,13 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
           <div>Se încarcă datele...</div>
         </div>
       </div>
+    </div>
+
+    <!-- ─── WH PAGE ─── -->
+    <div class="page" id="pg-wh">
+      <div class="pg-title">📦 Activitate WH</div>
+      <div class="pg-sub">Expedieri, sortări și cereri</div>
+      <div id="whDetailContent"></div>
     </div>
 
     <!-- ─── GABI PAGE ─── -->
@@ -692,6 +702,7 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
     <button class="tab-item" id="tab-tasks" onclick="openTab('tasks')">
       <span class="tab-ico">✅</span><span class="tab-lbl">Tasks</span>
     </button>
+    <button class="tab-item" id="tab-wh" onclick="openTab('wh')" style="display:none"><span class="tab-ico">📦</span><span class="tab-lbl">WH</span></button>
     <button class="tab-item" id="tab-istoric" onclick="openTab('istoric')">
       <span class="tab-ico">📋</span><span class="tab-lbl">Istoric</span>
     </button>
@@ -782,6 +793,7 @@ function openTab(tab) {
     else { renderHome(); renderHomeTaskPreview(); }
   }
   if (tab === 'tasks') renderTasks();
+  if (tab === 'wh') { document.getElementById('whDetailContent').innerHTML=''; renderGabiView(); }
 }
 
 // ══════════════════════════════════════════════════
@@ -795,6 +807,15 @@ function renderHome() {
   document.getElementById('homeSubtitle').textContent = getDailyMessage();
   const recent = [...entries].sort((a,b)=>b.ts-a.ts).slice(0,5);
   renderHomeTaskPreview();
+  // Ana WH buttons
+  var whBtns = document.getElementById('anaWhButtons');
+  if (whBtns && currentUser && currentUser.role === 'operator') {
+    whBtns.innerHTML =
+      '<div class="section-title">🏭 Warehouse</div>' +
+      '<button class="cmt-btn cmt-btn-store" onclick="openCerereMarfaWH()" style="margin-bottom:7px">' +
+      '<span style="font-size:18px">📦</span>' +
+      '<div><div>Cerere Marfă → WH</div><div style="font-size:11px;color:var(--muted);font-weight:400">Solicită marfă de la Gabi</div></div></button>';
+  } else if (whBtns) { whBtns.innerHTML = ''; }
   const el = document.getElementById('homeHistory');
   if (!recent.length) { el.innerHTML = '<div class="hist-empty">Nicio înregistrare încă. Apasă un buton de mai sus pentru a începe.</div>'; return; }
   el.innerHTML = recent.map(e=>histItemHTML(e)).join('');
@@ -2014,6 +2035,1195 @@ async function fetchTasksFromSheets() {
 
 
 
+const ITEMS_KG  = [
+  {
+    "id": "MIX A",
+    "name": "( U ) Mix Clothes+Shoes",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.TOYSXL-0",
+    "name": "(C) Jucării XL",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.TOYS-0",
+    "name": "(C) Jucării amestec tare/moale",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "2.BMR-1",
+    "name": "(C) Mix Haine de Copii",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "2-BWR.R-1",
+    "name": "(C) Mix Haine de Copii de Iarna",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "1.KRM-1",
+    "name": "(C) Mix haine pentru copii ALL Season",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.LN-1",
+    "name": "(H) Amestec Articole Casa",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.BC-1",
+    "name": "(H) Covoare de baie",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.SPREI-1",
+    "name": "(H) Cuvertură de pat",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "2.WOL-1",
+    "name": "(H) Ghem de lână",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.CURTAINX-1",
+    "name": "(H) Perdele",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.TLG-1",
+    "name": "(H) Perdele din dantelă",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.BLANKET-0",
+    "name": "(H) Pături",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.DEKENS-0",
+    "name": "(H) Pături de lână",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "2.SLPZAK-0",
+    "name": "(H) Sac de dormit",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "joma scr 00779",
+    "name": "(JOMA-SPORT-A) Sportwear",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.BLH-1",
+    "name": "(L) Bluze din bumbac",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.PANTY-1",
+    "name": "(L) Chiloți",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "6-BOOTS.L",
+    "name": "(L) Cizme Femei",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "1.LED.F.M-0",
+    "name": "(L) Geci de piele (Femei)",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.LHB-1",
+    "name": "(L) Genți de mână",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "2.LEG-1",
+    "name": "(L) Leggings",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.LMPO-1",
+    "name": "(L) Mix pantaloni",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "2.LHP-1",
+    "name": "(L) Pantaloni Lejeri (Hawaii)",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "2.OAPR-1",
+    "name": "(L) Rochii de bucătărie",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.LNDR-1",
+    "name": "(L) Rochii de noapte din bumbac",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.BWK-1",
+    "name": "(L) Rochii/fuste din bumbac",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.BH.NR-1",
+    "name": "(L) Sutiene",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "6-BOOTS.M",
+    "name": "(M) Cizme Bărbați și Copii",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "1.M.SUITS-1",
+    "name": "(M) Costume originale",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.CANOV-1",
+    "name": "(M) Cămăși de flanel",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.MCSH-1",
+    "name": "(M) Cămăși din bumbac",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.LED.F.L-0",
+    "name": "(M) Geci de piele (Barbati)",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.FH.BRK-1",
+    "name": "(M) Mix pantaloni",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.MWCO-1",
+    "name": "(M) Paltoane de iarnă lungi/scurte",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "2.OVERAL-0",
+    "name": "(M) Îmbrăcăminte de lucru",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.ZIP.R-1",
+    "name": "(U) Bluze Lejere cu Fermoar",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.BONT-0",
+    "name": "(U) Blănuri",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "1.BADMIX-1",
+    "name": "(U) Echipament pentru inot",
+    "season": "Vară",
+    "uom": "KG"
+  },
+  {
+    "id": "1.EX.SAHL-1",
+    "name": "(U) Eșarfe de mătase",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.W.SAHL-1",
+    "name": "(U) Eșarfe/Șepci și mănuși de lână",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "2-ZIP.U",
+    "name": "(U) Geci Lejere cu fermoar clasa A",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "2-FLEECE.X",
+    "name": "(U) Geci de lână clasa A",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "7.MOTJAS-0",
+    "name": "(U) Geci de moto",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "2.W.JACK-1",
+    "name": "(U) Geci de vant",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.SPORT-1",
+    "name": "(U) Haine sport",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.BADJ-1",
+    "name": "(U) Halate de baie",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.FLEECE.R-1",
+    "name": "(U) Hanorace Fleece",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.JOGGX-1",
+    "name": "(U) Hanorace Groase",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "1.JOGG.L-1",
+    "name": "(U) Hanorace Lejere",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "2-CAPIE",
+    "name": "(U) Hanorace clasa A",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.SKIP.R-0",
+    "name": "(U) Hanorace cu Fermoare",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1-EX1-0",
+    "name": "(U) Mix +/- 50% Extra, 50% Nr. 1",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1-EX1.W-0",
+    "name": "(U) Mix +/- 50% Extra, 50% Nr. 1 de Iarna",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "1-EX1.S-0",
+    "name": "(U) Mix +/- 50% Extra, 50% Nr. 1 de Vara",
+    "season": "Vară",
+    "uom": "KG"
+  },
+  {
+    "id": "0-MRS",
+    "name": "(U) Mix de Haine",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "0-MRS.S",
+    "name": "(U) Mix de Haine Vara",
+    "season": "Vară",
+    "uom": "KG"
+  },
+  {
+    "id": "2.XXL-1",
+    "name": "(U) Mix de Haine marimi mari",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "0-MRS.W",
+    "name": "(U) Mix de haine Iarna",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "1.LAMMY-0",
+    "name": "(U) Paltoane Lammy",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "2.IMBO-0",
+    "name": "(U) Paltoane de blană imitație",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "2.JOGBRK-1",
+    "name": "(U) Pantaloni de jogging",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "2.SKI.O-0",
+    "name": "(U) Pantaloni de schi",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "1.SHO-1",
+    "name": "(U) Pantaloni scurți",
+    "season": "Vară",
+    "uom": "KG"
+  },
+  {
+    "id": "1.LED.BRK-1",
+    "name": "(U) Pantaloni/fuste din piele",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1-SHOES.WM",
+    "name": "(U) Pantofi de iarnă",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "1-SHOES.S",
+    "name": "(U) Pantofi de vară",
+    "season": "Vară",
+    "uom": "KG"
+  },
+  {
+    "id": "1.PFIJN-1",
+    "name": "(U) Pulovere Angora",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.SWT.R-1",
+    "name": "(U) Pulovere Groase",
+    "season": "Iarnă",
+    "uom": "KG"
+  },
+  {
+    "id": "1.SWT.L-1",
+    "name": "(U) Pulovere Lejere",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "2-U.POLO.LS",
+    "name": "(U) Pulovere clasa A",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.CAP-1",
+    "name": "(U) Sepci",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1.TSHI-1",
+    "name": "(U) Tricouri",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "0-MRS-2 (U)",
+    "name": "0-MRS-2 (U) Mix Creme Clothing",
+    "season": "Tot anul (All Season)",
+    "uom": "KG"
+  },
+  {
+    "id": "1-SRS-1",
+    "name": "1-SRS-1",
+    "season": "Vară",
+    "uom": "KG"
+  },
+  {
+    "id": "",
+    "name": "Summer Extra ( Shoes)",
+    "season": "Vară",
+    "uom": "KG"
+  },
+  {
+    "id": "",
+    "name": "Winter Extra ( Shoes)",
+    "season": "Iarnă",
+    "uom": "KG"
+  }
+];
+
+const ITEMS_BUC = [
+  {
+    "id": "10029",
+    "name": "Accesorii  imbracaminte",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10030",
+    "name": "Accesorii Diverse",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10024",
+    "name": "Articole Blana",
+    "season": "Iarnă",
+    "uom": "pce"
+  },
+  {
+    "id": "10004",
+    "name": "Blugi B",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10010",
+    "name": "Camasi B",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10020",
+    "name": "Camasi F",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "00142P10",
+    "name": "Ciorapi",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10028",
+    "name": "Copii Iarna",
+    "season": "Iarnă",
+    "uom": "pce"
+  },
+  {
+    "id": "10027",
+    "name": "Copii Vara",
+    "season": "Vară",
+    "uom": "pce"
+  },
+  {
+    "id": "10050",
+    "name": "Costum Baie",
+    "season": "Vară",
+    "uom": "pce"
+  },
+  {
+    "id": "10038",
+    "name": "Costume",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10046",
+    "name": "Costume Baie",
+    "season": "Vară",
+    "uom": "pce"
+  },
+  {
+    "id": "00142P1",
+    "name": "Discount items",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10022",
+    "name": "Fuste F",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10007",
+    "name": "Geaca Subtire B",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10017",
+    "name": "Geaca Subtire F",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10036",
+    "name": "Genti mari",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10037",
+    "name": "Genti mici",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10023",
+    "name": "Haine Moto",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10039",
+    "name": "Haine de Lucru",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10034",
+    "name": "Incaltaminte Iarna",
+    "season": "Iarnă",
+    "uom": "pce"
+  },
+  {
+    "id": "10041",
+    "name": "Joma Lung",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10042",
+    "name": "Joma Scurt",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10040",
+    "name": "Jucarii Mari",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10035",
+    "name": "Lenjerie",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10005",
+    "name": "Pantaloni B",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10014",
+    "name": "Pantaloni F",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10006",
+    "name": "Pantaloni Scurti B",
+    "season": "Vară",
+    "uom": "pce"
+  },
+  {
+    "id": "10016",
+    "name": "Pantaloni Scurti F",
+    "season": "Vară",
+    "uom": "pce"
+  },
+  {
+    "id": "10021",
+    "name": "Rochii F",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10025",
+    "name": "Ski",
+    "season": "Iarnă",
+    "uom": "pce"
+  },
+  {
+    "id": "0204P4",
+    "name": "Slip",
+    "season": "Vară",
+    "uom": "pce"
+  },
+  {
+    "id": "10001",
+    "name": "Tricou B",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "10011",
+    "name": "Tricou F",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  },
+  {
+    "id": "012345",
+    "name": "rebut",
+    "season": "Tot anul (All Season)",
+    "uom": "pce"
+  }
+];
+
+// ══════════════════════════════════════════════════
+// GABI — WAREHOUSE MODULE
+// ══════════════════════════════════════════════════
+
+let whActivities = JSON.parse(localStorage.getItem('rejoes_wh_v1') || '[]');
+let whPendingRequests = JSON.parse(localStorage.getItem('rejoes_wh_req') || '[]');
+let gabiReminderSet = false;
+
+function saveWH() {
+  localStorage.setItem('rejoes_wh_v1', JSON.stringify(whActivities));
+  localStorage.setItem('rejoes_wh_req', JSON.stringify(whPendingRequests));
+}
+
+// ── Render Gabi WH Home ──────────────────────────
+function renderGabiView() {
+  var el = document.getElementById('gabiContent');
+  if (!el) return;
+
+  var todayIso = new Date().toISOString().slice(0,10);
+  var todayActs = whActivities.filter(function(a) { return a.date === todayIso && !a.closed; });
+  var pendingReqs = whPendingRequests.filter(function(r) { return r.status === 'pending'; });
+  var closedToday = whActivities.filter(function(a) { return a.date === todayIso && a.closed; });
+
+  // Schedule reminders
+  if (!gabiReminderSet) { gabiReminderSet = true; scheduleGabiReminders(); }
+
+  var html = '';
+
+  // Pending requests from Ana
+  if (pendingReqs.length) {
+    html += '<div style="background:rgba(240,160,48,.1);border:1px solid rgba(240,160,48,.3);' +
+      'border-radius:var(--rs);padding:14px;margin-bottom:14px">' +
+      '<div style="font-size:13px;font-weight:700;color:var(--orange);margin-bottom:10px">' +
+      '🔔 ' + pendingReqs.length + ' cerere(i) în așteptare de la Ana</div>' +
+      pendingReqs.map(function(r) {
+        return '<div style="background:var(--card);border-radius:8px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">' +
+          '<div><div style="font-size:12px;font-weight:700">' + r.magazin + '</div>' +
+          '<div style="font-size:10px;color:var(--muted)">' + r.articole.length + ' articole solicitate</div></div>' +
+          '<button onclick="handleRequest(\'' + r.id + '\')" style="background:var(--gold);border:none;border-radius:8px;' +
+          'padding:7px 12px;font-size:11px;font-weight:700;color:#0a1e14;cursor:pointer">Onorează →</button>' +
+          '</div>';
+      }).join('') + '</div>';
+  }
+
+  // Main action buttons
+  html += '<div class="section-title">⚡ Activitate nouă</div>' +
+    '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">' +
+    '<button class="btn btn-primary" onclick="startExpediere(null)" style="font-size:14px">' +
+    '📦 Expediere Magazine</button>' +
+    '<button class="btn" style="background:linear-gradient(135deg,#1a3828,#0f2018);border:1px solid rgba(76,175,100,.3);' +
+    'color:var(--text);font-size:14px" onclick="startSortare()">🔄 Sortare Marfă</button>' +
+    '</div>';
+
+  // Today's activities
+  if (todayActs.length) {
+    html += '<div class="section-title">📋 Activități în curs — Azi</div>';
+    todayActs.forEach(function(a) {
+      html += '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--rs);' +
+        'padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">' +
+        '<div><div style="font-size:13px;font-weight:700">' +
+        (a.type==='expediere'?'📦 Expediere':'🔄 Sortare') + '</div>' +
+        '<div style="font-size:11px;color:var(--muted)">' +
+        (a.type==='expediere' ? a.items.length + ' rând(uri) · ' + a.items.reduce(function(s,i){return s+i.totalSaci;},0) + ' saci'
+          : a.lotKg + ' kg procesat') + '</div></div>' +
+        '<button onclick="editActivity(\'' + a.id + '\')" style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);' +
+        'border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;color:var(--gold);cursor:pointer">Edit →</button>' +
+        '</div>';
+    });
+  }
+
+  // Close day button
+  if (todayActs.length > 0 || closedToday.length === 0) {
+    html += '<div style="margin-top:16px">' +
+      '<button onclick="closeGabiDay()" class="btn" style="background:linear-gradient(135deg,#e05050,#c03030);' +
+      'color:white;font-size:14px;border:none">' +
+      (closedToday.length > 0 ? '✅ Ziua închisă — Retrimite raport' : '🔒 Închide Ziua — Trimite Raport') +
+      '</button></div>';
+  }
+
+  // Closed today summary
+  if (closedToday.length) {
+    html += '<div style="margin-top:12px;background:rgba(76,175,100,.08);border:1px solid rgba(76,175,100,.2);' +
+      'border-radius:var(--rs);padding:12px">' +
+      '<div style="font-size:12px;color:var(--green);font-weight:700">✅ Raport trimis azi</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:3px">' + closedToday.length + ' activități raportate</div>' +
+      '</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+// ── EXPEDIERE ────────────────────────────────────
+var currentExpediere = null;
+
+function startExpediere(requestId) {
+  currentExpediere = {
+    id: uid(), type: 'expediere', date: new Date().toISOString().slice(0,10),
+    closed: false, requestId: requestId || null, items: []
+  };
+  showExpeditieModal();
+}
+
+function handleRequest(reqId) {
+  var req = whPendingRequests.find(function(r) { return r.id === reqId; });
+  if (!req) return;
+  req.status = 'in_progress';
+  saveWH();
+  startExpediere(reqId);
+}
+
+function showExpeditieModal() {
+  var magazinOpts = STORES.map(function(s) {
+    return '<option value="' + s + '">' + s + '</option>';
+  }).join('');
+  var articolOpts = ITEMS_BUC.map(function(a) {
+    return '<option value="' + a.id + '">' + a.name + ' [' + a.id + ']</option>';
+  }).join('');
+
+  var existing = currentExpediere.items.map(function(item, idx) {
+    return '<div style="background:var(--card2);border-radius:8px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">' +
+      '<div style="font-size:11px"><strong>' + item.magazin.split(' ')[0] + '</strong> · ' + item.articolName +
+      ' · ' + item.nrSaci + ' saci × ' + item.bucPerSac + ' buc = <strong>' + item.totalBuc + ' buc</strong></div>' +
+      '<button onclick="removeExpeditieItem(' + idx + ')" style="background:none;border:none;color:var(--red);font-size:16px;cursor:pointer">✕</button>' +
+      '</div>';
+  }).join('');
+
+  var ov = document.createElement('div'); ov.className = 'modal-ov';
+  var box = document.createElement('div'); box.className = 'modal-box';
+  box.innerHTML =
+    '<div class="modal-title">📦 Expediere Magazine</div>' +
+
+    // Existing items
+    (currentExpediere.items.length ?
+      '<div class="section-title" style="font-size:11px">Adăugate (' + currentExpediere.items.length + ')</div>' +
+      existing : '') +
+
+    // Add new row
+    '<div class="section-title" style="font-size:11px;margin-top:8px">+ Adaugă rând</div>' +
+    '<div class="f-group"><label class="f-label">Magazin</label>' +
+    '<select class="f-input" id="exp-mag"><option value="">Selectează...</option>' + magazinOpts + '</select></div>' +
+    '<div class="f-group"><label class="f-label">Articol</label>' +
+    '<select class="f-input" id="exp-art"><option value="">Selectează...</option>' + articolOpts + '</select></div>' +
+    '<div class="f-row2">' +
+    '<div class="f-group"><label class="f-label">Nr. Saci</label>' +
+    '<input type="number" class="f-input" id="exp-saci" min="1" placeholder="1"></div>' +
+    '<div class="f-group"><label class="f-label">Buc/Sac</label>' +
+    '<input type="number" class="f-input" id="exp-buc" min="1" placeholder="20"></div>' +
+    '</div>' +
+    '<button id="exp-add" class="btn" style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);' +
+    'color:var(--gold);margin-bottom:14px">+ Adaugă rând</button>' +
+
+    // Add new item button
+    '<button id="exp-new-item" class="btn btn-ghost" style="font-size:11px;margin-bottom:14px">' +
+    '🔍 Articol lipsă din nomenclator? Adaugă</button>' +
+
+    '<div class="btn-row">' +
+    '<button id="exp-cancel" class="btn btn-ghost" style="flex:1">Anulează</button>' +
+    '<button id="exp-save" class="btn btn-primary" style="flex:2">💾 Salvează Expediere</button>' +
+    '</div>';
+
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e) { if(e.target===ov) ov.remove(); });
+
+  document.getElementById('exp-cancel').onclick = function() { ov.remove(); };
+  document.getElementById('exp-add').onclick    = function() { addExpeditieRow(ov); };
+  document.getElementById('exp-save').onclick   = function() { saveExpediere(ov); };
+  document.getElementById('exp-new-item').onclick = function() { proposeNewItem(ov); };
+}
+
+function removeExpeditieItem(idx) {
+  currentExpediere.items.splice(idx, 1);
+  document.querySelector('.modal-ov').remove();
+  showExpeditieModal();
+}
+
+function addExpeditieRow(ov) {
+  var mag   = document.getElementById('exp-mag')?.value;
+  var artId = document.getElementById('exp-art')?.value;
+  var saci  = parseInt(document.getElementById('exp-saci')?.value) || 0;
+  var buc   = parseInt(document.getElementById('exp-buc')?.value)  || 0;
+
+  if (!mag)   { alert('Selectează magazinul!');  return; }
+  if (!artId) { alert('Selectează articolul!');  return; }
+  if (saci<1) { alert('Introdu numărul de saci!'); return; }
+  if (buc<1)  { alert('Introdu bucăți/sac!'); return; }
+
+  var art = ITEMS_BUC.find(function(a) { return a.id === artId; });
+  currentExpediere.items.push({
+    magazin: mag, articolId: artId,
+    articolName: art ? art.name : artId,
+    nrSaci: saci, bucPerSac: buc, totalSaci: saci, totalBuc: saci * buc
+  });
+
+  ov.remove();
+  showExpeditieModal();
+}
+
+function saveExpediere(ov) {
+  if (!currentExpediere.items.length) { alert('Adaugă cel puțin un rând!'); return; }
+  whActivities.push(currentExpediere);
+  saveWH(); ov.remove();
+  renderGabiView();
+  showToast('Expediere salvată! ✅');
+}
+
+// ── SORTARE ──────────────────────────────────────
+var currentSortare = null;
+
+function startSortare() {
+  currentSortare = {
+    id: uid(), type: 'sortare', date: new Date().toISOString().slice(0,10),
+    closed: false, lotKg: 0, lotArticol: '', lotArticolName: '',
+    articoleSortate: [], destinatie: 'wh', magazinDest: ''
+  };
+  showSortareModal();
+}
+
+function showSortareModal() {
+  var kgOpts  = ITEMS_KG.map(function(a) {
+    return '<option value="' + a.id + '">' + a.name + ' [' + a.id + ']</option>';
+  }).join('');
+  var bucOpts = ITEMS_BUC.map(function(a) {
+    return '<option value="' + a.id + '">' + a.name + ' [' + a.id + ']</option>';
+  }).join('');
+  var magOpts = STORES.map(function(s) {
+    return '<option value="' + s + '">' + s + '</option>';
+  }).join('');
+
+  var sortateRows = currentSortare.articoleSortate.map(function(s, idx) {
+    return '<div style="background:var(--card2);border-radius:8px;padding:9px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">' +
+      '<div style="font-size:11px">' + s.articolName + ' · <strong>' + s.bucati + ' buc</strong></div>' +
+      '<button onclick="removeSortareItem(' + idx + ')" style="background:none;border:none;color:var(--red);font-size:15px;cursor:pointer">✕</button>' +
+      '</div>';
+  }).join('');
+
+  var ov = document.createElement('div'); ov.className = 'modal-ov';
+  var box = document.createElement('div'); box.className = 'modal-box';
+  box.innerHTML =
+    '<div class="modal-title">🔄 Sortare Marfă</div>' +
+
+    '<div class="section-title" style="font-size:11px">1. Lot engros procesat</div>' +
+    '<div class="f-group"><label class="f-label">Articol engros (KG)</label>' +
+    '<select class="f-input" id="srt-lot"><option value="">Selectează lot...</option>' + kgOpts + '</select></div>' +
+    '<div class="f-group"><label class="f-label">Cantitate procesată (KG)</label>' +
+    '<div class="curr-wrap"><input type="number" class="f-input" id="srt-kg" min="0.1" step="0.1" placeholder="0.0"' +
+    ' value="' + (currentSortare.lotKg||'') + '"><span class="curr-sfx">kg</span></div></div>' +
+
+    '<div class="section-title" style="font-size:11px;margin-top:8px">2. Articole sortate</div>' +
+    (currentSortare.articoleSortate.length ? sortateRows : '') +
+    '<div class="f-row2">' +
+    '<div class="f-group"><label class="f-label">Articol (buc)</label>' +
+    '<select class="f-input" id="srt-art"><option value="">Selectează...</option>' + bucOpts + '</select></div>' +
+    '<div class="f-group"><label class="f-label">Bucăți</label>' +
+    '<input type="number" class="f-input" id="srt-buc" min="1" placeholder="0"></div>' +
+    '</div>' +
+    '<button id="srt-add" class="btn" style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);' +
+    'color:var(--gold);margin-bottom:12px">+ Adaugă articol sortat</button>' +
+
+    '<div class="section-title" style="font-size:11px;margin-top:4px">3. Destinație marfă sortată</div>' +
+    '<div class="f-group">' +
+    '<label class="f-label">Destinație</label>' +
+    '<select class="f-input" id="srt-dest" onchange="toggleMagDest(this.value)">' +
+    '<option value="wh">📦 Rămâne în stock WH</option>' +
+    '<option value="magazin">🏪 Expediere directă la magazin</option>' +
+    '</select></div>' +
+    '<div id="srt-mag-wrap" style="display:none">' +
+    '<div class="f-group"><label class="f-label">Magazin destinație</label>' +
+    '<select class="f-input" id="srt-mag"><option value="">Selectează...</option>' + magOpts + '</select></div>' +
+    '</div>' +
+
+    '<div class="btn-row">' +
+    '<button id="srt-cancel" class="btn btn-ghost" style="flex:1">Anulează</button>' +
+    '<button id="srt-save" class="btn btn-primary" style="flex:2">💾 Salvează Sortare</button>' +
+    '</div>';
+
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e) { if(e.target===ov) ov.remove(); });
+
+  document.getElementById('srt-cancel').onclick = function() { ov.remove(); };
+  document.getElementById('srt-add').onclick    = function() { addSortareItem(ov); };
+  document.getElementById('srt-save').onclick   = function() { saveSortare(ov); };
+  if (currentSortare.lotArticol) {
+    var sel = document.getElementById('srt-lot');
+    if (sel) sel.value = currentSortare.lotArticol;
+  }
+}
+
+function toggleMagDest(val) {
+  var wrap = document.getElementById('srt-mag-wrap');
+  if (wrap) wrap.style.display = val === 'magazin' ? '' : 'none';
+}
+
+function removeSortareItem(idx) {
+  currentSortare.articoleSortate.splice(idx, 1);
+  document.querySelector('.modal-ov').remove();
+  showSortareModal();
+}
+
+function addSortareItem(ov) {
+  // Save current lot data
+  var lotSel = document.getElementById('srt-lot');
+  var lotKg  = parseFloat(document.getElementById('srt-kg')?.value) || 0;
+  if (lotSel?.value) {
+    var lotArt = ITEMS_KG.find(function(a) { return a.id === lotSel.value; });
+    currentSortare.lotArticol = lotSel.value;
+    currentSortare.lotArticolName = lotArt ? lotArt.name : lotSel.value;
+    currentSortare.lotKg = lotKg;
+  }
+
+  var artId = document.getElementById('srt-art')?.value;
+  var buc   = parseInt(document.getElementById('srt-buc')?.value) || 0;
+  if (!artId) { alert('Selectează articolul sortat!'); return; }
+  if (buc < 1) { alert('Introdu cantitatea!'); return; }
+
+  var art = ITEMS_BUC.find(function(a) { return a.id === artId; });
+  currentSortare.articoleSortate.push({
+    articolId: artId, articolName: art ? art.name : artId, bucati: buc
+  });
+
+  ov.remove();
+  showSortareModal();
+}
+
+function saveSortare(ov) {
+  var lotSel = document.getElementById('srt-lot');
+  var kg     = parseFloat(document.getElementById('srt-kg')?.value) || 0;
+  var dest   = document.getElementById('srt-dest')?.value || 'wh';
+  var mag    = document.getElementById('srt-mag')?.value || '';
+
+  if (!lotSel?.value) { alert('Selectează lotul engros!'); return; }
+  if (kg <= 0)        { alert('Introdu KG procesați!');   return; }
+  if (!currentSortare.articoleSortate.length) { alert('Adaugă cel puțin un articol sortat!'); return; }
+  if (dest === 'magazin' && !mag) { alert('Selectează magazinul destinație!'); return; }
+
+  var lotArt = ITEMS_KG.find(function(a) { return a.id === lotSel.value; });
+  currentSortare.lotArticol = lotSel.value;
+  currentSortare.lotArticolName = lotArt ? lotArt.name : lotSel.value;
+  currentSortare.lotKg = kg;
+  currentSortare.destinatie = dest;
+  currentSortare.magazinDest = mag;
+
+  whActivities.push(currentSortare);
+  saveWH(); ov.remove();
+  renderGabiView();
+  showToast('Sortare salvată! ✅');
+}
+
+// ── Edit existing activity ──
+function editActivity(id) {
+  var act = whActivities.find(function(a) { return a.id === id; });
+  if (!act) return;
+  if (act.type === 'expediere') {
+    currentExpediere = act; showExpeditieModal();
+  } else {
+    currentSortare = act; showSortareModal();
+  }
+}
+
+// ── Propose new item ──
+function proposeNewItem(ov) {
+  var name = prompt('Denumire articol nou (Gabi va anunța Ana pentru confirmare):');
+  if (!name || !name.trim()) return;
+  var pending = { id: uid(), name: name.trim(), proposedBy: 'Gabi', status: 'pending', date: new Date().toISOString() };
+  var proposals = JSON.parse(localStorage.getItem('rejoes_item_proposals') || '[]');
+  proposals.push(pending);
+  localStorage.setItem('rejoes_item_proposals', JSON.stringify(proposals));
+  // Notify via WhatsApp
+  var msg = '📦 Rejoes WH: Gabi solicită adăugarea articolului nou: "' + name.trim() + '". Te rog confirmă denumirea oficială.';
+  notifyWhatsApp('ana', msg);
+  alert('✅ Solicitare trimisă! Anunță-o pe Ana să confirme denumirea oficială.');
+}
+
+// ── Close Gabi's day ──
+async function closeGabiDay() {
+  var todayIso = new Date().toISOString().slice(0,10);
+  var todayActs = whActivities.filter(function(a) { return a.date === todayIso && !a.closed; });
+
+  if (!todayActs.length) {
+    if (!confirm('Nu ai activități înregistrate azi. Trimiți oricum raportul?')) return;
+  }
+
+  // Mark all as closed
+  todayActs.forEach(function(a) { a.closed = true; });
+  saveWH();
+
+  // Send report via Apps Script
+  var reportData = {
+    id: uid(), type: 'gabi_day_close', ts: Date.now(),
+    date: todayIso, activities: todayActs
+  };
+  syncEntry(reportData);
+  showToast('🔒 Ziua închisă! Raport trimis! ✅');
+  renderGabiView();
+}
+
+// ── Gabi Reminders (18:00, 19:00, 20:00) ──
+function scheduleGabiReminders() {
+  if (!currentUser || currentUser.role !== 'warehouse') return;
+
+  [18, 19, 20].forEach(function(hour) {
+    var now       = new Date();
+    var reminder  = new Date();
+    reminder.setHours(hour, 0, 0, 0);
+    if (reminder <= now) return; // past
+
+    var msUntil = reminder - now;
+    setTimeout(function() {
+      // Check if day is closed
+      var todayIso  = new Date().toISOString().slice(0,10);
+      var anyClosed = whActivities.some(function(a) { return a.date === todayIso && a.closed; });
+      if (anyClosed) return;
+
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('⏰ Rejoes WH · Reminder', {
+          body: 'Gabi, nu ai închis ziua! Nu uita să trimiți raportul de activitate ' + (hour < 20 ? '(mai ai timp)' : '— ultima șansă!') + ' 📦',
+          icon: '/rejoes-op/icon-192.png',
+          requireInteraction: true,
+          tag: 'gabi-reminder-' + hour
+        });
+      }
+    }, msUntil);
+  });
+}
+
+// ══════════════════════════════════════════════════
+// ANA — CERERE MARFĂ WH + RETUR
+// ══════════════════════════════════════════════════
+
+function openCerereMarfaWH() {
+  var magOpts = STORES.map(function(s) {
+    return '<option value="' + s + '">' + s + '</option>';
+  }).join('');
+  var bucOpts = ITEMS_BUC.map(function(a) {
+    return '<option value="' + a.id + '">' + a.name + '</option>';
+  }).join('');
+  var empOpts = EMPLOYEES.map(function(e) {
+    return '<option value="' + e + '">' + e + '</option>';
+  }).join('');
+
+  var cerere = { id: uid(), items: [] };
+
+  var ov = document.createElement('div'); ov.className = 'modal-ov';
+  var box = document.createElement('div'); box.className = 'modal-box';
+
+  function render() {
+    var itemRows = cerere.items.map(function(it, idx) {
+      return '<div style="background:var(--card2);border-radius:8px;padding:9px;margin-bottom:5px;display:flex;justify-content:space-between">' +
+        '<div style="font-size:11px">' + it.articolName + ' · <strong>' + it.cantitate + ' buc</strong></div>' +
+        '<button onclick="cerereRemoveItem(' + idx + ')" style="background:none;border:none;color:var(--red);font-size:15px;cursor:pointer">✕</button>' +
+        '</div>';
+    }).join('');
+
+    box.innerHTML =
+      '<div class="modal-title">📦 Cerere Marfă → WH</div>' +
+      '<div class="f-group"><label class="f-label">Magazin</label>' +
+      '<select class="f-input" id="cr-mag"><option value="">Selectează...</option>' + magOpts + '</select></div>' +
+      '<div class="f-group"><label class="f-label">Pregătit de</label>' +
+      '<select class="f-input" id="cr-emp"><option value="">Selectează...</option>' + empOpts + '</select></div>' +
+
+      '<div class="section-title" style="font-size:11px;margin-top:6px">Articole solicitate</div>' +
+      (cerere.items.length ? itemRows : '') +
+      '<div class="f-row2">' +
+      '<div class="f-group"><label class="f-label">Articol</label>' +
+      '<select class="f-input" id="cr-art"><option value="">Selectează...</option>' + bucOpts + '</select></div>' +
+      '<div class="f-group"><label class="f-label">Cantitate (buc)</label>' +
+      '<input type="number" class="f-input" id="cr-cant" min="1" placeholder="0"></div>' +
+      '</div>' +
+      '<button id="cr-add" class="btn" style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);' +
+      'color:var(--gold);margin-bottom:12px">+ Adaugă articol</button>' +
+      '<div class="btn-row">' +
+      '<button id="cr-cancel" class="btn btn-ghost" style="flex:1">Anulează</button>' +
+      '<button id="cr-send" class="btn btn-primary" style="flex:2">📤 Trimite la Gabi</button>' +
+      '</div>';
+
+    document.getElementById('cr-cancel').onclick = function() { ov.remove(); };
+    document.getElementById('cr-add').onclick = function() {
+      var artId = document.getElementById('cr-art')?.value;
+      var cant  = parseInt(document.getElementById('cr-cant')?.value) || 0;
+      if (!artId || cant < 1) { alert('Completează articolul și cantitatea!'); return; }
+      var art = ITEMS_BUC.find(function(a) { return a.id === artId; });
+      cerere.items.push({ articolId: artId, articolName: art ? art.name : artId, cantitate: cant });
+      render();
+    };
+    window.cerereRemoveItem = function(idx) { cerere.items.splice(idx,1); render(); };
+    document.getElementById('cr-send').onclick = function() {
+      var mag = document.getElementById('cr-mag')?.value;
+      var emp = document.getElementById('cr-emp')?.value;
+      if (!mag) { alert('Selectează magazinul!'); return; }
+      if (!cerere.items.length) { alert('Adaugă cel puțin un articol!'); return; }
+      cerere.magazin = mag; cerere.angajat = emp; cerere.status = 'pending';
+      cerere.date = new Date().toISOString().slice(0,10);
+      whPendingRequests.push(cerere);
+      saveWH();
+      syncEntry({ id: uid(), type: 'wh_cerere', ts: Date.now(), ...cerere });
+      // Notify Gabi
+      var msg = '📦 Rejoes: Ana a trimis o cerere de marfă pentru ' + mag + ' (' + cerere.items.length + ' articole). Deschide aplicația!';
+      notifyWhatsApp('gabi', msg);
+      ov.remove();
+      showToast('Cerere trimisă la Gabi! 📦');
+    };
+  }
+
+  render();
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e) { if(e.target===ov) ov.remove(); });
+}
+
+
 // ══════════════════════════════════════════════════
 // DANA & GABI VIEWS
 // ══════════════════════════════════════════════════
@@ -2359,7 +3569,8 @@ function setupRoleUI() {
     if (tabPontaj)  tabPontaj.querySelector('.tab-lbl').textContent = 'Pontaje';
     if (tabRap)     tabRap.style.display = 'none';
   } else if (u.role === 'warehouse') {
-    // Gabi: no pontaj/raportare, yes tasks
+    // Gabi: tasks + WH tab
+    if (document.getElementById('tab-wh')) document.getElementById('tab-wh').style.display = '';
     if (tabPontaj)  tabPontaj.style.display = 'none';
     if (tabRap)     tabRap.style.display    = 'none';
   } else if (u.role === 'operator') {
