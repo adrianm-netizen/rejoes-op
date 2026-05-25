@@ -803,7 +803,8 @@ function renderHome() {
   updateHdrCount();
   var t = document.getElementById('homeTitle');
   var h = new Date().getHours();
-  if (t) t.textContent = h<12 ? '🌅 Bună dimineața, Ana!' : h<17 ? '☀️ Bună ziua, Ana!' : '🌙 Bună seara, Ana!';
+  var uname = currentUser ? currentUser.name : 'Ana';
+  if (t) t.textContent = h<12 ? '🌅 Bună dimineața, ' + uname + '!' : h<17 ? '☀️ Bună ziua, ' + uname + '!' : '🌙 Bună seara, ' + uname + '!';
   document.getElementById('homeSubtitle').textContent = getDailyMessage();
   const recent = [...entries].sort((a,b)=>b.ts-a.ts).slice(0,5);
   renderHomeTaskPreview();
@@ -3525,17 +3526,34 @@ function enterApp() {
     document.getElementById('auth-pin').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     setupRoleUI();
-    if (currentUser && currentUser.role === 'contabila') {
-      document.getElementById('pg-home').id = 'pg-home-admin';
-      document.getElementById('pg-dana').id = 'pg-home';
+    // Show correct home page per role
+    var role = currentUser ? currentUser.role : 'operator';
+    // Hide all pages first
+    document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+    if (role === 'contabila') {
       document.getElementById('pg-dana').classList.add('active');
+      document.getElementById('tab-home').onclick = function() {
+        document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+        document.querySelectorAll('.tab-item').forEach(function(t){t.classList.remove('active');});
+        document.getElementById('pg-dana').classList.add('active');
+        document.getElementById('tab-home').classList.add('active');
+        renderDanaView();
+      };
+      document.getElementById('tab-home').classList.add('active');
       renderDanaView();
-    } else if (currentUser && currentUser.role === 'warehouse') {
-      document.getElementById('pg-home').id = 'pg-home-admin';
-      document.getElementById('pg-gabi').id = 'pg-home';
+    } else if (role === 'warehouse') {
       document.getElementById('pg-gabi').classList.add('active');
+      document.getElementById('tab-home').onclick = function() {
+        document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+        document.querySelectorAll('.tab-item').forEach(function(t){t.classList.remove('active');});
+        document.getElementById('pg-gabi').classList.add('active');
+        document.getElementById('tab-home').classList.add('active');
+        renderGabiView();
+      };
+      document.getElementById('tab-home').classList.add('active');
       renderGabiView();
     } else {
+      document.getElementById('pg-home').classList.add('active');
       renderHome();
       renderHomeTaskPreview();
     }
@@ -3615,6 +3633,7 @@ function logout() {
 // MESAJE ZILNICE VESELE PENTRU ANA
 // ══════════════════════════════════════════════════
 function getDailyMessage() {
+  var uname = currentUser ? currentUser.name : 'Ana';
   var now  = new Date();
   var hour = now.getHours();
   var day  = now.getDay(); // 0=dum, 1=lun, ..., 5=vin, 6=sam
