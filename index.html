@@ -3358,15 +3358,27 @@ async function readSheetData(sheetName, dateFilter) {
     var rows = data.table.rows.map(function(r) {
       var obj = {};
       r.c.forEach(function(cell, i) {
-        obj[cols[i]] = cell ? (cell.v !== null ? cell.v : '') : '';
+        if (!cell || cell.v === null || cell.v === undefined) { obj[cols[i]] = ''; return; }
+        var val = cell.v;
+        // gviz returns dates as "Date(yyyy,m,d)" - convert to ISO
+        if (typeof val === 'string' && val.indexOf('Date(') === 0) {
+          var p = val.replace('Date(','').replace(')','').split(',');
+          val = p[0] + '-' + String(parseInt(p[1])+1).padStart(2,'0') + '-' + String(p[2]).padStart(2,'0');
+        }
+        // Use formatted value if available and it looks like a date
+        if (cell.f && String(cell.f).match(/\d{2}\.\d{2}\.\d{4}/)) {
+          var fp = cell.f.split('.');
+          val = fp[2] + '-' + fp[1] + '-' + fp[0];
+        }
+        obj[cols[i]] = val;
       });
       return obj;
     });
-    
+
     if (dateFilter) {
       rows = rows.filter(function(r) {
-        var d = r[cols[0]] || '';
-        return String(d).indexOf(dateFilter) >= 0 || String(d) === dateFilter;
+        var d = String(r[cols[0]] || '');
+        return d === dateFilter || d.indexOf(dateFilter) >= 0;
       });
     }
     return rows;
