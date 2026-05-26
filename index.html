@@ -3416,6 +3416,7 @@ function stopLiveFeed() {
 }
 
 async function loadLiveFeed() {
+  return; // disabled until getActivity is in Apps Script
   var el = document.getElementById('liveItems');
   if (!el) return;
   try {
@@ -3578,7 +3579,9 @@ async function loadAdminData() {
     renderAdminTables(j);
   // Start live feed (only if sheets are connected)
   liveProgressEl = document.getElementById('liveProgress');
-  if (SHEETS_URL) startLiveFeed();
+  // Live feed disabled until Apps Script getActivity endpoint is deployed
+  var liveEl = document.getElementById('liveItems');
+  if (liveEl) liveEl.innerHTML = '<div class="live-empty">🔄 Se activează după sync complet...</div>';
   } catch(e) {
     console.error('Dashboard load error:', e);
     renderAdminTables({status:'error', pontaje:[], raportari:[], comentarii:[], summary:{}});
