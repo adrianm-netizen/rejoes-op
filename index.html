@@ -3272,6 +3272,68 @@ function openCerereMarfaWH() {
 
 
 
+
+// ── Read from Google Sheets directly (public, no CORS) ──
+const GSHEET_ID = '1-0JaKKOhOMP5MWpzCOlptbooOQ973e-Acadgpl9x3LY';
+
+async function readSheetData(sheetName, dateFilter) {
+  var url = 'https://docs.google.com/spreadsheets/d/' + GSHEET_ID +
+    '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheetName);
+  try {
+    var r = await fetch(url);
+    var text = await r.text();
+    // Strip Google's wrapper: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
+    var json = text.replace(/^\/\*.*?\*\/\s*/, '').replace(/^google\.visualization\.Query\.setResponse\(/, '').replace(/\);\s*$/, '');
+    var data = JSON.parse(json);
+    if (!data.table || !data.table.rows) return [];
+    
+    var cols = data.table.cols.map(function(c) { return c.label || c.id; });
+    var rows = data.table.rows.map(function(r) {
+      var obj = {};
+      r.c.forEach(function(cell, i) {
+        obj[cols[i]] = cell ? (cell.v !== null ? cell.v : '') : '';
+      });
+      return obj;
+    });
+    
+    if (dateFilter) {
+      rows = rows.filter(function(r) {
+        var d = r[cols[0]] || '';
+        return String(d).indexOf(dateFilter) >= 0 || String(d) === dateFilter;
+      });
+    }
+    return rows;
+  } catch(e) {
+    console.error('Sheets read error:', sheetName, e);
+    return [];
+  }
+}
+
+async function loadAdminDataFromSheets(date) {
+  try {
+    var [pontaje, raportari, comentarii] = await Promise.all([
+      readSheetData('Pontaj', date),
+      readSheetData('Raportare', date),
+      readSheetData('Comentarii', date)
+    ]);
+
+    var totalV = raportari.reduce(function(s,r){return s+(parseFloat(r['Vanzari Z']||r['Vanzari_Z']||0)||0);},0);
+    var totalD = raportari.reduce(function(s,r){return s+(parseFloat(r['Diferenta Casa']||r['Diferenta_Casa']||0)||0);},0);
+
+    return {
+      status: 'ok', date: date,
+      pontaje: pontaje, raportari: raportari, comentarii: comentarii,
+      summary: {
+        totalVanzari: totalV, totalDif: totalD,
+        nrPontaje: pontaje.length, nrRaportari: raportari.length,
+        magazineRaportate: raportari.length, hasAlert: Math.abs(totalD) > 20
+      }
+    };
+  } catch(e) {
+    return {status:'error', pontaje:[], raportari:[], comentarii:[], summary:{}};
+  }
+}
+
 // ── JSONP helper (bypasses CORS) ──────────────────
 function jsonpFetch(url) {
   return new Promise(function(resolve, reject) {
@@ -3384,7 +3446,7 @@ async function loadAdminData() {
   }
 
   try {
-    var j = await jsonpFetch(SHEETS_URL + '?action=getEntries&date=' + adminDashDate);
+    var j = await loadAdminDataFromSheets(adminDashDate);
     adminData = j;
     renderAdminTables(j);
   } catch(e) {
@@ -3425,9 +3487,10 @@ function renderAdminTables(data) {
     '<div class="at-count">' + pons.length + ' înregistrări</div></div>';
   if (pons.length) {
     pons.forEach(function(p) {
+      var pEmp=p.emp||p['Angajat']||p['angajat']||'—'; var pStore=p.store||p['Locatie']||p['locatie']||'—'; var pHours=p.hours||p['Ore Lucrate']||p['ore']||'—';
       html += '<div class="at-row">' +
-        '<div><div class="at-main">' + p.emp + '</div>' +
-        '<div class="at-sub">' + p.store + '</div></div>' +
+        '<div><div class="at-main">' + pEmp + '</div>' +
+        '<div class="at-sub">' + pStore + '</div></div>' +
         '<div style="text-align:right"><div class="at-val" style="color:var(--gold)">' + (p.hours||'—') + '</div>' +
         '<div class="at-sub">' + (p.start&&p.end?p.start+'→'+p.end:p.dayType||'') + '</div></div>' +
         '</div>';
@@ -3443,13 +3506,15 @@ function renderAdminTables(data) {
     '<div class="at-count">' + raps.length + ' magazine</div></div>';
   if (raps.length) {
     raps.forEach(function(r) {
-      var dif = parseFloat(r.difCasa)||0;
+      var rStore=r.store||r['Magazin']||r['magazin']||'—'; var rCasier=r.casier||r['Casier']||r['casier']||'—';
+      var rVanz=parseFloat(r.vanzariZ||r['Vanzari Z']||r['Vanzari_Z']||0)||0;
+      var dif = parseFloat(r.difCasa||r['Diferenta Casa']||r['Diferenta_Casa']||0)||0;
       var bc  = Math.abs(dif)<0.01?'at-ok':Math.abs(dif)<=20?'at-warn':'at-err';
       html += '<div class="at-row">' +
-        '<div style="flex:1"><div class="at-main">' + r.store + '</div>' +
-        '<div class="at-sub">' + r.casier + '</div></div>' +
+        '<div style="flex:1"><div class="at-main">' + rStore + '</div>' +
+        '<div class="at-sub">' + rCasier + '</div></div>' +
         '<div style="text-align:right;flex-shrink:0">' +
-        '<div class="at-val" style="color:var(--gold)">' + (parseFloat(r.vanzariZ)||0).toFixed(0) + ' RON</div>' +
+        '<div class="at-val" style="color:var(--gold)">' + rVanz.toFixed(0) + ' RON</div>' +
         '<span class="at-badge ' + bc + '">' + (dif>=0?'+':'') + dif.toFixed(2) + ' RON</span>' +
         '</div></div>';
     });
@@ -3819,7 +3884,7 @@ function enterApp() {
       renderHomeTaskPreview();
     }
     initReminders();
-    if (SHEETS_URL) { setTimeout(flushQueue, 2000); setSyncStatus(syncQueue.length?'error':'ok'); }
+    if (SHEETS_URL) { setTimeout(flushQueue, 2000); setSyncStatus('ok'); }
     else setSyncStatus('offline');
   }, 400);
 }
