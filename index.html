@@ -719,6 +719,59 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
       </div>
     </div>
 
+
+    <!-- ─── ADMIN DASHBOARD PAGE ─── -->
+    <div class="page" id="pg-admin">
+      <div style="padding:14px 14px 80px">
+        <!-- Header row -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
+          <div>
+            <div style="font-family:Cormorant Garamond,serif;font-size:22px;color:var(--text)" id="adm-greeting">🌙 Bună seara, Adrian!</div>
+            <div style="font-size:11px;color:var(--muted)" id="adm-msg"></div>
+          </div>
+          <button onclick="admLoad()" style="background:var(--card);border:1px solid var(--border);
+            border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;color:var(--gold);
+            cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px">
+            🔄 Actualizează
+          </button>
+        </div>
+        <!-- Date nav -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+          <button onclick="admNavDate(-1)" style="background:var(--card);border:1px solid var(--border);
+            border-radius:8px;padding:8px 14px;font-size:16px;cursor:pointer;color:var(--text)">◀</button>
+          <div style="flex:1;text-align:center;font-family:Cormorant Garamond,serif;
+            font-size:17px;color:var(--gold);font-weight:600" id="adm-date">—</div>
+          <button onclick="admNavDate(1)" style="background:var(--card);border:1px solid var(--border);
+            border-radius:8px;padding:8px 14px;font-size:16px;cursor:pointer;color:var(--text)">▶</button>
+        </div>
+        <!-- Stats cards -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+          <div style="background:linear-gradient(135deg,#1a3828,#0f2018);border:1px solid rgba(201,168,76,.3);border-radius:var(--rs);padding:13px">
+            <div style="font-family:Cormorant Garamond,serif;font-size:26px;font-weight:700;color:var(--gold)" id="adm-npont">—</div>
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Pontaje</div>
+          </div>
+          <div style="background:rgba(76,175,100,.1);border:1px solid rgba(76,175,100,.25);border-radius:var(--rs);padding:13px">
+            <div style="font-family:Cormorant Garamond,serif;font-size:26px;font-weight:700;color:var(--green)" id="adm-nrap">—</div>
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Raportări</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#1a3828,#0f2018);border:1px solid rgba(201,168,76,.3);border-radius:var(--rs);padding:13px">
+            <div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:700;color:var(--gold)" id="adm-vanz">—</div>
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Vânzări (RON)</div>
+          </div>
+          <div style="background:rgba(76,175,100,.1);border:1px solid rgba(76,175,100,.25);border-radius:var(--rs);padding:13px" id="adm-dif-card">
+            <div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:700;color:var(--green)" id="adm-dif">—</div>
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Diferență casă</div>
+          </div>
+        </div>
+        <!-- Tables -->
+        <div id="adm-tables">
+          <div style="text-align:center;padding:30px;color:var(--muted)">
+            Apasă <strong style="color:var(--gold)">Actualizează</strong> pentru date live
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ─── ISTORIC PAGE ─── -->
     <div class="page" id="pg-istoric">
       <div class="pg-title">Istoric</div>
@@ -855,7 +908,7 @@ function openTab(tab) {
   if (tab === 'home') {
     if (currentUser && currentUser.role === 'contabila')   renderDanaView();
     else if (currentUser && currentUser.role === 'warehouse') renderGabiView();
-    else if (currentUser && currentUser.role === 'admin')  renderAdminDashboard();
+    else if (currentUser && currentUser.role === 'admin')  admShowPage();
     else { renderHome(); renderHomeTaskPreview(); }
   }
   if (tab === 'tasks') renderTasks();
@@ -3480,6 +3533,115 @@ function renderLiveFeed(items) {
   }).join('');
 }
 
+
+// ══════════════════════════════════════════════════
+// ADMIN DASHBOARD — Simple functions
+// ══════════════════════════════════════════════════
+var admDate = new Date().toISOString().slice(0,10);
+
+function admShowPage() {
+  // Hide all pages, show admin
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.getElementById('pg-admin').classList.add('active');
+  // Set greeting
+  var h = new Date().getHours();
+  var uname = currentUser ? currentUser.name : 'Adrian';
+  var el = document.getElementById('adm-greeting');
+  if (el) el.textContent = (h<12?'🌅 Bună dimineața, ':h<17?'☀️ Bună ziua, ':'🌙 Bună seara, ') + uname + '!';
+  var msg = document.getElementById('adm-msg');
+  if (msg) msg.textContent = getDailyMessage();
+  admUpdateDate();
+  admLoad();
+}
+
+function admNavDate(dir) {
+  var d = new Date(admDate + 'T12:00:00');
+  d.setDate(d.getDate() + dir);
+  admDate = d.toISOString().slice(0,10);
+  admUpdateDate();
+  admLoad();
+}
+
+function admUpdateDate() {
+  var d    = new Date(admDate + 'T12:00:00');
+  var days = ['Duminică','Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă'];
+  var mths = ['Ian','Feb','Mar','Apr','Mai','Iun','Iul','Aug','Sep','Oct','Nov','Dec'];
+  var el   = document.getElementById('adm-date');
+  if (el) el.textContent = days[d.getDay()] + ', ' + d.getDate() + ' ' + mths[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+async function admLoad() {
+  var tablesEl = document.getElementById('adm-tables');
+  if (tablesEl) tablesEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">⏳ Se încarcă...</div>';
+
+  try {
+    var data = await loadAdminDataFromSheets(admDate);
+    var s    = data.summary || {};
+    var pons = data.pontaje  || [];
+    var raps = data.raportari || [];
+
+    // Update stat cards
+    var np = document.getElementById('adm-npont'); if(np) np.textContent = s.nrPontaje || 0;
+    var nr = document.getElementById('adm-nrap');  if(nr) nr.textContent = (s.nrRaportari||0)+'/8';
+    var nv = document.getElementById('adm-vanz');  if(nv) nv.textContent = (s.totalVanzari||0).toFixed(0);
+    var nd = document.getElementById('adm-dif');
+    if (nd) {
+      nd.textContent = ((s.totalDif||0)>=0?'+':'') + (s.totalDif||0).toFixed(2);
+      nd.style.color = Math.abs(s.totalDif||0)<0.01?'var(--green)':Math.abs(s.totalDif||0)<=20?'var(--orange)':'var(--red)';
+    }
+
+    // Render tables
+    var html = '';
+    // Pontaje
+    html += '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--rs);margin-bottom:12px;overflow:hidden">';
+    html += '<div style="background:#1a3828;padding:9px 14px;display:flex;justify-content:space-between">';
+    html += '<div style="font-size:12px;font-weight:700;color:var(--gold)">⏰ Pontaje</div>';
+    html += '<div style="font-size:10px;color:var(--muted)">' + pons.length + ' înregistrări</div></div>';
+    if (pons.length) {
+      pons.forEach(function(p) {
+        var emp   = p.Angajat||p.angajat||p.emp||'—';
+        var store = p.Locatie||p.locatie||p.store||'—';
+        var ore   = p['Ore Lucrate']||p.hours||'—';
+        html += '<div style="display:flex;padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;gap:8px">';
+        html += '<div style="flex:1"><div style="font-weight:600">' + emp + '</div>';
+        html += '<div style="font-size:10px;color:var(--muted)">' + store + '</div></div>';
+        html += '<div style="color:var(--gold);font-weight:700">' + ore + '</div></div>';
+      });
+    } else {
+      html += '<div style="text-align:center;padding:16px;color:var(--muted);font-size:12px">Nicio înregistrare</div>';
+    }
+    html += '</div>';
+
+    // Raportari
+    html += '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--rs);overflow:hidden">';
+    html += '<div style="background:#1a3828;padding:9px 14px;display:flex;justify-content:space-between">';
+    html += '<div style="font-size:12px;font-weight:700;color:var(--gold)">💰 Raportări</div>';
+    html += '<div style="font-size:10px;color:var(--muted)">' + raps.length + ' magazine</div></div>';
+    if (raps.length) {
+      raps.forEach(function(r) {
+        var store  = r.Magazin||r.store||'—';
+        var casier = r.Casier||r.casier||'—';
+        var vanz   = parseFloat(r['Vanzari Z']||r.vanzariZ||0)||0;
+        var dif    = parseFloat(r['Diferenta Casa']||r.difCasa||0)||0;
+        var dc     = Math.abs(dif)<0.01?'var(--green)':Math.abs(dif)<=20?'var(--orange)':'var(--red)';
+        html += '<div style="display:flex;padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;gap:8px">';
+        html += '<div style="flex:1"><div style="font-weight:600">' + store + '</div>';
+        html += '<div style="font-size:10px;color:var(--muted)">' + casier + '</div></div>';
+        html += '<div style="text-align:right"><div style="color:var(--gold);font-weight:700">' + vanz.toFixed(0) + ' RON</div>';
+        html += '<div style="font-size:10px;font-weight:700;color:' + dc + '">' + (dif>=0?'+':'') + dif.toFixed(2) + '</div></div></div>';
+      });
+    } else {
+      html += '<div style="text-align:center;padding:16px;color:var(--muted);font-size:12px">Nicio raportare</div>';
+    }
+    html += '</div>';
+
+    if (tablesEl) tablesEl.innerHTML = html;
+  } catch(e) {
+    if (tablesEl) tablesEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--red)">⚠️ Eroare la încărcare. Încearcă din nou.</div>';
+    console.error('admLoad error:', e);
+  }
+}
+
 // ══════════════════════════════════════════════════
 // ADMIN LIVE DASHBOARD
 // ══════════════════════════════════════════════════
@@ -4000,17 +4162,12 @@ function enterApp() {
     } else if (role === 'warehouse') {
       document.getElementById('pg-gabi').classList.add('active');
       document.getElementById('tab-home').onclick = function() {
-        document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
-        document.querySelectorAll('.tab-item').forEach(function(t){t.classList.remove('active');});
-        document.getElementById('pg-gabi').classList.add('active');
-        document.getElementById('tab-home').classList.add('active');
-        renderGabiView();
+        openTab('home');
       };
       document.getElementById('tab-home').classList.add('active');
       renderGabiView();
     } else if (role === 'admin') {
-      document.getElementById('pg-home').classList.add('active');
-      renderAdminDashboard();
+      admShowPage();
     } else {
       document.getElementById('pg-home').classList.add('active');
       renderHome();
