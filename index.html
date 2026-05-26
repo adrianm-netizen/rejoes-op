@@ -490,6 +490,26 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
 .date-btn:active { background:var(--card2); }
 .date-display { flex:1; text-align:center; font-family:'Cormorant Garamond',serif;
   font-size:16px; color:var(--gold); font-weight:600; }
+
+/* ── LIVE FEED ── */
+.live-feed { background:var(--card); border:1px solid var(--border); border-radius:var(--rs); overflow:hidden; margin-bottom:12px; }
+.live-feed-hdr { background:#1a3828; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; }
+.live-feed-title { font-size:12px; font-weight:700; color:var(--gold); display:flex; align-items:center; gap:7px; }
+.live-dot { width:7px; height:7px; background:#4caf7a; border-radius:4px; animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+.live-feed-count { font-size:10px; color:var(--muted); }
+.live-item { display:flex; align-items:flex-start; padding:9px 14px; border-bottom:1px solid var(--border); gap:10px; }
+.live-item:last-child { border-bottom:none; }
+.live-ico { font-size:16px; flex-shrink:0; margin-top:1px; }
+.live-info { flex:1; min-width:0; }
+.live-action { font-size:12px; font-weight:600; color:var(--text); }
+.live-sub { font-size:10px; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.live-time { font-size:10px; color:var(--muted); flex-shrink:0; text-align:right; }
+.live-empty { text-align:center; padding:20px; font-size:12px; color:var(--muted); }
+.live-refresh-bar { display:flex; align-items:center; gap:6px; padding:6px 14px; border-top:1px solid var(--border); background:rgba(201,168,76,.04); }
+.live-progress { flex:1; height:3px; background:var(--border); border-radius:2px; overflow:hidden; }
+.live-progress-inner { height:100%; background:var(--gold); border-radius:2px; transition:width 1s linear; }
+.live-refresh-txt { font-size:9px; color:var(--muted); flex-shrink:0; }
 </style>
 </head>
 <body>
@@ -829,6 +849,7 @@ function openTab(tab) {
   if (tab === 'pontaj') { pontState = {step:0, data:{date:todayIso()}}; renderPontaj(); }
   if (tab === 'raportare') { rapState = {step:0, data:{date:todayIso()}}; renderRaportare(); }
   if (tab === 'historic' || tab === 'istoric') renderHistory();
+  if (tab !== 'home') stopLiveFeed();
   if (tab === 'home') {
     if (currentUser && currentUser.role === 'contabila')   renderDanaView();
     else if (currentUser && currentUser.role === 'warehouse') renderGabiView();
@@ -3364,6 +3385,88 @@ function jsonpFetch(url) {
   });
 }
 
+
+// ══════════════════════════════════════════════════
+// LIVE ACTIVITY FEED
+// ══════════════════════════════════════════════════
+var liveRefreshTimer = null;
+var liveCountdown    = 30;
+var liveProgressEl   = null;
+
+function startLiveFeed() {
+  loadLiveFeed();
+  if (liveRefreshTimer) clearInterval(liveRefreshTimer);
+  liveCountdown = 30;
+  liveRefreshTimer = setInterval(function() {
+    liveCountdown--;
+    if (liveProgressEl) liveProgressEl.style.width = ((30 - liveCountdown) / 30 * 100) + '%';
+    var txt = document.getElementById('liveRefreshTxt');
+    if (txt) txt.textContent = 'Refresh în ' + liveCountdown + 's';
+    if (liveCountdown <= 0) {
+      liveCountdown = 30;
+      loadLiveFeed();
+    }
+  }, 1000);
+}
+
+function stopLiveFeed() {
+  if (liveRefreshTimer) { clearInterval(liveRefreshTimer); liveRefreshTimer = null; }
+}
+
+async function loadLiveFeed() {
+  var el = document.getElementById('liveItems');
+  if (!el) return;
+  try {
+    var data = await jsonpFetch(SHEETS_URL + '?action=getActivity&limit=25');
+    if (data.status === 'ok') renderLiveFeed(data.activity || []);
+  } catch(e) {
+    console.warn('Live feed error:', e);
+  }
+}
+
+function renderLiveFeed(items) {
+  var el = document.getElementById('liveItems');
+  var cnt = document.getElementById('liveCount');
+  if (!el) return;
+  if (cnt) cnt.textContent = items.length + ' recent';
+
+  if (!items.length) {
+    el.innerHTML = '<div class="live-empty">Nicio activitate încă...</div>';
+    return;
+  }
+
+  el.innerHTML = items.map(function(a) {
+    var action = '';
+    var sub    = '';
+    if (a.sheet === 'Pontaj') {
+      action = a.who;
+      sub    = '📍 ' + a.loc + (a.val ? ' · ' + a.val : '');
+    } else if (a.sheet === 'Raportare') {
+      action = a.loc; // store name
+      sub    = '👤 ' + a.who + (a.val ? ' · ' + parseFloat(a.val||0).toFixed(0) + ' RON' : '');
+    } else if (a.sheet === 'Comentarii') {
+      action = (a.type==='Magazin'?'📝 ':' 💬 ') + (a.loc!=='—'?a.loc:'Comentariu liber');
+      sub    = a.val.length>50 ? a.val.slice(0,50)+'...' : a.val;
+    } else if (a.sheet === 'Tasks') {
+      action = '✅ ' + a.val;
+      sub    = '👤 ' + a.who + (a.loc?' · '+a.loc:'');
+    }
+
+    // Time display
+    var ts = a.ts || '';
+    var timeStr = ts.length > 10 ? ts.slice(-8).slice(0,5) : ts.slice(0,10);
+
+    return '<div class="live-item">' +
+      '<div class="live-ico">' + a.icon + '</div>' +
+      '<div class="live-info">' +
+        '<div class="live-action">' + action + '</div>' +
+        '<div class="live-sub">' + sub + '</div>' +
+      '</div>' +
+      '<div class="live-time">' + timeStr + '<br><span style="font-size:9px;color:var(--muted)">' + a.sheet + '</span></div>' +
+      '</div>';
+  }).join('');
+}
+
 // ══════════════════════════════════════════════════
 // ADMIN LIVE DASHBOARD
 // ══════════════════════════════════════════════════
@@ -3403,6 +3506,18 @@ async function renderAdminDashboard() {
     '</div>' +
 
     '<div id="adminTables"></div>' +
+    // Live Feed
+    '<div class="live-feed">' +
+    '<div class="live-feed-hdr">' +
+    '<div class="live-feed-title"><div class="live-dot"></div>🟢 Activitate Live</div>' +
+    '<div class="live-feed-count" id="liveCount">—</div>' +
+    '</div>' +
+    '<div id="liveItems"><div class="live-empty">Se încarcă...</div></div>' +
+    '<div class="live-refresh-bar">' +
+    '<div class="live-progress"><div class="live-progress-inner" id="liveProgress" style="width:0%"></div></div>' +
+    '<div class="live-refresh-txt" id="liveRefreshTxt">Refresh în 30s</div>' +
+    '</div>' +
+    '</div>' +
     '</div>';
 
   // Set greeting
@@ -3449,6 +3564,9 @@ async function loadAdminData() {
     var j = await loadAdminDataFromSheets(adminDashDate);
     adminData = j;
     renderAdminTables(j);
+  // Start live feed
+  liveProgressEl = document.getElementById('liveProgress');
+  startLiveFeed();
   } catch(e) {
     console.error('Dashboard load error:', e);
     renderAdminTables({status:'error', pontaje:[], raportari:[], comentarii:[], summary:{}});
