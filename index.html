@@ -3271,6 +3271,37 @@ function openCerereMarfaWH() {
 
 
 
+
+// ── JSONP helper (bypasses CORS) ──────────────────
+function jsonpFetch(url) {
+  return new Promise(function(resolve, reject) {
+    var cbName = 'rjcb_' + Date.now() + '_' + Math.floor(Math.random()*10000);
+    var timeout = setTimeout(function() {
+      delete window[cbName];
+      var el = document.getElementById(cbName);
+      if (el) el.remove();
+      reject(new Error('JSONP timeout'));
+    }, 10000);
+    window[cbName] = function(data) {
+      clearTimeout(timeout);
+      delete window[cbName];
+      var el = document.getElementById(cbName);
+      if (el) el.remove();
+      resolve(data);
+    };
+    var script = document.createElement('script');
+    script.id = cbName;
+    script.src = url + (url.indexOf('?')>=0?'&':'?') + 'callback=' + cbName;
+    script.onerror = function() {
+      clearTimeout(timeout);
+      delete window[cbName];
+      script.remove();
+      reject(new Error('JSONP error'));
+    };
+    document.head.appendChild(script);
+  });
+}
+
 // ══════════════════════════════════════════════════
 // ADMIN LIVE DASHBOARD
 // ══════════════════════════════════════════════════
@@ -3353,11 +3384,11 @@ async function loadAdminData() {
   }
 
   try {
-    var r = await fetch(SHEETS_URL + '?action=getEntries&date=' + adminDashDate, {redirect:'follow'});
-    var j = await r.json();
+    var j = await jsonpFetch(SHEETS_URL + '?action=getEntries&date=' + adminDashDate);
     adminData = j;
     renderAdminTables(j);
   } catch(e) {
+    console.error('Dashboard load error:', e);
     renderAdminTables({status:'error', pontaje:[], raportari:[], comentarii:[], summary:{}});
   }
   if (ico) ico.textContent = '🔄';
@@ -3465,8 +3496,7 @@ async function renderDanaView() {
   var ov = null;
   if (SHEETS_URL) {
     try {
-      var r = await fetch(SHEETS_URL + '?action=getOverview');
-      var j = await r.json();
+      var j = await jsonpFetch(SHEETS_URL + '?action=getOverview');
       if (j.status === 'ok') ov = j.overview;
     } catch(e) { console.warn('Overview fetch failed:', e); }
   }
