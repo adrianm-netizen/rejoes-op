@@ -3486,15 +3486,15 @@ async function renderAdminDashboard() {
     '<div style="font-family:Cormorant Garamond,serif;font-size:26px;color:var(--text)" id="adminGreeting"></div>' +
     '<div style="font-size:12px;color:var(--muted)" id="adminMsg"></div>' +
     '</div>' +
-    '<button class="refresh-btn" onclick="loadAdminData()">' +
+    '<button class="refresh-btn" id="btnRefresh">' +
     '<span id="refreshIco">🔄</span> Actualizează</button>' +
     '</div>' +
 
     // Date navigation
     '<div class="admin-date-nav">' +
-    '<button class="date-btn" onclick="adminDateNav(-1)">◀</button>' +
+    '<button class="date-btn" id="btnPrev">◀</button>' +
     '<div class="date-display" id="adminDateDisp"></div>' +
-    '<button class="date-btn" onclick="adminDateNav(1)">▶</button>' +
+    '<button class="date-btn" id="btnNext">▶</button>' +
     '</div>' +
 
     // Stats
@@ -3520,6 +3520,16 @@ async function renderAdminDashboard() {
     '</div>' +
     '</div>';
 
+  // Attach event listeners (avoids inline onclick issues)
+  setTimeout(function() {
+    var bp = document.getElementById('btnPrev');
+    var bn = document.getElementById('btnNext');
+    var br = document.getElementById('btnRefresh');
+    if (bp) bp.onclick = function() { adminDateNav(-1); };
+    if (bn) bn.onclick = function() { adminDateNav(1); };
+    if (br) br.onclick = function() { loadAdminData(); };
+  }, 100);
+
   // Set greeting
   var h = new Date().getHours();
   var uname = currentUser ? currentUser.name : 'Adrian';
@@ -3541,7 +3551,7 @@ function updateAdminDateDisplay() {
     d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
 }
 
-function adminDateNav(dir) {
+window.adminDateNav = function adminDateNav(dir) {
   var d = new Date(adminDashDate + 'T12:00:00');
   d.setDate(d.getDate() + dir);
   adminDashDate = d.toISOString().slice(0,10);
