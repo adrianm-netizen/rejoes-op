@@ -830,12 +830,14 @@ function uid() { return Date.now().toString(36)+Math.random().toString(36).slice
 function save() { localStorage.setItem('rejoes_v2', JSON.stringify(entries)); updateHdrCount(); }
 function todayEntries() { const t=todayIso(); return entries.filter(e=>e.date===t); }
 function updateHdrCount() {
-  const te = todayEntries();
-  const hc=document.getElementById('hdrCount'); if(hc) hc.textContent = te.length + ' înregistrări azi';
-  document.getElementById('statPontaj').textContent = te.filter(e=>e.type==='pontaj').length;
-  document.getElementById('statRaport').textContent = te.filter(e=>e.type==='raportare').length;
-  document.getElementById('expPontCnt').textContent = entries.filter(e=>e.type==='pontaj').length;
-  document.getElementById('expRapCnt').textContent  = entries.filter(e=>e.type==='raportare').length;
+  try {
+    const te = todayEntries();
+    const hc=document.getElementById('hdrCount'); if(hc) hc.textContent = te.length + ' înregistrări azi';
+    const sp=document.getElementById('statPontaj'); if(sp) sp.textContent = te.filter(e=>e.type==='pontaj').length;
+    const sr=document.getElementById('statRaport'); if(sr) sr.textContent = te.filter(e=>e.type==='raportare').length;
+    const ep=document.getElementById('expPontCnt'); if(ep) ep.textContent = entries.filter(e=>e.type==='pontaj').length;
+    const er=document.getElementById('expRapCnt');  if(er) er.textContent = entries.filter(e=>e.type==='raportare').length;
+  } catch(e) { /* ignore - elements may not exist for admin view */ }
 }
 
 // ══════════════════════════════════════════════════
@@ -3574,9 +3576,9 @@ async function loadAdminData() {
     var j = await loadAdminDataFromSheets(adminDashDate);
     adminData = j;
     renderAdminTables(j);
-  // Start live feed
+  // Start live feed (only if sheets are connected)
   liveProgressEl = document.getElementById('liveProgress');
-  startLiveFeed();
+  if (SHEETS_URL) startLiveFeed();
   } catch(e) {
     console.error('Dashboard load error:', e);
     renderAdminTables({status:'error', pontaje:[], raportari:[], comentarii:[], summary:{}});
