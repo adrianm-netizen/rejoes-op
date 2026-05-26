@@ -3350,7 +3350,7 @@ async function readSheetData(sheetName, dateFilter) {
     var r = await fetch(url);
     var text = await r.text();
     // Strip Google's wrapper: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
-    var json = text.replace(/^\/\*.*?\*\/\s*/, '').replace(/^google\.visualization\.Query\.setResponse\(/, '').replace(/\);\s*$/, '');
+    var json = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/google\.visualization\.Query\.setResponse\(/, '').replace(/\);?\s*$/, '').trim();
     var data = JSON.parse(json);
     if (!data.table || !data.table.rows) return [];
     
