@@ -3357,6 +3357,16 @@ async function loadAdminDataFromSheets(date) {
   }
 }
 
+
+// ── Event delegation for admin dashboard buttons ──
+document.addEventListener('click', function(e) {
+  var id = e.target.id || (e.target.closest ? (e.target.closest('[id]') || {}).id : '');
+  if (!id) id = e.target.id;
+  if (id === 'btnPrev')    { adminDateNav(-1); return; }
+  if (id === 'btnNext')    { adminDateNav(1);  return; }
+  if (id === 'btnRefresh') { loadAdminData();  return; }
+});
+
 // ── JSONP helper (bypasses CORS) ──────────────────
 function jsonpFetch(url) {
   return new Promise(function(resolve, reject) {
@@ -3489,15 +3499,15 @@ async function renderAdminDashboard() {
     '<div style="font-family:Cormorant Garamond,serif;font-size:26px;color:var(--text)" id="adminGreeting"></div>' +
     '<div style="font-size:12px;color:var(--muted)" id="adminMsg"></div>' +
     '</div>' +
-    '<button class="refresh-btn" id="btnRefresh">' +
+    '<button class="refresh-btn" id="btnRefresh" onclick="loadAdminData()">' +
     '<span id="refreshIco">🔄</span> Actualizează</button>' +
     '</div>' +
 
     // Date navigation
     '<div class="admin-date-nav">' +
-    '<button class="date-btn" id="btnPrev">◀</button>' +
+    '<button class="date-btn" id="btnPrev" onclick="adminDateNav(-1)">◀</button>' +
     '<div class="date-display" id="adminDateDisp"></div>' +
-    '<button class="date-btn" id="btnNext">▶</button>' +
+    '<button class="date-btn" id="btnNext" onclick="adminDateNav(1)">▶</button>' +
     '</div>' +
 
     // Stats
@@ -3522,16 +3532,6 @@ async function renderAdminDashboard() {
     '</div>' +
     '</div>' +
     '</div>';
-
-  // Attach event listeners (avoids inline onclick issues)
-  setTimeout(function() {
-    var bp = document.getElementById('btnPrev');
-    var bn = document.getElementById('btnNext');
-    var br = document.getElementById('btnRefresh');
-    if (bp) bp.onclick = function() { adminDateNav(-1); };
-    if (bn) bn.onclick = function() { adminDateNav(1); };
-    if (br) br.onclick = function() { loadAdminData(); };
-  }, 100);
 
   // Set greeting
   var h = new Date().getHours();
