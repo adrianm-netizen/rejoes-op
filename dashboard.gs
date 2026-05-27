@@ -53,7 +53,7 @@ function buildDash(ss, dates) {
   var dateStr = dFmt(dates.start) + ' - ' + dFmt(dates.end);
 
   // Header
-  row = addHeader(sh, row, ncols, dateStr);
+  row = addHeader(sh, row, ncols, dateStr, dates);
 
   // Get data
   var pons = getRange(ss, 'Pontaj', dates);
@@ -86,7 +86,7 @@ function buildDash(ss, dates) {
 var CELL_DATE_FROM = 'B_DATE_FROM';
 var CELL_DATE_TO   = 'B_DATE_TO';
 
-function addHeader(sh, row, ncols, dateStr) {
+function addHeader(sh, row, ncols, dateStr, dates) {
   sh.setRowHeight(row, 6);
   sh.getRange(row,1,1,ncols).merge().setBackground(DC.dark); row++;
 
@@ -120,7 +120,7 @@ function addHeader(sh, row, ncols, dateStr) {
     .setFontSize(10).setVerticalAlignment('middle').setHorizontalAlignment('right');
   // FROM date cell - editable
   var fromCell = sh.getRange(row,3);
-  fromCell.setValue(dFmt(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
+  fromCell.setValue(dates ? dFmt(dates.start) : dFmt(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
     .setBackground(DC.white).setFontColor(DC.text).setFontWeight('bold')
     .setFontSize(11).setVerticalAlignment('middle').setHorizontalAlignment('center')
     .setBorder(true,true,true,true,false,false,DC.gold,SpreadsheetApp.BorderStyle.SOLID);
@@ -137,7 +137,7 @@ function addHeader(sh, row, ncols, dateStr) {
     .setFontSize(10).setVerticalAlignment('middle').setHorizontalAlignment('right');
   // TO date cell - editable
   var toCell = sh.getRange(row,5);
-  toCell.setValue(dFmt(new Date()))
+  toCell.setValue(dates ? dFmt(dates.end) : dFmt(new Date()))
     .setBackground(DC.white).setFontColor(DC.text).setFontWeight('bold')
     .setFontSize(11).setVerticalAlignment('middle').setHorizontalAlignment('center')
     .setBorder(true,true,true,true,false,false,DC.gold,SpreadsheetApp.BorderStyle.SOLID);
@@ -154,7 +154,7 @@ function addHeader(sh, row, ncols, dateStr) {
     .setFontSize(10).setVerticalAlignment('middle').setHorizontalAlignment('center')
     .setBorder(true,true,true,true,false,false,'#a07830',SpreadsheetApp.BorderStyle.SOLID);
   sh.getRange(row,8,1,2).merge()
-    .setValue('Schimba datele in celulele galbene si apasa: Rejoes Dashboard > Genereaza')
+    .setValue('1. Editeaza datele in celulele albe (De la / Pana la)\n2. Meniu: Rejoes Dashboard > Genereaza din celulele Dashboard')
     .setBackground('#1a3020').setFontColor(DC.muted)
     .setFontSize(8).setVerticalAlignment('middle').setWrap(true);
   row++;
@@ -170,13 +170,18 @@ function getDatesFromDashboard() {
   var sh = ss.getSheetByName(DASH_SHEET);
   if (!sh) return null;
   try {
-    // Dates are in row 4 (after 3 header rows), columns C and E
-    var fromVal = sh.getRange(4,3).getValue();
-    var toVal   = sh.getRange(4,5).getValue();
-    var from = dashParseAny(fromVal) || dashParseDate(String(fromVal));
-    var to   = dashParseAny(toVal)   || dashParseDate(String(toVal));
-    if (from && to) return {start: from, end: to};
-  } catch(e) {}
+    // Date cells are in row 4, columns C(3) and E(5)
+    var fromRaw = sh.getRange(4,3).getDisplayValue();
+    var toRaw   = sh.getRange(4,5).getDisplayValue();
+    Logger.log('Reading dates from dashboard: ' + fromRaw + ' to ' + toRaw);
+    var from = dashParseDate(fromRaw.trim()) || dashParseAny(fromRaw.trim());
+    var to   = dashParseDate(toRaw.trim())   || dashParseAny(toRaw.trim());
+    if (from && to) {
+      Logger.log('Parsed: ' + dFmt(from) + ' - ' + dFmt(to));
+      return {start: from, end: to};
+    }
+    Logger.log('Could not parse dates: ' + fromRaw + ', ' + toRaw);
+  } catch(e) { Logger.log('getDatesFromDashboard error: ' + e); }
   return null;
 }
 
@@ -567,15 +572,15 @@ function fmtR(v) {
 
 // Generate report using dates from dashboard cells
 function buildFromDashboardCells() {
-  var dates = getDatesFromDashboard();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var dates = getDatesFromDashboard();
   if (!dates) {
-    // Fallback to current month
+    Logger.log('Nu s-au putut citi datele din celule, folosesc luna curenta');
     dates = getDefaultDates();
   }
+  Logger.log('Generez raport: ' + dFmt(dates.start) + ' - ' + dFmt(dates.end));
   var sh = ss.getSheetByName(DASH_SHEET) || ss.insertSheet(DASH_SHEET, 0);
   buildDash(ss, dates);
-  Logger.log('Raport generat pentru: ' + dFmt(dates.start) + ' - ' + dFmt(dates.end));
 }
 
 // Sterge duplicate din foaia Pontaj
