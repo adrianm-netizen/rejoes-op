@@ -15,16 +15,19 @@ const DC = {
   muted: '#7f8c8d', border:'#d4c5a0'
 };
 
-function onOpen() {
+function createDashboardMenu() {
+  try {
   SpreadsheetApp.getUi().createMenu('Rejoes Dashboard')
     .addItem('Regenereaza Dashboard (luna curenta)', 'setupDashboard')
     .addItem('Raport perioada personalizata...', 'buildCustomPeriod')
     .addSeparator()
     .addItem('Trimite Raport Full prin Email...', 'sendFullReport')
     .addToUi();
+  } catch(e) { Logger.log('Menu: ' + e); }
 }
 
 function setupDashboard() {
+  try { createDashboardMenu(); } catch(e) {}
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var dates = getDefaultDates();
   buildDash(ss, dates);
