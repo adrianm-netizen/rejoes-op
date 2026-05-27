@@ -162,9 +162,10 @@ function getEmpNorm(empName) {
   var name = empName.toUpperCase();
   // Concediu maternitate
   if (name.indexOf('BOTAS') >= 0) return {type: 'maternitate', hPerDay: 0, schedule: 'Concediu maternitate'};
-  // Angajati iesiti
-  if (name.indexOf('BAKAITY') >= 0) return {type: 'iesit', hPerDay: 0, schedule: 'A parasit compania'};
+  // Angajati iesiti - doar cei fara pontaje
   if (name.indexOf('AVRAMESCU') >= 0) return {type: 'iesit', hPerDay: 0, schedule: 'A parasit compania'};
+  // BAKAITY - a plecat dar are pontaje, apare in clasament cu status special
+  if (name.indexOf('BAKAITY') >= 0) return {type: 'sabsemilib', hPerDay: 8, hSab: 4, schedule: '8h L-V + 4h Sb (incheiat)'};
   // 8h/zi standard (Luni-Vineri)
   if (name.indexOf('BARABAN') >= 0 || name.indexOf('ONOFREI') >= 0 || name.indexOf('CIOBANICA') >= 0)
     return {type: 'standard', hPerDay: 8, schedule: '8h/zi L-V'};
@@ -264,8 +265,9 @@ function addPontaj(sh, row, pons, dates) {
     var diff = d.ore - normaOre;
     var bg = idx%2===0?DC.white:'#f9f7f0';
     sh.setRowHeight(row, 22);
-    var status = diff >= 0 ? 'Norma indeplinita' : Math.abs(diff) <= 8 ? 'Aproape' : 'Sub norma';
-    var sColor = diff >= 0 ? '#1a6b3a' : Math.abs(diff) <= 8 ? DC.orange : DC.red;
+    var isBakaity = e.toUpperCase().indexOf('BAKAITY') >= 0;
+    var status = isBakaity ? 'Contract incheiat' : diff >= 0 ? 'Norma indeplinita' : Math.abs(diff) <= 8 ? 'Aproape' : 'Sub norma';
+    var sColor = isBakaity ? DC.orange : diff >= 0 ? '#1a6b3a' : Math.abs(diff) <= 8 ? DC.orange : DC.red;
     var diffStr = (diff >= 0 ? '+' : '') + diff.toFixed(1) + ' h';
     var vals = [idx+1, e, norm.schedule, d.zile,
       d.ore.toFixed(1)+' h', normaOre.toFixed(0)+' h', diffStr, status];
