@@ -282,20 +282,7 @@ function addPontaj(sh, row, pons, dates) {
     row++;
   }
 
-  // Angajati iesiti - red background
-  if (iesiti.length) {
-    sh.setRowHeight(row, 6); row++;
-    iesiti.forEach(function(e) {
-      sh.setRowHeight(row, 26);
-      var vals = [' ', e, 'A parasit compania', ' ', ' ', ' ', ' ', 'Iesit din companie'];
-      vals.forEach(function(v, i) {
-        sh.getRange(row, i+1).setValue(v)
-          .setBackground('#fde8e8').setFontColor(DC.red)
-          .setFontSize(10).setFontWeight('bold').setVerticalAlignment('middle');
-      });
-      row++;
-    });
-  }
+
 
   row++; return row;
 }
