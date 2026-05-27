@@ -28,7 +28,7 @@ function setupDashboard() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var dates = getDefaultDates();
   buildDash(ss, dates);
-  SpreadsheetApp.getUi().alert('Dashboard creat cu succes!');
+  Logger.log('Dashboard creat cu succes!');
 }
 
 function getDefaultDates() {
