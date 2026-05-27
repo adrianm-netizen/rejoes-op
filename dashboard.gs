@@ -44,8 +44,14 @@ function getDefaultDates() {
 
 function buildDash(ss, dates) {
   var sh = ss.getSheetByName(DASH_SHEET);
-  if (sh) ss.deleteSheet(sh);
-  sh = ss.insertSheet(DASH_SHEET, 0);
+  if (!sh) {
+    sh = ss.insertSheet(DASH_SHEET, 0);
+  } else {
+    // Clear content but KEEP drawings/buttons
+    sh.clearContents();
+    sh.clearFormats();
+    sh.clearConditionalFormatRules();
+  }
 
   var ncols = 10;
   var colW = [20, 220, 110, 100, 100, 110, 110, 120, 120, 20];
