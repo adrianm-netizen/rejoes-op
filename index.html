@@ -746,6 +746,12 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
     </div>
 
 
+    <!-- ─── CERERE MARFA PAGE ─── -->
+    <div class="page" id="pg-cerere-marfa"></div>
+
+    <!-- ─── RETUR ANA PAGE ─── -->
+    <div class="page" id="pg-retur-ana"></div>
+
     <!-- ─── ADMIN DASHBOARD PAGE ─── -->
     <div class="page" id="pg-admin">
       <div style="padding:14px 14px 80px;overflow-y:auto">
@@ -4049,15 +4055,7 @@ const RETUR_STATUS = {
 function openCerereMarfaWH() {
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
   var pg = document.getElementById('pg-cerere-marfa');
-  if (!pg) {
-    pg = document.createElement('div');
-    pg.className = 'page active';
-    pg.id = 'pg-cerere-marfa';
-    document.querySelector('.app-shell').appendChild(pg);
-  } else {
-    pg.classList.add('active');
-  }
-  renderCerereMarfa(pg);
+  if (pg) { pg.classList.add('active'); renderCerereMarfa(pg); }
 }
 
 function renderCerereMarfa(pg) {
@@ -4171,15 +4169,7 @@ function submitCerereMarfa() {
 function openReturAna() {
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
   var pg = document.getElementById('pg-retur-ana');
-  if (!pg) {
-    pg = document.createElement('div');
-    pg.className = 'page active';
-    pg.id = 'pg-retur-ana';
-    document.querySelector('.app-shell').appendChild(pg);
-  } else {
-    pg.classList.add('active');
-  }
-  renderReturAna();
+  if (pg) { pg.classList.add('active'); renderReturAna(); }
 }
 
 function renderReturAna() {
