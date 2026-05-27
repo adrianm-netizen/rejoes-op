@@ -5,7 +5,7 @@
 
 const DASH_SHEET = 'DASHBOARD';
 const DASH_COMPANY = 'S Colect REC S.R.L.';
-const DASH_ADDR = 'Timisoara, Romania';
+const DASH_ADDR = 'Str. Republicii nr. 20, 305400 Jimbolia, Jud. Timis | CIF: RO 38513453';
 const DASH_EMAIL = 'info@tm-res.com';
 
 const DC = {
