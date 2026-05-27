@@ -114,51 +114,9 @@ function addHeader(sh, row, ncols, dateStr, dates) {
     .setBackground(DC.green).setFontColor(DC.border).setFontSize(9).setVerticalAlignment('middle');
   row++;
 
-  // DATE SELECTOR ROW
-  sh.setRowHeight(row, 36);
-  // Label De la:
-  sh.getRange(row,2).setValue('De la:')
-    .setBackground('#1a3020').setFontColor(DC.gold).setFontWeight('bold')
-    .setFontSize(10).setVerticalAlignment('middle').setHorizontalAlignment('right');
-  // FROM date cell - editable
-  var fromCell = sh.getRange(row,3);
-  fromCell.setValue(dates ? dFmt(dates.start) : dFmt(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
-    .setBackground(DC.white).setFontColor(DC.text).setFontWeight('bold')
-    .setFontSize(11).setVerticalAlignment('middle').setHorizontalAlignment('center')
-    .setBorder(true,true,true,true,false,false,DC.gold,SpreadsheetApp.BorderStyle.SOLID);
-  // Try to set named range for FROM cell
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var existing = ss.getRangeByName(CELL_DATE_FROM);
-    if (!existing) ss.setNamedRange(CELL_DATE_FROM, fromCell);
-  } catch(e) {}
-
-  // Label Pana la:
-  sh.getRange(row,4).setValue('Pana la:')
-    .setBackground('#1a3020').setFontColor(DC.gold).setFontWeight('bold')
-    .setFontSize(10).setVerticalAlignment('middle').setHorizontalAlignment('right');
-  // TO date cell - editable
-  var toCell = sh.getRange(row,5);
-  toCell.setValue(dates ? dFmt(dates.end) : dFmt(new Date()))
-    .setBackground(DC.white).setFontColor(DC.text).setFontWeight('bold')
-    .setFontSize(11).setVerticalAlignment('middle').setHorizontalAlignment('center')
-    .setBorder(true,true,true,true,false,false,DC.gold,SpreadsheetApp.BorderStyle.SOLID);
-  try {
-    var ss2 = SpreadsheetApp.getActiveSpreadsheet();
-    var existing2 = ss2.getRangeByName(CELL_DATE_TO);
-    if (!existing2) ss2.setNamedRange(CELL_DATE_TO, toCell);
-  } catch(e) {}
-
-  // GENERATE button (drawn as a styled cell)
-  sh.getRange(row,6,1,2).merge()
-    .setValue('>> GENEREAZA RAPORT <<')
-    .setBackground(DC.gold).setFontColor(DC.dark).setFontWeight('bold')
-    .setFontSize(10).setVerticalAlignment('middle').setHorizontalAlignment('center')
-    .setBorder(true,true,true,true,false,false,'#a07830',SpreadsheetApp.BorderStyle.SOLID);
-  sh.getRange(row,8,1,2).merge()
-    .setValue('1. Editeaza datele in celulele albe (De la / Pana la)\n2. Meniu: Rejoes Dashboard > Genereaza din celulele Dashboard')
-    .setBackground('#1a3020').setFontColor(DC.muted)
-    .setFontSize(8).setVerticalAlignment('middle').setWrap(true);
+  // BUTTONS ROW - left empty for manual Drawing buttons
+  sh.setRowHeight(row, 50);
+  sh.getRange(row,1,1,ncols).merge().setBackground(DC.dark);
   row++;
 
   sh.setRowHeight(row, 8);
@@ -167,24 +125,29 @@ function addHeader(sh, row, ncols, dateStr, dates) {
 }
 
 // Read dates from dashboard cells
-function getDatesFromDashboard() {
+// Fixed cells for date input - Sheet1, B1=From, B2=To
+var INPUT_SHEET = 'Setari';
+var INPUT_FROM_ROW = 1;
+var INPUT_TO_ROW = 2;
+var INPUT_COL = 2;
+
+function getDatesFromInput() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(DASH_SHEET);
+  // Try 'Setari' sheet first, fallback to prompt
+  var sh = ss.getSheetByName(INPUT_SHEET);
   if (!sh) return null;
   try {
-    // Date cells are in row 4, columns C(3) and E(5)
-    var fromRaw = sh.getRange(4,3).getDisplayValue();
-    var toRaw   = sh.getRange(4,5).getDisplayValue();
-    Logger.log('Reading dates from dashboard: ' + fromRaw + ' to ' + toRaw);
+    var fromRaw = sh.getRange(INPUT_FROM_ROW, INPUT_COL).getDisplayValue();
+    var toRaw   = sh.getRange(INPUT_TO_ROW,   INPUT_COL).getDisplayValue();
     var from = dashParseDate(fromRaw.trim()) || dashParseAny(fromRaw.trim());
     var to   = dashParseDate(toRaw.trim())   || dashParseAny(toRaw.trim());
-    if (from && to) {
-      Logger.log('Parsed: ' + dFmt(from) + ' - ' + dFmt(to));
-      return {start: from, end: to};
-    }
-    Logger.log('Could not parse dates: ' + fromRaw + ', ' + toRaw);
-  } catch(e) { Logger.log('getDatesFromDashboard error: ' + e); }
+    if (from && to) return {start: from, end: to};
+  } catch(e) {}
   return null;
+}
+
+function getDatesFromDashboard() {
+  return getDatesFromInput();
 }
 
 function addTitle(sh, row, title, ncols) {
@@ -575,9 +538,23 @@ function fmtR(v) {
 // Generate report using dates from dashboard cells
 function buildFromDashboardCells() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var dates = getDatesFromDashboard();
+  // Setup Setari sheet if not exists
+  var setariSh = ss.getSheetByName(INPUT_SHEET);
+  if (!setariSh) {
+    setariSh = ss.insertSheet(INPUT_SHEET);
+    var def = getDefaultDates();
+    setariSh.getRange(1,1).setValue('De la:').setFontWeight('bold').setBackground('#1a3828').setFontColor('#c9a84c');
+    setariSh.getRange(1,2).setValue(dFmt(def.start)).setBackground('#ffffff').setFontWeight('bold').setFontSize(12);
+    setariSh.getRange(2,1).setValue('Pana la:').setFontWeight('bold').setBackground('#1a3828').setFontColor('#c9a84c');
+    setariSh.getRange(2,2).setValue(dFmt(def.end)).setBackground('#ffffff').setFontWeight('bold').setFontSize(12);
+    setariSh.getRange(3,1,1,2).merge().setValue('Editeaza datele de mai sus, apoi apasa butonul Genereaza Raport din Dashboard')
+      .setBackground('#f5f5f5').setFontColor('#7f8c8d').setFontSize(9).setWrap(true);
+    setariSh.setColumnWidth(1, 80);
+    setariSh.setColumnWidth(2, 120);
+    SpreadsheetApp.flush();
+  }
+  var dates = getDatesFromInput();
   if (!dates) {
-    Logger.log('Nu s-au putut citi datele din celule, folosesc luna curenta');
     dates = getDefaultDates();
   }
   Logger.log('Generez raport: ' + dFmt(dates.start) + ' - ' + dFmt(dates.end));
