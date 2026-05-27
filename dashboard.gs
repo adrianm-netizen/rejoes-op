@@ -218,15 +218,19 @@ function addPontaj(sh, row, pons, dates) {
     var h = parseH(r[6]);
     var dateKey = String(r[0]).slice(0,10); // unique date key
     if (h > 0) {
-      emp[e].ore += h;
-      emp[e].dates[dateKey] = 1; // count unique working days
+      // Keep MAX hours per day (avoid double-counting multiple entries same day)
+      if (!emp[e].dates[dateKey] || h > emp[e].dates[dateKey]) {
+        emp[e].dates[dateKey] = h;
+      }
     } else {
-      emp[e].libDates[dateKey] = 1; // count unique free days
+      emp[e].libDates[dateKey] = 1;
     }
   });
-  // Convert date sets to counts
+  // Sum max hours per day and count unique days
   Object.keys(emp).forEach(function(e) {
-    emp[e].zile = Object.keys(emp[e].dates).length;
+    var dateKeys = Object.keys(emp[e].dates);
+    emp[e].zile = dateKeys.length;
+    emp[e].ore  = dateKeys.reduce(function(s, k) { return s + emp[e].dates[k]; }, 0);
     emp[e].lib  = Object.keys(emp[e].libDates).length;
   });
 
