@@ -311,7 +311,7 @@ function addDiferente(sh, row, raps) {
   if (!difs.length) {
     sh.setRowHeight(row, 38);
     sh.getRange(row,1,1,8).merge()
-      .setValue('Felicitari! Nicio diferenta de casa in perioada selectata. Toate casierii sunt eroi!')
+      .setValue('Felicitari! Nicio diferenta de casa in perioada selectata. Toate fetele noastre sunt eroine!')
       .setBackground('#e8f8f0').setFontColor('#1a6b3a').setFontWeight('bold')
       .setFontSize(11).setVerticalAlignment('middle');
     return row+2;
