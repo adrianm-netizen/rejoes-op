@@ -162,6 +162,9 @@ function getEmpNorm(empName) {
   var name = empName.toUpperCase();
   // Concediu maternitate
   if (name.indexOf('BOTAS') >= 0) return {type: 'maternitate', hPerDay: 0, schedule: 'Concediu maternitate'};
+  // Angajati iesiti
+  if (name.indexOf('BAKAITY') >= 0) return {type: 'iesit', hPerDay: 0, schedule: 'A parasit compania'};
+  if (name.indexOf('AVRAMESCU') >= 0) return {type: 'iesit', hPerDay: 0, schedule: 'A parasit compania'};
   // 8h/zi standard (Luni-Vineri)
   if (name.indexOf('BARABAN') >= 0 || name.indexOf('ONOFREI') >= 0 || name.indexOf('CIOBANICA') >= 0)
     return {type: 'standard', hPerDay: 8, schedule: '8h/zi L-V'};
@@ -177,7 +180,11 @@ function getEmpNorm(empName) {
 function calcNorma(empName, dates) {
   var norm = getEmpNorm(empName);
   if (norm.type === 'maternitate') return 0;
-  var days = Math.round((dates.end - dates.start) / 86400000) + 1;
+  // Use today as end if period extends into future
+  var today = new Date();
+  today.setHours(23,59,59,0);
+  var effectiveEnd = dates.end < today ? dates.end : today;
+  var days = Math.round((effectiveEnd - dates.start) / 86400000) + 1;
   if (norm.type === 'standard') {
     // Count working days Mon-Fri
     var wd = 0;
@@ -207,11 +214,16 @@ function calcNorma(empName, dates) {
 function addPontaj(sh, row, pons, dates) {
   var emp = {};
   var maternitate = [];
+  var iesiti = [];
   pons.forEach(function(r) {
     var e = r[1]; if (!e || e === 'TEST') return;
     var norm = getEmpNorm(e);
     if (norm.type === 'maternitate') {
       if (maternitate.indexOf(e) < 0) maternitate.push(e);
+      return;
+    }
+    if (norm.type === 'iesit') {
+      if (iesiti.indexOf(e) < 0) iesiti.push(e);
       return;
     }
     if (!emp[e]) emp[e] = {ore:0, zile:0, lib:0, dates:{}, libDates:{}};
@@ -274,6 +286,22 @@ function addPontaj(sh, row, pons, dates) {
       .setFontSize(10).setFontStyle('italic').setVerticalAlignment('middle');
     row++;
   }
+
+  // Angajati iesiti - red background
+  if (iesiti.length) {
+    sh.setRowHeight(row, 6); row++;
+    iesiti.forEach(function(e) {
+      sh.setRowHeight(row, 26);
+      var vals = [' ', e, 'A parasit compania', ' ', ' ', ' ', ' ', 'Iesit din companie'];
+      vals.forEach(function(v, i) {
+        sh.getRange(row, i+1).setValue(v)
+          .setBackground('#fde8e8').setFontColor(DC.red)
+          .setFontSize(10).setFontWeight('bold').setVerticalAlignment('middle');
+      });
+      row++;
+    });
+  }
+
   row++; return row;
 }
 
