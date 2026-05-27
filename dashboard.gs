@@ -480,3 +480,31 @@ function dFmtFull(d) {
 function fmtR(v) {
   return parseFloat(v||0).toFixed(2)+' RON';
 }
+
+// Sterge duplicate din foaia Pontaj
+function removeDuplicates() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ws = ss.getSheetByName('Pontaj');
+  if (!ws || ws.getLastRow() < 2) { Logger.log('Nu exista date'); return; }
+
+  var data = ws.getRange(2, 1, ws.getLastRow()-1, ws.getLastColumn()).getValues();
+  var seen = {};
+  var toDelete = [];
+
+  for (var i = 0; i < data.length; i++) {
+    var key = String(data[i][0]).slice(0,10) + '|' + data[i][1] + '|' + data[i][3];
+    if (seen[key]) {
+      toDelete.push(i + 2);
+    } else {
+      seen[key] = true;
+    }
+  }
+
+  toDelete.reverse();
+  Logger.log('Duplicate gasite: ' + toDelete.length);
+  for (var j = 0; j < toDelete.length; j++) {
+    ws.deleteRow(toDelete[j]);
+  }
+  Logger.log('Curatare completa! Sterse ' + toDelete.length + ' randuri duplicate.');
+  SpreadsheetApp.flush();
+}
