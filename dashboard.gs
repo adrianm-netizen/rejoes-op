@@ -598,41 +598,11 @@ function setupButtons() {
 
   // Button definitions: [label, script, col, row, width, height, bgColor]
   var buttons = [
-    {
-      label: 'Genereaza
-Raport',
-      script: 'buildFromDashboardCells',
-      col: 6, row: 4, w: 120, h: 50,
-      bg: '#c9a84c', fg: '#0a1e14'
-    },
-    {
-      label: 'Luna
-Curenta',
-      script: 'setupDashboard',
-      col: 7, row: 4, w: 100, h: 50,
-      bg: '#1a3828', fg: '#c9a84c'
-    },
-    {
-      label: 'Perioada
-Personalizata',
-      script: 'buildCustomPeriod',
-      col: 8, row: 4, w: 120, h: 50,
-      bg: '#1a3828', fg: '#c9a84c'
-    },
-    {
-      label: 'Trimite
-Email + PDF',
-      script: 'sendFullReport',
-      col: 9, row: 4, w: 120, h: 50,
-      bg: '#2980b9', fg: '#ffffff'
-    },
-    {
-      label: 'Curata
-Duplicate',
-      script: 'removeDuplicates',
-      col: 10, row: 4, w: 100, h: 50,
-      bg: '#c0392b', fg: '#ffffff'
-    }
+    {label:'Genereaza Raport', script:'buildFromDashboardCells', col:6, row:4, w:120, h:50, bg:'#c9a84c', fg:'#0a1e14'},
+    {label:'Luna Curenta', script:'setupDashboard', col:7, row:4, w:100, h:50, bg:'#1a3828', fg:'#c9a84c'},
+    {label:'Perioada Personalizata', script:'buildCustomPeriod', col:8, row:4, w:120, h:50, bg:'#1a3828', fg:'#c9a84c'},
+    {label:'Trimite Email + PDF', script:'sendFullReport', col:9, row:4, w:120, h:50, bg:'#2980b9', fg:'#ffffff'},
+    {label:'Curata Duplicate', script:'removeDuplicates', col:10, row:4, w:100, h:50, bg:'#c0392b', fg:'#ffffff'}
   ];
 
   buttons.forEach(function(btn) {
