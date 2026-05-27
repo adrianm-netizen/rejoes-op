@@ -1093,6 +1093,23 @@ function pontBack() { if (pontState.step>0) { pontState.step--; renderPontaj(); 
 
 function savePontaj() {
   const d = pontState.data;
+
+  // Check for duplicate - same employee + same date
+  const duplicate = entries.find(function(e) {
+    return e.type === 'pontaj' && e.emp === d.emp && e.date === d.date;
+  });
+  if (duplicate) {
+    const ore = duplicate.hours > 0 ? duplicate.hours.toFixed(1) + ' h' : 'Zi libera';
+    const confirmSave = confirm(
+      'ATENTIE - Pontaj deja existent!\n\n' +
+      'Angajat: ' + d.emp + '\n' +
+      'Data: ' + d.date + '\n' +
+      'Inregistrat deja: ' + ore + '\n\n' +
+      'Salvezi totusi? (Apasa OK pentru da, Anulare pentru nu)'
+    );
+    if (!confirmSave) return;
+  }
+
   const entry = {
     id: uid(), type:'pontaj', ts: Date.now(), date: d.date,
     emp: d.emp, store: d.store, dayType: d.dayType,
