@@ -665,6 +665,15 @@ function setupMonthlyTrigger() {
   Logger.log('Trigger lunar configurat!');
 }
 
+
+// Test function - runs directly from editor without getUi
+function sendMonthlyReportTest() {
+  var dates = getDefaultDates(); // current month
+  Logger.log('Trimit raport lunar pentru: ' + dFmt(dates.start) + ' - ' + dFmt(dates.end));
+  generateAndSendMonthlyReport(dates, MONTHLY_RECIPIENTS);
+  Logger.log('DONE! Verifica email-ul.');
+}
+
 function sendMonthlyReport() {
   // Check if today is last day of month
   var today = new Date();
