@@ -15,6 +15,10 @@ const DC = {
   muted: '#7f8c8d', border:'#d4c5a0'
 };
 
+function onOpen() {
+  createDashboardMenu();
+}
+
 function createDashboardMenu() {
   try {
   SpreadsheetApp.getUi().createMenu('Rejoes Dashboard')
