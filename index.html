@@ -3012,6 +3012,14 @@ function renderGabiOps() {
 
   var html = '';
 
+  // Guide button
+  html += '<button class="ghid-btn" onclick="openGhid()">' +
+    '<div class="ghid-ico">📖</div>' +
+    '<div class="ghid-text">' +
+    '<div class="ghid-title">Ghid Rapid → Cum folosesc aplicația?</div>' +
+    '<div class="ghid-sub">Instrucțiuni pas cu pas · Apasă să vezi! 👆</div>' +
+    '</div><div class="ghid-arrow">▶</div></button>';
+
   // Pending requests from Ana
   if (pendingReqs.length) {
     html += '<div style="background:rgba(240,160,48,.1);border:1px solid rgba(240,160,48,.3);' +
