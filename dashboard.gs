@@ -197,12 +197,13 @@ function addVanzari(sh, row, raps) {
   var mag = {};
   raps.forEach(function(r) {
     var m = r[1]; if (!m) return;
-    if (!mag[m]) mag[m] = {vanz:0, pos:0, num:0, bon:0, zile:0};
+    if (!mag[m]) mag[m] = {vanz:0, pos:0, num:0, bon:0, zile:0, dates:{}};
     mag[m].vanz += parseFloat(r[3])||0;
     mag[m].pos  += parseFloat(r[4])||0;
     mag[m].num  += parseFloat(r[6])||0;
     mag[m].bon  += parseInt(r[8])||0;
-    mag[m].zile++;
+    if (r[0]) mag[m].dates[String(r[0])] = 1;
+    mag[m].zile = Object.keys(mag[m].dates).length || 1;
   });
 
   var sorted = Object.keys(mag).sort(function(a,b){return mag[b].vanz-mag[a].vanz;});
@@ -222,8 +223,9 @@ function addVanzari(sh, row, raps) {
     sh.setRowHeight(row, 22);
     var perf = d.vanz>=5000?'Top performer':d.vanz>=2000?'Bun':'Necesita atentie';
     var pc = d.vanz>=5000?'#1a6b3a':d.vanz>=2000?DC.orange:DC.red;
+    var mediezi = d.zile>0 ? fmtR(d.vanz/d.zile) : '0.00 RON';
     var vals = [idx+1, m, fmtR(d.vanz), fmtR(d.pos), fmtR(d.num),
-      d.bon, fmtR(d.zile>0?d.vanz/d.zile:0), perf];
+      d.bon, mediezi, perf];
     vals.forEach(function(v,i) {
       var cell = sh.getRange(row,i+1).setValue(v).setBackground(bg).setFontSize(10).setVerticalAlignment('middle');
       if(i===7) cell.setFontColor(pc).setFontWeight('bold');
