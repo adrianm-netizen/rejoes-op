@@ -20,6 +20,7 @@ function createDashboardMenu() {
   SpreadsheetApp.getUi().createMenu('Rejoes Dashboard')
     .addItem('Regenereaza Dashboard (luna curenta)', 'setupDashboard')
     .addItem('Raport perioada personalizata...', 'buildCustomPeriod')
+    .addItem('Genereaza din celulele Dashboard', 'buildFromDashboardCells')
     .addSeparator()
     .addItem('Trimite Raport Full prin Email...', 'sendFullReport')
     .addToUi();
@@ -81,10 +82,16 @@ function buildDash(ss, dates) {
   SpreadsheetApp.flush();
 }
 
+// Named ranges for date input cells
+var CELL_DATE_FROM = 'B_DATE_FROM';
+var CELL_DATE_TO   = 'B_DATE_TO';
+
 function addHeader(sh, row, ncols, dateStr) {
   sh.setRowHeight(row, 6);
   sh.getRange(row,1,1,ncols).merge().setBackground(DC.dark); row++;
-  sh.setRowHeight(row, 56);
+
+  // Company name row
+  sh.setRowHeight(row, 52);
   sh.getRange(row,2,1,4).merge()
     .setValue(DASH_COMPANY)
     .setFontFamily('Georgia').setFontSize(20).setFontWeight('bold')
@@ -97,14 +104,80 @@ function addHeader(sh, row, ncols, dateStr) {
   sh.getRange(row,1).setBackground(DC.dark);
   sh.getRange(row,10).setBackground(DC.dark);
   row++;
-  sh.setRowHeight(row, 26);
+
+  // Address row
+  sh.setRowHeight(row, 22);
   sh.getRange(row,1,1,ncols).merge()
     .setValue('   ' + DASH_ADDR + '  |  ' + DASH_EMAIL + '  |  Generat: ' + dFmtFull(new Date()))
     .setBackground(DC.green).setFontColor(DC.border).setFontSize(9).setVerticalAlignment('middle');
   row++;
-  sh.setRowHeight(row, 12);
+
+  // DATE SELECTOR ROW
+  sh.setRowHeight(row, 36);
+  // Label De la:
+  sh.getRange(row,2).setValue('De la:')
+    .setBackground('#1a3020').setFontColor(DC.gold).setFontWeight('bold')
+    .setFontSize(10).setVerticalAlignment('middle').setHorizontalAlignment('right');
+  // FROM date cell - editable
+  var fromCell = sh.getRange(row,3);
+  fromCell.setValue(dFmt(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
+    .setBackground(DC.white).setFontColor(DC.text).setFontWeight('bold')
+    .setFontSize(11).setVerticalAlignment('middle').setHorizontalAlignment('center')
+    .setBorder(true,true,true,true,false,false,DC.gold,SpreadsheetApp.BorderStyle.SOLID);
+  // Try to set named range for FROM cell
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var existing = ss.getRangeByName(CELL_DATE_FROM);
+    if (!existing) ss.setNamedRange(CELL_DATE_FROM, fromCell);
+  } catch(e) {}
+
+  // Label Pana la:
+  sh.getRange(row,4).setValue('Pana la:')
+    .setBackground('#1a3020').setFontColor(DC.gold).setFontWeight('bold')
+    .setFontSize(10).setVerticalAlignment('middle').setHorizontalAlignment('right');
+  // TO date cell - editable
+  var toCell = sh.getRange(row,5);
+  toCell.setValue(dFmt(new Date()))
+    .setBackground(DC.white).setFontColor(DC.text).setFontWeight('bold')
+    .setFontSize(11).setVerticalAlignment('middle').setHorizontalAlignment('center')
+    .setBorder(true,true,true,true,false,false,DC.gold,SpreadsheetApp.BorderStyle.SOLID);
+  try {
+    var ss2 = SpreadsheetApp.getActiveSpreadsheet();
+    var existing2 = ss2.getRangeByName(CELL_DATE_TO);
+    if (!existing2) ss2.setNamedRange(CELL_DATE_TO, toCell);
+  } catch(e) {}
+
+  // GENERATE button (drawn as a styled cell)
+  sh.getRange(row,6,1,2).merge()
+    .setValue('>> GENEREAZA RAPORT <<')
+    .setBackground(DC.gold).setFontColor(DC.dark).setFontWeight('bold')
+    .setFontSize(10).setVerticalAlignment('middle').setHorizontalAlignment('center')
+    .setBorder(true,true,true,true,false,false,'#a07830',SpreadsheetApp.BorderStyle.SOLID);
+  sh.getRange(row,8,1,2).merge()
+    .setValue('Schimba datele in celulele galbene si apasa: Rejoes Dashboard > Genereaza')
+    .setBackground('#1a3020').setFontColor(DC.muted)
+    .setFontSize(8).setVerticalAlignment('middle').setWrap(true);
+  row++;
+
+  sh.setRowHeight(row, 8);
   sh.getRange(row,1,1,ncols).merge().setBackground(DC.dark); row++;
   return row;
+}
+
+// Read dates from dashboard cells
+function getDatesFromDashboard() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(DASH_SHEET);
+  if (!sh) return null;
+  try {
+    // Dates are in row 4 (after 3 header rows), columns C and E
+    var fromVal = sh.getRange(4,3).getValue();
+    var toVal   = sh.getRange(4,5).getValue();
+    var from = dashParseAny(fromVal) || dashParseDate(String(fromVal));
+    var to   = dashParseAny(toVal)   || dashParseDate(String(toVal));
+    if (from && to) return {start: from, end: to};
+  } catch(e) {}
+  return null;
 }
 
 function addTitle(sh, row, title, ncols) {
@@ -489,6 +562,20 @@ function dFmtFull(d) {
 
 function fmtR(v) {
   return parseFloat(v||0).toFixed(2)+' RON';
+}
+
+
+// Generate report using dates from dashboard cells
+function buildFromDashboardCells() {
+  var dates = getDatesFromDashboard();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!dates) {
+    // Fallback to current month
+    dates = getDefaultDates();
+  }
+  var sh = ss.getSheetByName(DASH_SHEET) || ss.insertSheet(DASH_SHEET, 0);
+  buildDash(ss, dates);
+  Logger.log('Raport generat pentru: ' + dFmt(dates.start) + ' - ' + dFmt(dates.end));
 }
 
 // Sterge duplicate din foaia Pontaj
