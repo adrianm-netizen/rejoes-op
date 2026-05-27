@@ -208,15 +208,26 @@ function addPontaj(sh, row, pons, dates) {
   var emp = {};
   var maternitate = [];
   pons.forEach(function(r) {
-    var e = r[1]; if (!e || e === 'TEST') return; // skip TEST
+    var e = r[1]; if (!e || e === 'TEST') return;
     var norm = getEmpNorm(e);
     if (norm.type === 'maternitate') {
       if (maternitate.indexOf(e) < 0) maternitate.push(e);
       return;
     }
-    if (!emp[e]) emp[e] = {ore:0, zile:0, lib:0};
+    if (!emp[e]) emp[e] = {ore:0, zile:0, lib:0, dates:{}, libDates:{}};
     var h = parseH(r[6]);
-    if (h>0) { emp[e].ore+=h; emp[e].zile++; } else { emp[e].lib++; }
+    var dateKey = String(r[0]).slice(0,10); // unique date key
+    if (h > 0) {
+      emp[e].ore += h;
+      emp[e].dates[dateKey] = 1; // count unique working days
+    } else {
+      emp[e].libDates[dateKey] = 1; // count unique free days
+    }
+  });
+  // Convert date sets to counts
+  Object.keys(emp).forEach(function(e) {
+    emp[e].zile = Object.keys(emp[e].dates).length;
+    emp[e].lib  = Object.keys(emp[e].libDates).length;
   });
 
   var sorted = Object.keys(emp).sort(function(a,b){return emp[b].ore-emp[a].ore;});
