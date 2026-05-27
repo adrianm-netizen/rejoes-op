@@ -1095,18 +1095,31 @@ function savePontaj() {
   const d = pontState.data;
 
   // Check for duplicate - same employee + same date
-  const duplicate = entries.find(function(e) {
+  const duplicates = entries.filter(function(e) {
     return e.type === 'pontaj' && e.emp === d.emp && e.date === d.date;
   });
-  if (duplicate) {
-    const ore = duplicate.hours > 0 ? duplicate.hours.toFixed(1) + ' h' : 'Zi libera';
-    const confirmSave = confirm(
-      'ATENTIE - Pontaj deja existent!\n\n' +
-      'Angajat: ' + d.emp + '\n' +
-      'Data: ' + d.date + '\n' +
-      'Inregistrat deja: ' + ore + '\n\n' +
-      'Salvezi totusi? (Apasa OK pentru da, Anulare pentru nu)'
-    );
+  if (duplicates.length > 0) {
+    const funnyLines = [
+      'Haallooo! Esti distrata? Indragostita? Obosita? Sau pur si simplu neatenta? ',
+      'Ei, ei, ei... iar dai click la intamplare? Sau vrei sa lucreze cineva de doua ori?! ',
+      'Stop! Frate, nu esti robot (sau esti?)! Ai mai introdus asta! ',
+      'Whoops! Degetele au luat-o razna? Sau creierul e deja in weekend? ',
+      'Hei, superstar! Pontajul asta e deja in sistem, nu mai munci de doua ori! '
+    ];
+    const funny = funnyLines[Math.floor(Math.random() * funnyLines.length)];
+    
+    var existingInfo = duplicates.map(function(e) {
+      var ore = e.hours > 0 ? e.hours.toFixed(1) + ' h (' + (e.start||'?') + ' - ' + (e.end||'?') + ')' : 'Zi libera / Concediu';
+      return '  • ' + (e.dayTypeLabel || e.dayType) + ': ' + ore;
+    }).join('\n');
+
+    const msg = funny + '\n\n' +
+      'Ai deja pontaj pentru ' + d.emp + ' pe ' + d.date + ':' + '\n' +
+      existingInfo + '\n\n' +
+      'Vrei sa adaugi totusi un pontaj nou (ex: ture diferite)?\n' +
+      'Apasa OK pentru DA sau Anulare pentru a renunta.';
+
+    const confirmSave = confirm(msg);
     if (!confirmSave) return;
   }
 
