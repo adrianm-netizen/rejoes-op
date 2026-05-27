@@ -22,6 +22,8 @@ function createDashboardMenu() {
     .addItem('Raport perioada personalizata...', 'buildCustomPeriod')
     .addItem('Genereaza din celulele Dashboard', 'buildFromDashboardCells')
     .addSeparator()
+    .addItem('Adauga butoane interactive (instructiuni)...', 'setupButtons')
+    .addSeparator()
     .addItem('Trimite Raport Full prin Email...', 'sendFullReport')
     .addToUi();
   } catch(e) { Logger.log('Menu: ' + e); }
@@ -581,6 +583,94 @@ function buildFromDashboardCells() {
   Logger.log('Generez raport: ' + dFmt(dates.start) + ' - ' + dFmt(dates.end));
   var sh = ss.getSheetByName(DASH_SHEET) || ss.insertSheet(DASH_SHEET, 0);
   buildDash(ss, dates);
+}
+
+
+//    Creeaza toate butoanele interactive                      
+function setupButtons() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(DASH_SHEET);
+  if (!sh) { Logger.log('Dashboard sheet not found!'); return; }
+
+  // Remove existing drawings first
+  var drawings = sh.getDrawings();
+  drawings.forEach(function(d) { d.remove(); });
+
+  // Button definitions: [label, script, col, row, width, height, bgColor]
+  var buttons = [
+    {
+      label: 'Genereaza
+Raport',
+      script: 'buildFromDashboardCells',
+      col: 6, row: 4, w: 120, h: 50,
+      bg: '#c9a84c', fg: '#0a1e14'
+    },
+    {
+      label: 'Luna
+Curenta',
+      script: 'setupDashboard',
+      col: 7, row: 4, w: 100, h: 50,
+      bg: '#1a3828', fg: '#c9a84c'
+    },
+    {
+      label: 'Perioada
+Personalizata',
+      script: 'buildCustomPeriod',
+      col: 8, row: 4, w: 120, h: 50,
+      bg: '#1a3828', fg: '#c9a84c'
+    },
+    {
+      label: 'Trimite
+Email + PDF',
+      script: 'sendFullReport',
+      col: 9, row: 4, w: 120, h: 50,
+      bg: '#2980b9', fg: '#ffffff'
+    },
+    {
+      label: 'Curata
+Duplicate',
+      script: 'removeDuplicates',
+      col: 10, row: 4, w: 100, h: 50,
+      bg: '#c0392b', fg: '#ffffff'
+    }
+  ];
+
+  buttons.forEach(function(btn) {
+    var anchorCell = sh.getRange(btn.row, btn.col);
+    var x = anchorCell.getLeft() + 4;
+    var y = anchorCell.getTop() + 4;
+
+    var builder = SpreadsheetApp.newChart ? null : null;
+
+    // Create drawing via OverGridImage workaround
+    var slide = SlidesApp ? null : null; // not available
+
+    // Use insertImage workaround - create colored button as drawing
+    try {
+      var drawing = sh.newChart()
+        .setChartType(Charts.ChartType.BAR)
+        .build();
+    } catch(e) {}
+
+    Logger.log('Button "' + btn.label.replace('\n',' ') + '" -> ' + btn.script);
+  });
+
+  Logger.log('');
+  Logger.log('ATENTIE: Butoanele nu pot fi create automat prin script in Google Sheets.');
+  Logger.log('Urmeaza instructiunile de mai jos pentru a le adauga manual:');
+  Logger.log('');
+  Logger.log('1. Insert -> Drawing');
+  Logger.log('2. Shape -> Rounded Rectangle -> deseneaza');
+  Logger.log('3. Scrie textul butonului');
+  Logger.log('4. Save and Close');
+  Logger.log('5. Click pe buton -> 3 puncte -> Assign script -> scrie numele functiei');
+  Logger.log('');
+  Logger.log('Functii disponibile:');
+  Logger.log('  buildFromDashboardCells  - Genereaza din celulele de data');
+  Logger.log('  setupDashboard           - Luna curenta');
+  Logger.log('  buildCustomPeriod        - Perioada personalizata (prompt)');
+  Logger.log('  sendFullReport           - Trimite email cu PDF + Excel');
+  Logger.log('  removeDuplicates         - Curata duplicate din Pontaj');
 }
 
 // Sterge duplicate din foaia Pontaj
