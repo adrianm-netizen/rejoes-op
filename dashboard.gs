@@ -61,7 +61,7 @@ function buildDash(ss, dates) {
 
   // Pontaj
   row = addTitle(sh, row, 'PONTAJ - CLASAMENT ORE LUCRATE', ncols);
-  row = addPontaj(sh, row, pons);
+  row = addPontaj(sh, row, pons, dates);
 
   // Vanzari
   row = addTitle(sh, row, 'VANZARI - CLASAMENT MAGAZINE', ncols);
@@ -153,17 +153,71 @@ function addKPIs(sh, row, pons, raps) {
   return row;
 }
 
-function addPontaj(sh, row, pons) {
+
+// Employee work schedule norms
+function getEmpNorm(empName) {
+  var name = empName.toUpperCase();
+  // Concediu maternitate
+  if (name.indexOf('BOTAS') >= 0) return {type: 'maternitate', hPerDay: 0, schedule: 'Concediu maternitate'};
+  // 8h/zi standard (Luni-Vineri)
+  if (name.indexOf('BARABAN') >= 0 || name.indexOf('ONOFREI') >= 0 || name.indexOf('CIOBANICA') >= 0)
+    return {type: 'standard', hPerDay: 8, schedule: '8h/zi L-V'};
+  // 8h Luni-Vineri + 4h Sambata
+  if (name.indexOf('BRSTYAK') >= 0 || name.indexOf('SPINU') >= 0 ||
+      name.indexOf('BAKAITY') >= 0 || name.indexOf('ZDROBA') >= 0 ||
+      (name.indexOf('CIOBANU') >= 0 && name.indexOf('LUMINITA') >= 0))
+    return {type: 'sabsemilib', hPerDay: 8, hSab: 4, schedule: '8h L-V + 4h Sb'};
+  // 10h/zi, 2 lucrate + 2 libere
+  return {type: '2plus2', hPerDay: 10, schedule: '10h, 2+2'};
+}
+
+function calcNorma(empName, dates) {
+  var norm = getEmpNorm(empName);
+  if (norm.type === 'maternitate') return 0;
+  var days = Math.round((dates.end - dates.start) / 86400000) + 1;
+  if (norm.type === 'standard') {
+    // Count working days Mon-Fri
+    var wd = 0;
+    for (var i = 0; i < days; i++) {
+      var d = new Date(dates.start.getTime() + i*86400000);
+      var dow = d.getDay();
+      if (dow >= 1 && dow <= 5) wd++;
+    }
+    return wd * 8;
+  }
+  if (norm.type === 'sabsemilib') {
+    var wd = 0, sabs = 0;
+    for (var i = 0; i < days; i++) {
+      var d = new Date(dates.start.getTime() + i*86400000);
+      var dow = d.getDay();
+      if (dow >= 1 && dow <= 5) wd++;
+      if (dow === 6) sabs++;
+    }
+    return wd * 8 + sabs * 4;
+  }
+  if (norm.type === '2plus2') {
+    return Math.floor(days / 4) * 2 * 10 + Math.min(days % 4, 2) * 10;
+  }
+  return 0;
+}
+
+function addPontaj(sh, row, pons, dates) {
   var emp = {};
+  var maternitate = [];
   pons.forEach(function(r) {
-    var e = r[1]; if (!e) return;
+    var e = r[1]; if (!e || e === 'TEST') return; // skip TEST
+    var norm = getEmpNorm(e);
+    if (norm.type === 'maternitate') {
+      if (maternitate.indexOf(e) < 0) maternitate.push(e);
+      return;
+    }
     if (!emp[e]) emp[e] = {ore:0, zile:0, lib:0};
     var h = parseH(r[6]);
     if (h>0) { emp[e].ore+=h; emp[e].zile++; } else { emp[e].lib++; }
   });
 
   var sorted = Object.keys(emp).sort(function(a,b){return emp[b].ore-emp[a].ore;});
-  var hdrs = ['#','Angajat','Zile lucrate','Ore total','Medie/zi','Zile libere','Status','Comentariu'];
+  var hdrs = ['#','Angajat','Program','Zile lucrate','Ore lucrate','Norma luna','+/- Norma','Status'];
   sh.setRowHeight(row, 26);
   hdrs.forEach(function(h,i) {
     sh.getRange(row,i+1).setValue(h)
@@ -173,23 +227,35 @@ function addPontaj(sh, row, pons) {
   });
   row++;
 
-  var med = ['1.','2.','3.'];
   sorted.forEach(function(e, idx) {
     var d = emp[e];
+    var norm = getEmpNorm(e);
+    var normaOre = calcNorma(e, dates);
+    var diff = d.ore - normaOre;
     var bg = idx%2===0?DC.white:'#f9f7f0';
     sh.setRowHeight(row, 22);
-    var status = d.ore>=160?'Norma indeplinita':d.ore>=80?'In progres':'Sub norma';
-    var sColor = d.ore>=160?'#1a6b3a':d.ore>=80?DC.orange:DC.red;
-    var funny = d.ore>=200?'Campion! Bravo!':d.ore>=170?'Excelent!':d.ore>=140?'Bun, continua!':d.ore>=80?'Hai, poti mai mult!':'Explicatii, va rugam...';
-    var vals = [med[idx]||(idx+1), e, d.zile, d.ore.toFixed(1)+' h',
-      d.zile>0?(d.ore/d.zile).toFixed(1)+' h':'0', d.lib||0, status, funny];
+    var status = diff >= 0 ? 'Norma indeplinita' : Math.abs(diff) <= 8 ? 'Aproape' : 'Sub norma';
+    var sColor = diff >= 0 ? '#1a6b3a' : Math.abs(diff) <= 8 ? DC.orange : DC.red;
+    var diffStr = (diff >= 0 ? '+' : '') + diff.toFixed(1) + ' h';
+    var vals = [idx+1, e, norm.schedule, d.zile,
+      d.ore.toFixed(1)+' h', normaOre.toFixed(0)+' h', diffStr, status];
     vals.forEach(function(v,i) {
       var cell = sh.getRange(row,i+1).setValue(v).setBackground(bg).setFontSize(10).setVerticalAlignment('middle');
-      if(i===6) cell.setFontColor(sColor).setFontWeight('bold');
-      if(i===7) cell.setFontColor(DC.muted).setFontStyle('italic');
+      if(i===6) cell.setFontColor(diff>=0?'#1a6b3a':DC.red).setFontWeight('bold');
+      if(i===7) cell.setFontColor(sColor).setFontWeight('bold');
     });
     row++;
   });
+
+  // Maternitate section
+  if (maternitate.length) {
+    sh.setRowHeight(row, 26);
+    sh.getRange(row,1,1,8).merge()
+      .setValue('Concediu maternitate: ' + maternitate.join(', '))
+      .setBackground('#e8f0fe').setFontColor('#1a56db')
+      .setFontSize(10).setFontStyle('italic').setVerticalAlignment('middle');
+    row++;
+  }
   row++; return row;
 }
 
