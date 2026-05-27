@@ -25,6 +25,9 @@ function createDashboardMenu() {
     .addItem('Adauga butoane interactive (instructiuni)...', 'setupButtons')
     .addSeparator()
     .addItem('Trimite Raport Full prin Email...', 'sendFullReport')
+    .addSeparator()
+    .addItem('Trimite Raport LUNAR (manual)...', 'sendMonthlyReportManual')
+    .addItem('Configureaza trigger lunar automat', 'setupMonthlyTrigger')
     .addToUi();
   } catch(e) { Logger.log('Menu: ' + e); }
 }
@@ -624,6 +627,300 @@ function setupButtons() {
   Logger.log('  buildCustomPeriod        - Perioada personalizata (prompt)');
   Logger.log('  sendFullReport           - Trimite email cu PDF + Excel');
   Logger.log('  removeDuplicates         - Curata duplicate din Pontaj');
+}
+
+
+// ================================================================
+//  RAPORT LUNAR COMPLET - Dana + Adrian + Olga + Ana
+// ================================================================
+
+var MONTHLY_RECIPIENTS = 'dana.lucean@yahoo.com, adrian.m@gmail.com, olikvp@gmail.com, ana@rejoes.com';
+
+// Trigger automat - ruleaza la sfarsit de luna
+function setupMonthlyTrigger() {
+  // Delete existing monthly triggers
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'sendMonthlyReport') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+  // Create new trigger - last day of month at 20:00
+  ScriptApp.newTrigger('sendMonthlyReport')
+    .timeBased()
+    .onMonthDay(28) // runs on 28th, checks if last working day
+    .atHour(20)
+    .create();
+  // Also create for 29, 30, 31 to catch all month lengths
+  [29, 30, 31].forEach(function(day) {
+    ScriptApp.newTrigger('sendMonthlyReport')
+      .timeBased()
+      .onMonthDay(day)
+      .atHour(20)
+      .create();
+  });
+  Logger.log('Trigger lunar configurat!');
+}
+
+function sendMonthlyReport() {
+  // Check if today is last day of month
+  var today = new Date();
+  var tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  if (tomorrow.getMonth() === today.getMonth()) {
+    Logger.log('Nu e ultima zi din luna, skip.');
+    return; // not last day of month
+  }
+  Logger.log('Ultima zi din luna - trimit raport lunar!');
+  var start = new Date(today.getFullYear(), today.getMonth(), 1);
+  generateAndSendMonthlyReport({start: start, end: today}, MONTHLY_RECIPIENTS);
+}
+
+function sendMonthlyReportManual() {
+  var ui = SpreadsheetApp.getUi();
+  var r1 = ui.prompt('Luna raport - Data START (DD.MM.YYYY):');
+  if (r1.getSelectedButton() !== ui.Button.OK) return;
+  var r2 = ui.prompt('Luna raport - Data END (DD.MM.YYYY):');
+  if (r2.getSelectedButton() !== ui.Button.OK) return;
+  var r3 = ui.prompt('Destinatari (virgula intre adrese):', MONTHLY_RECIPIENTS, ui.ButtonSet.OK_CANCEL);
+  if (r3.getSelectedButton() !== ui.Button.OK) return;
+
+  var from = dashParseDate(r1.getResponseText().trim());
+  var to   = dashParseDate(r2.getResponseText().trim());
+  var recip = r3.getResponseText().trim();
+  if (!from || !to) { ui.alert('Format invalid! Foloseste DD.MM.YYYY'); return; }
+
+  generateAndSendMonthlyReport({start: from, end: to}, recip);
+  ui.alert('Raport lunar trimis catre: ' + recip);
+}
+
+function generateAndSendMonthlyReport(dates, recipients) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var pons = getRange(ss, 'Pontaj', dates);
+  var raps = getRange(ss, 'Raportare', dates);
+  var perioadaStr = dFmt(dates.start) + ' - ' + dFmt(dates.end);
+
+  // Build Excel with multiple sheets
+  var xlsUrl = 'https://docs.google.com/spreadsheets/d/' + ss.getId() + '/export?format=xlsx';
+  var xlsBlob = UrlFetchApp.fetch(xlsUrl, {
+    headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()}
+  }).getBlob().setName('Rejoes_Lunar_' + perioadaStr.replace(/ /g,'').replace(/\./g,'-') + '.xlsx');
+
+  // Build PDF of dashboard
+  buildDash(ss, dates);
+  var dashSh = ss.getSheetByName(DASH_SHEET);
+  var pdfUrl = 'https://docs.google.com/spreadsheets/d/' + ss.getId() +
+    '/export?format=pdf&size=A4&portrait=false&fitw=true&sheetnames=false' +
+    '&printtitle=false&pagenumbers=true&gridlines=false&fzr=false&gid=' + dashSh.getSheetId();
+  var pdfBlob = UrlFetchApp.fetch(pdfUrl, {
+    headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()}
+  }).getBlob().setName('Rejoes_Lunar_' + perioadaStr.replace(/ /g,'').replace(/\./g,'-') + '.pdf');
+
+  // Build HTML email body
+  var emailHtml = buildMonthlyEmailHtml(pons, raps, dates, perioadaStr);
+
+  // Send
+  var recipList = recipients.split(',').map(function(e){return e.trim();}).filter(Boolean);
+  var toAddr  = recipList.shift();
+  var ccAddr  = recipList.join(',');
+
+  MailApp.sendEmail(toAddr,
+    'Rejoes - Raport Lunar ' + perioadaStr,
+    '',
+    {
+      htmlBody: emailHtml,
+      attachments: [pdfBlob, xlsBlob],
+      cc: ccAddr || '',
+      name: 'Rejoes - Raport Lunar Automat'
+    }
+  );
+  Logger.log('Raport lunar trimis! ' + perioadaStr);
+}
+
+function buildMonthlyEmailHtml(pons, raps, dates, perioadaStr) {
+  // Calculate summaries
+  var empData = {};
+  var maternitate = [];
+  pons.forEach(function(r) {
+    var e = r[1]; if (!e || e === 'TEST') return;
+    var norm = getEmpNorm(e);
+    if (norm.type === 'maternitate') { if (maternitate.indexOf(e)<0) maternitate.push(e); return; }
+    if (!empData[e]) empData[e] = {ore:0, zile:0, dates:{}};
+    var h = parseH(r[6]);
+    var dk = String(r[0]).slice(0,10);
+    if (h > 0) {
+      if (!empData[e].dates[dk] || h > empData[e].dates[dk]) empData[e].dates[dk] = h;
+    }
+  });
+  Object.keys(empData).forEach(function(e) {
+    var dkeys = Object.keys(empData[e].dates);
+    empData[e].zile = dkeys.length;
+    empData[e].ore  = dkeys.reduce(function(s,k){return s+empData[e].dates[k];},0);
+  });
+
+  var sortedEmp = Object.keys(empData).sort(function(a,b){return empData[b].ore-empData[a].ore;});
+
+  var magData = {};
+  raps.forEach(function(r) {
+    var m = r[1]; if (!m) return;
+    if (!magData[m]) magData[m] = {vanz:0, pos:0, num:0, bon:0, dif:0, zile:0};
+    magData[m].vanz += parseFloat(r[3])||0;
+    magData[m].pos  += parseFloat(r[4])||0;
+    magData[m].num  += parseFloat(r[6])||0;
+    magData[m].bon  += parseInt(r[8])||0;
+    magData[m].dif  += parseFloat(r[7])||0;
+    magData[m].zile++;
+  });
+  var sortedMag = Object.keys(magData).sort(function(a,b){return magData[b].vanz-magData[a].vanz;});
+
+  var difList = raps.filter(function(r){return Math.abs(parseFloat(r[7])||0)>0.01;});
+  difList.sort(function(a,b){return Math.abs(parseFloat(b[7])||0)-Math.abs(parseFloat(a[7])||0);});
+
+  var totalVanz = sortedMag.reduce(function(s,m){return s+magData[m].vanz;},0);
+  var totalOre  = sortedEmp.reduce(function(s,e){return s+empData[e].ore;},0);
+  var totalDif  = difList.reduce(function(s,r){return s+(parseFloat(r[7])||0);},0);
+
+  var gold = '#c9a84c'; var dark = '#0a1e14'; var green = '#1a3828';
+
+  var h = '<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f0f0f0;margin:0;padding:20px">';
+  h += '<div style="max-width:800px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 15px rgba(0,0,0,.15)">';
+
+  // Header
+  h += '<div style="background:'+dark+';padding:30px;text-align:center">';
+  h += '<div style="color:'+gold+';font-size:32px;font-weight:bold;font-family:Georgia,serif;letter-spacing:4px">REJOES</div>';
+  h += '<div style="color:#7a9080;font-size:11px;margin-top:4px;letter-spacing:2px">'+DASH_COMPANY+'</div>';
+  h += '<div style="color:white;font-size:18px;margin-top:14px;font-weight:bold">Raport Lunar Complet</div>';
+  h += '<div style="color:'+gold+';font-size:14px;margin-top:6px">'+perioadaStr+'</div>';
+  h += '</div>';
+
+  // KPI bar
+  h += '<div style="display:flex;background:'+green+';padding:16px 24px;gap:0">';
+  var kpis = [
+    {l:'Angajati', v:sortedEmp.length},
+    {l:'Ore totale', v:totalOre.toFixed(0)+' h'},
+    {l:'Vanzari', v:fmtR(totalVanz)},
+    {l:'Diferenta casa', v:fmtR(totalDif)}
+  ];
+  kpis.forEach(function(k) {
+    h += '<div style="flex:1;text-align:center;border-right:1px solid rgba(201,168,76,.2);padding:0 12px">';
+    h += '<div style="color:'+gold+';font-size:18px;font-weight:bold">'+k.v+'</div>';
+    h += '<div style="color:#7a9080;font-size:10px;text-transform:uppercase;letter-spacing:1px">'+k.l+'</div>';
+    h += '</div>';
+  });
+  h += '</div>';
+
+  // Section: Pontaj per angajat
+  h += '<div style="padding:24px">';
+  h += '<h3 style="color:'+dark+';border-bottom:3px solid '+gold+';padding-bottom:8px;margin-bottom:16px">Pontaj per Angajat</h3>';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  h += '<tr style="background:'+dark+';color:'+gold+'">';
+  ['#','Angajat','Program','Zile lucrate','Ore lucrate','Norma','+/- Norma','Status'].forEach(function(col) {
+    h += '<th style="padding:8px 10px;text-align:left">'+col+'</th>';
+  });
+  h += '</tr>';
+
+  sortedEmp.forEach(function(e, idx) {
+    var d = empData[e];
+    var norm = getEmpNorm(e);
+    var normaOre = calcNorma(e, dates);
+    var diff = d.ore - normaOre;
+    var diffStr = (diff>=0?'+':'')+diff.toFixed(1)+' h';
+    var statusColor = diff>=0?'#1a6b3a':Math.abs(diff)<=8?'#e67e22':'#c0392b';
+    var status = diff>=0?'OK':Math.abs(diff)<=8?'Aproape':'Sub norma';
+    var bg = idx%2===0?'#ffffff':'#f9f7f0';
+    h += '<tr style="background:'+bg+'">';
+    h += '<td style="padding:7px 10px;font-weight:bold">'+(idx+1)+'</td>';
+    h += '<td style="padding:7px 10px;font-weight:600">'+e+'</td>';
+    h += '<td style="padding:7px 10px;color:#7f8c8d;font-size:11px">'+norm.schedule+'</td>';
+    h += '<td style="padding:7px 10px;text-align:center">'+d.zile+'</td>';
+    h += '<td style="padding:7px 10px;text-align:center;font-weight:bold">'+d.ore.toFixed(1)+' h</td>';
+    h += '<td style="padding:7px 10px;text-align:center;color:#7f8c8d">'+normaOre.toFixed(0)+' h</td>';
+    h += '<td style="padding:7px 10px;text-align:center;font-weight:bold;color:'+statusColor+'">'+diffStr+'</td>';
+    h += '<td style="padding:7px 10px;font-weight:bold;color:'+statusColor+'">'+status+'</td>';
+    h += '</tr>';
+  });
+
+  // Maternitate
+  if (maternitate.length) {
+    h += '<tr style="background:#e8f0fe"><td colspan="8" style="padding:7px 10px;color:#1a56db;font-style:italic">';
+    h += 'Concediu maternitate: '+maternitate.join(', ')+'</td></tr>';
+  }
+  h += '</table>';
+
+  // Section: Vanzari per magazin
+  h += '<h3 style="color:'+dark+';border-bottom:3px solid '+gold+';padding-bottom:8px;margin:24px 0 16px">Vanzari per Magazin</h3>';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  h += '<tr style="background:'+dark+';color:'+gold+'">';
+  ['#','Magazin','Vanzari total','POS','Numerar','Bonuri','Medie/zi','Performanta'].forEach(function(col) {
+    h += '<th style="padding:8px 10px;text-align:left">'+col+'</th>';
+  });
+  h += '</tr>';
+
+  sortedMag.forEach(function(m, idx) {
+    var d = magData[m];
+    var perf = d.vanz>=5000?'Top':d.vanz>=2000?'Bun':'Atentie';
+    var pc = d.vanz>=5000?'#1a6b3a':d.vanz>=2000?'#e67e22':'#c0392b';
+    var bg = idx%2===0?'#ffffff':'#f9f7f0';
+    h += '<tr style="background:'+bg+'">';
+    h += '<td style="padding:7px 10px;font-weight:bold">'+(idx+1)+'</td>';
+    h += '<td style="padding:7px 10px;font-weight:600">'+m+'</td>';
+    h += '<td style="padding:7px 10px;font-weight:bold;color:'+green+'">'+fmtR(d.vanz)+'</td>';
+    h += '<td style="padding:7px 10px">'+fmtR(d.pos)+'</td>';
+    h += '<td style="padding:7px 10px">'+fmtR(d.num)+'</td>';
+    h += '<td style="padding:7px 10px;text-align:center">'+d.bon+'</td>';
+    h += '<td style="padding:7px 10px">'+fmtR(d.zile>0?d.vanz/d.zile:0)+'</td>';
+    h += '<td style="padding:7px 10px;font-weight:bold;color:'+pc+'">'+perf+'</td>';
+    h += '</tr>';
+  });
+  h += '<tr style="background:'+green+';color:'+gold+'">';
+  h += '<td colspan="2" style="padding:8px 10px;font-weight:bold">TOTAL</td>';
+  h += '<td style="padding:8px 10px;font-weight:bold">'+fmtR(totalVanz)+'</td>';
+  h += '<td colspan="5"></td></tr>';
+  h += '</table>';
+
+  // Section: Diferente casa
+  h += '<h3 style="color:'+dark+';border-bottom:3px solid #c0392b;padding-bottom:8px;margin:24px 0 16px">Diferente Casa</h3>';
+  if (!difList.length) {
+    h += '<div style="background:#e8f8f0;border-radius:8px;padding:16px;color:#1a6b3a;font-weight:bold;text-align:center">';
+    h += 'Toate fetele noastre sunt eroine! Nicio diferenta de casa in aceasta perioada.</div>';
+  } else {
+    h += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+    h += '<tr style="background:#c0392b;color:white">';
+    ['Data','Magazin','Casier','Vanzari Z','Num.teoretic','Num.predat','Diferenta','Motiv'].forEach(function(col) {
+      h += '<th style="padding:7px 8px;text-align:left">'+col+'</th>';
+    });
+    h += '</tr>';
+    difList.forEach(function(r, idx) {
+      var dif = parseFloat(r[7])||0;
+      var bg = idx%2===0?'#fff8f8':'#fff0f0';
+      var dc = dif<0?'#c0392b':'#e67e22';
+      h += '<tr style="background:'+bg+'">';
+      h += '<td style="padding:6px 8px">'+r[0]+'</td>';
+      h += '<td style="padding:6px 8px;font-weight:600">'+r[1]+'</td>';
+      h += '<td style="padding:6px 8px">'+r[2]+'</td>';
+      h += '<td style="padding:6px 8px">'+fmtR(parseFloat(r[3])||0)+'</td>';
+      h += '<td style="padding:6px 8px">'+fmtR(parseFloat(r[5])||0)+'</td>';
+      h += '<td style="padding:6px 8px">'+fmtR(parseFloat(r[6])||0)+'</td>';
+      h += '<td style="padding:6px 8px;font-weight:bold;color:'+dc+'">'+(dif>=0?'+':'')+dif.toFixed(2)+' RON</td>';
+      h += '<td style="padding:6px 8px;color:#7f8c8d">'+((r[13])||'Nemotivat')+'</td>';
+      h += '</tr>';
+    });
+    h += '</table>';
+    if (Math.abs(totalDif) > 50) {
+      h += '<div style="background:#fff3e0;border-radius:8px;padding:12px;margin-top:12px;color:#c0392b;font-weight:bold">';
+      h += 'Total diferente: '+fmtR(totalDif)+' - Ne trebuie explicatii, nu scuze creative!</div>';
+    }
+  }
+
+  // Footer
+  h += '</div>';
+  h += '<div style="background:'+dark+';padding:20px;text-align:center">';
+  h += '<div style="color:'+gold+';font-size:12px;font-weight:bold">REJOES Operation Management L2</div>';
+  h += '<div style="color:#7a9080;font-size:10px;margin-top:4px">'+DASH_COMPANY+' | '+DASH_ADDR+'</div>';
+  h += '<div style="color:#7a9080;font-size:10px;margin-top:2px">'+DASH_EMAIL+' | CIF: RO 38513453</div>';
+  h += '<div style="color:#4a5a50;font-size:9px;margin-top:8px">Raport generat automat | Confidential</div>';
+  h += '</div></div></body></html>';
+
+  return h;
 }
 
 // Sterge duplicate din foaia Pontaj
