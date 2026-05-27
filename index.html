@@ -4044,6 +4044,129 @@ const RETUR_STATUS = {
   receptionat:{ l:'Recepționat',badge:'received', icon:'✅' }
 };
 
+
+// ── ANA: Cerere Marfă → WH ─────────────────────────────────
+function openCerereMarfaWH() {
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  var pg = document.getElementById('pg-cerere-marfa');
+  if (!pg) {
+    pg = document.createElement('div');
+    pg.className = 'page active';
+    pg.id = 'pg-cerere-marfa';
+    document.querySelector('.app-shell').appendChild(pg);
+  } else {
+    pg.classList.add('active');
+  }
+  renderCerereMarfa(pg);
+}
+
+function renderCerereMarfa(pg) {
+  pg.innerHTML = '<div style="padding:14px 14px 80px">' +
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">' +
+    '<button onclick="openTab(&quot;home&quot;)" style="background:var(--card);border:1px solid var(--border);' +
+    'border-radius:8px;padding:7px 12px;color:var(--text);cursor:pointer;font-size:13px">← Înapoi</button>' +
+    '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--text)">📦 Cerere Marfă</div></div>' +
+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:16px">Solicită marfă de la Gabi · Depozit</div>' +
+
+    '<div class="f-group"><label class="f-label">Magazin destinatar</label>' +
+    '<select class="f-input" id="cm-store">' +
+    STORES.map(function(s){return '<option>'+s+'</option>';}).join('') +
+    '</select></div>' +
+
+    '<div class="f-group"><label class="f-label">Data necesară</label>' +
+    '<input type="date" class="f-input" id="cm-date" value="'+todayIso()+'"></div>' +
+
+    '<div class="f-group"><label class="f-label">Articole solicitate</label>' +
+    '<div id="cm-items-list"></div>' +
+    '<button class="btn btn-ghost" style="width:100%;margin-top:6px" onclick="addCMItem()">+ Adaugă articol</button></div>' +
+
+    '<div class="f-group"><label class="f-label">Urgență</label>' +
+    '<div style="display:flex;gap:6px">' +
+    '<button id="cm-urg-normal" class="btn btn-primary" style="flex:1;font-size:11px" ' +
+    'data-urg="normal" onclick="setCMUrgenta(this)">Normal</button>' +
+    '<button id="cm-urg-urgent" class="btn btn-ghost" style="flex:1;font-size:11px" ' +
+    'data-urg="urgent" onclick="setCMUrgenta(this)">⚡ Urgent</button>' +
+    '</div></div>' +
+
+    '<div class="f-group"><label class="f-label">Observații</label>' +
+    '<textarea class="f-input" id="cm-obs" rows="2" placeholder="Alte detalii..."></textarea></div>' +
+
+    '<input type="hidden" id="cm-urgenta" value="normal">' +
+    '<button class="btn btn-primary" style="width:100%" onclick="submitCerereMarfa()">📤 Trimite cerere → Gabi</button>' +
+    '</div>';
+
+  addCMItem();
+}
+
+function addCMItem() {
+  var list = document.getElementById('cm-items-list');
+  if (!list) return;
+  var div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;align-items:center';
+  div.innerHTML =
+    '<select class="f-input" style="flex:2">' +
+    ITEMS_BUC.map(function(i){return '<option>'+i+'</option>';}).join('') +
+    '</select>' +
+    '<input type="number" class="f-input" style="flex:1;max-width:80px" placeholder="Buc" value="1" min="1">' +
+    '<button style="background:var(--red);color:#fff;border:none;border-radius:6px;' +
+    'padding:6px 10px;cursor:pointer;flex-shrink:0" onclick="this.parentElement.remove()">✕</button>';
+  list.appendChild(div);
+}
+
+function setCMUrgenta(btn) {
+  document.getElementById('cm-urgenta').value = btn.dataset.urg;
+  document.getElementById('cm-urg-normal').className = 'btn btn-ghost';
+  document.getElementById('cm-urg-normal').style.flex = '1';
+  document.getElementById('cm-urg-normal').style.fontSize = '11px';
+  document.getElementById('cm-urg-urgent').className = 'btn btn-ghost';
+  document.getElementById('cm-urg-urgent').style.flex = '1';
+  document.getElementById('cm-urg-urgent').style.fontSize = '11px';
+  btn.className = 'btn btn-primary';
+  btn.style.flex = '1';
+  btn.style.fontSize = '11px';
+}
+
+function submitCerereMarfa() {
+  var store    = document.getElementById('cm-store').value;
+  var date     = document.getElementById('cm-date').value;
+  var obs      = document.getElementById('cm-obs').value;
+  var urgenta  = document.getElementById('cm-urgenta').value;
+  var rows     = document.getElementById('cm-items-list').children;
+  var items    = [];
+  for (var i=0; i<rows.length; i++) {
+    var sel = rows[i].querySelector('select');
+    var qty = rows[i].querySelector('input');
+    if (sel && qty && parseInt(qty.value)>0) {
+      items.push({articol: sel.value, cantitate: parseInt(qty.value)});
+    }
+  }
+  if (!items.length) { alert('Adaugă cel puțin un articol!'); return; }
+
+  var entry = {
+    id: uid(), type: 'cerere_marfa', ts: Date.now(),
+    date: date, store: store, obs: obs, urgenta: urgenta,
+    items: items, onorat: false,
+    createdBy: currentUser ? currentUser.id : 'ana'
+  };
+  entries.push(entry);
+  save();
+  syncEntry(entry);
+
+  // Show success
+  var pg = document.getElementById('pg-cerere-marfa');
+  pg.innerHTML = '<div style="padding:40px 20px;text-align:center">' +
+    '<div style="font-size:48px;margin-bottom:16px">' + (urgenta==='urgent'?'⚡':'📦') + '</div>' +
+    '<div style="font-family:Cormorant Garamond,serif;font-size:22px;color:var(--gold);margin-bottom:8px">' +
+    'Cerere trimisă!</div>' +
+    '<div style="font-size:13px;color:var(--muted);margin-bottom:6px">'+items.length+' articole solicitate pentru '+store+'</div>' +
+    (urgenta==='urgent'?'<div style="color:var(--red);font-weight:700;font-size:12px">⚡ Marcată ca URGENTĂ</div>':'') +
+    '<div style="font-size:12px;color:var(--muted);margin-top:8px;margin-bottom:24px">Gabi va vedea cererea imediat</div>' +
+    '<button class="btn btn-primary" onclick="openCerereMarfaWH()">+ Cerere nouă</button>' +
+    '<button class="btn btn-ghost" style="margin-left:8px" onclick="openTab(&quot;home&quot;)">Acasă</button>' +
+    '</div>';
+}
+
 // ── ANA: Notificare retur ────────────────────────
 function openReturAna() {
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
