@@ -2114,29 +2114,31 @@ function taskItemHTML(t, compact) {
   if (due) {
     due.setHours(0,0,0,0);
     var diff = Math.round((due-today)/(1000*60*60*24));
-    if (diff < 0)      { dueClass='overdue'; dueLabel='⚠️ Întârziat '+Math.abs(diff)+'z'; }
-    else if (diff===0) { dueClass='today';   dueLabel='🔴 Azi!'; }
-    else if (diff===1) { dueClass='today';   dueLabel='🟡 Mâine'; }
-    else               { dueClass='ok';      dueLabel='🟢 '+fmtDate(t.dueDate); }
+    if (diff < 0)      { dueClass='overdue'; dueLabel='Intarziat '+Math.abs(diff)+'z'; }
+    else if (diff===0) { dueClass='today';   dueLabel='Azi!'; }
+    else if (diff===1) { dueClass='today';   dueLabel='Maine'; }
+    else               { dueClass='ok';      dueLabel=fmtDate(t.dueDate); }
   }
   var prioClass = t.priority==='high'?'prio-high':t.priority==='med'?'prio-med':'prio-low';
-  var el = document.createElement('div');
-  el.className = 'task-item'+(t.done?' done':'')+(dueClass==='overdue'&&!t.done?' overdue':'');
-  el.id = 'task-'+t.id;
-  var prio = document.createElement('div'); prio.className='task-priority '+prioClass;
-  var chk = document.createElement('div');
-  chk.className = 'task-check'+(t.done?' checked':'');
-  chk.textContent = t.done?'✓':'';
-  chk.onclick = (function(tid){ return function(){ toggleTask(tid); }; })(t.id);
-  var info = document.createElement('div'); info.className='task-info';
-  var ttl = document.createElement('div'); ttl.className='task-title'; ttl.textContent=t.title;
-  info.appendChild(ttl);
-  if (t.assignedTo) { var m2=document.createElement('div'); m2.className='task-meta'; m2.textContent='👤 '+t.assignedTo+(t.location?' · 📍'+t.location:''); info.appendChild(m2); }
-  if (t.desc&&!compact) { var d2=document.createElement('div'); d2.className='task-meta'; d2.style.marginTop='4px'; d2.textContent=t.desc; info.appendChild(d2); }
-  if (dueLabel) { var dl=document.createElement('div'); dl.className='task-due '+dueClass; dl.textContent=dueLabel; info.appendChild(dl); }
-  el.appendChild(prio); el.appendChild(chk); el.appendChild(info);
-  if (!compact) { var db=document.createElement('button'); db.textContent='🗑'; db.style.cssText='background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px'; db.onclick=(function(tid){return function(){deleteTask(tid);};})(t.id); el.appendChild(db); }
-  return el.outerHTML;
+  var doneClass = (t.done?' done':'') + (dueClass==='overdue'&&!t.done?' overdue':'');
+  var id = t.id;
+  var h = '<div class="task-item'+doneClass+'" id="task-'+id+'">';
+  h += '<div class="task-priority '+prioClass+'"></div>';
+  h += '<div class="task-check'+(t.done?' checked':'')+'" onclick="toggleTask(''+id+'')">'+(t.done?'✓':'')+'</div>';
+  h += '<div class="task-info">';
+  h += '<div class="task-title">'+escHtml(t.title)+'</div>';
+  if (t.assignedTo) h += '<div class="task-meta">'+escHtml(t.assignedTo)+(t.location?' · '+escHtml(t.location):'')+'</div>';
+  if (t.desc && !compact) h += '<div class="task-meta" style="margin-top:4px">'+escHtml(t.desc)+'</div>';
+  if (dueLabel) h += '<div class="task-due '+dueClass+'">'+dueLabel+'</div>';
+  h += '</div>';
+  if (!compact) h += '<button style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px" onclick="deleteTask(''+id+'')">🗑</button>';
+  h += '</div>';
+  return h;
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function toggleTask(id) {
