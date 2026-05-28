@@ -2115,6 +2115,7 @@ function renderTasksList() {
   list.innerHTML =
     '<button onclick="openAddTask()" class="btn btn-primary" style="margin-bottom:16px">+ Task Nou</button>' +
     sorted.map(function(t) { return taskItemHTML(t); }).join('');
+  attachTaskHandlers(list);
 }
 
 function renderHomeTasks() {
@@ -2143,46 +2144,38 @@ function taskItemHTML(t, compact) {
     else               { dueClass='ok';      dueLabel=fmtDate(t.dueDate); }
   }
   var prioClass = t.priority==='high'?'prio-high':t.priority==='med'?'prio-med':'prio-low';
-  var doneClass = (t.done?' done':'') + (dueClass==='overdue'&&!t.done?' overdue':'');
-  var id = t.id;
-  var h = '<div class="task-item'+doneClass+'" id="task-'+id+'" style="cursor:pointer" onclick="expandTask(&quot;'+id+'&quot;)">';
+  var doneClass = (t.done?' done':'')+(dueClass==='overdue'&&!t.done?' overdue':'');
+  var h = '<div class="task-item'+doneClass+'" id="task-'+t.id+'" data-id="'+t.id+'">';
   h += '<div class="task-priority '+prioClass+'"></div>';
-  h += '<div class="task-check'+(t.done?' checked':'')+'" onclick="event.stopPropagation();toggleTask(&quot;'+id+'&quot;)">'+(t.done?'✓':'')+'</div>';
+  h += '<div class="task-check'+(t.done?' checked':'')+'" data-action="toggle" data-id="'+t.id+'">'+(t.done?'✓':'')+'</div>';
   h += '<div class="task-info">';
-  h += '<div class="task-title">'+escHtml(t.title)+'</div>';
-  if (t.assignedTo) h += '<div class="task-meta">'+escHtml(t.assignedTo)+(t.location?' · '+escHtml(t.location):'')+'</div>';
-  if (t.desc && !compact) h += '<div class="task-meta" style="margin-top:4px">'+escHtml(t.desc)+'</div>';
+  h += '<div class="task-title">'+(t.title||'')+'</div>';
+  if (t.assignedTo) h += '<div class="task-meta">'+t.assignedTo+(t.location?' · '+t.location:'')+'</div>';
+  if (t.desc && !compact) h += '<div class="task-meta" style="margin-top:4px">'+t.desc+'</div>';
   if (dueLabel) h += '<div class="task-due '+dueClass+'">'+dueLabel+'</div>';
   h += '</div>';
-  if (!compact) h += '<button style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px" onclick="deleteTask(&quot;'+id+'&quot;)">🗑</button>';
+  if (!compact) h += '<button class="task-del-btn" data-action="delete" data-id="'+t.id+'" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px;flex-shrink:0">🗑</button>';
   h += '</div>';
   return h;
 }
 
-
-function expandTask(id) {
-  var t = tasks.find(function(x){ return x.id===id; });
-  if (!t) return;
-  var existing = document.getElementById('task-expand-'+id);
-  if (existing) { existing.remove(); return; }
-  var el = document.getElementById('task-'+id);
-  if (!el) return;
-  var div = document.createElement('div');
-  div.id = 'task-expand-'+id;
-  div.style.cssText = 'background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin:4px 0 8px;font-size:12px;color:var(--text)';
-  var inner = '';
-  if (t.desc) inner += '<div style="margin-bottom:8px;color:var(--muted)">'+escHtml(t.desc)+'</div>';
-  if (t.assignedTo) inner += '<div style="margin-bottom:4px">👤 <strong>'+escHtml(t.assignedTo)+'</strong></div>';
-  if (t.location) inner += '<div style="margin-bottom:4px">📍 '+escHtml(t.location)+'</div>';
-  if (t.dueDate) inner += '<div style="margin-bottom:8px">📅 Termen: '+fmtDate(t.dueDate)+'</div>';
-  inner += '<div style="display:flex;gap:8px;margin-top:8px">';
-  var btnLabel = t.done ? '↩️ Redeschide' : '✅ Finalizează';
-  inner += '<button class="btn btn-ghost" style="flex:1;font-size:11px" data-tid="'+id+'" onclick="event.stopPropagation();toggleTask(this.dataset.tid)">'+btnLabel+'</button>';
-  if (isManager) inner += '<button class="btn btn-ghost" style="font-size:11px;color:var(--red)" data-tid="'+id+'" onclick="event.stopPropagation();deleteTask(this.dataset.tid)">🗑 Șterge</button>';
-  inner += '</div>';
-  div.innerHTML = inner;
-  el.insertAdjacentElement('afterend', div);
+function attachTaskHandlers(container) {
+  if (!container) return;
+  container.onclick = function(e) {
+    var el = e.target.closest('[data-action]');
+    if (!el) return;
+    var id = el.getAttribute('data-id');
+    var action = el.getAttribute('data-action');
+    if (action === 'toggle') { e.stopPropagation(); toggleTask(id); }
+    if (action === 'delete') { e.stopPropagation(); deleteTask(id); }
+  };
 }
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 
 function escHtml(s) {
   if (!s) return '';
