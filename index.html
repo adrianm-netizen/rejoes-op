@@ -3085,6 +3085,13 @@ function renderGabiOps() {
     '<div class="ghid-sub">Instrucțiuni pas cu pas · Apasă să vezi! 👆</div>' +
     '</div><div class="ghid-arrow">▶</div></button>';
 
+  // Tasks preview for Gabi
+  var gabiActiveTasks = tasks.filter(function(t){ return !t.done; });
+  if (gabiActiveTasks.length) {
+    html += '<div class="section-title" style="margin-top:4px">✅ Task-uri active</div>';
+    html += gabiActiveTasks.map(function(t){ return taskItemHTML(t, true); }).join('');
+  }
+
   // Pending requests from Ana
   if (pendingReqs.length) {
     html += '<div style="background:rgba(240,160,48,.1);border:1px solid rgba(240,160,48,.3);' +
@@ -4104,6 +4111,18 @@ window.admMove = function admMove(d) {
   admDate = dt.toISOString().slice(0,10);
   admSetDate();
   admRefresh();
+
+  // Task preview
+  var admTaskEl = document.getElementById('adm-task-preview');
+  if (admTaskEl) {
+    var activeTasks = tasks.filter(function(t){ return !t.done; });
+    if (activeTasks.length) {
+      admTaskEl.innerHTML = '<div class="section-title">✅ Task-uri active ('+activeTasks.length+')</div>' +
+        activeTasks.slice(0,3).map(function(t){ return taskItemHTML(t, true); }).join('');
+    } else {
+      admTaskEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0">Niciun task activ.</div>';
+    }
+  }
 }
 
 window.admSetDate = function admSetDate() {
