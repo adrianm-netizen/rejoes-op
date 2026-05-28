@@ -2251,7 +2251,7 @@ function rescheduleTaskReminders() {
 }
 
 // Fetch tasks from Google Sheets (bidirectional sync)
-async async function fetchTasksFromSheets() {
+async function fetchTasksFromSheets() {
   if (!SHEETS_URL) return;
   try {
     var r = await fetch(SHEETS_URL + '?action=getTasks');
