@@ -52,7 +52,7 @@ function getDefaultDates() {
 function buildDash(ss, dates) {
   var sh = ss.getSheetByName(DASH_SHEET);
   if (!sh) {
-    sh = ss.insertSheet(DASH_SHEET, 0);
+    sh = ss.insertSheet(DASH_SHEET);
   } else {
     // Clear content but KEEP drawings/buttons
     sh.clearContents();
