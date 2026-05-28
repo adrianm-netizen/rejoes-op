@@ -4835,11 +4835,11 @@ function backToGate() {
 
 // ── USERS DATABASE ────────────────────────────────────────
 const USERS_DB = [
-  { id:'adrian', name:'Adrian',  role:'admin',     emoji:'🧭', bg:'#1a3828', color:'#c9a84c', pin:null },
-  { id:'ana',    name:'Ana',     role:'operator',  emoji:'⚙️', bg:'#1a2838', color:'#4a9eda', pin:null },
-  { id:'dana',   name:'Dana',    role:'contabila', emoji:'📊', bg:'#2a1a38', color:'#a04aca', pin:null },
-  { id:'gabi',   name:'Gabi',    role:'warehouse', emoji:'📦', bg:'#1a2818', color:'#4caf7a', pin:null },
-  { id:'olga',   name:'Olga',    role:'contabila', emoji:'🗂️', bg:'#38281a', color:'#ca844a', pin:null }
+  { id:'adrian', name:'Adrian', roleLabel:'Administrator', role:'admin',     emoji:'🧭', bg:'#1a3828', color:'#c9a84c', pin:null },
+  { id:'ana',    name:'Ana',    roleLabel:'Operator',      role:'operator',  emoji:'⚙️', bg:'#1a2838', color:'#4a9eda', pin:null },
+  { id:'dana',   name:'Dana',   roleLabel:'Contabil Sef',  role:'contabila', emoji:'📊', bg:'#2a1a38', color:'#a04aca', pin:null },
+  { id:'gabi',   name:'Gabi',   roleLabel:'Warehouse',     role:'warehouse', emoji:'📦', bg:'#1a2818', color:'#4caf7a', pin:null },
+  { id:'olga',   name:'Olga',   roleLabel:'Administrator', role:'contabila', emoji:'🗂', bg:'#38281a', color:'#ca844a', pin:null }
 ];
 
 function showUserSelect() {
@@ -4847,6 +4847,7 @@ function showUserSelect() {
   screen.style.display = 'flex';
   var grid = document.getElementById('userGrid');
   grid.innerHTML = '';
+  try {
   USERS_DB.forEach(function(u) {
     var card = document.createElement('div');
     card.className = 'usr-card';
@@ -4857,6 +4858,9 @@ function showUserSelect() {
     card.onclick = (function(uid) { return function() { selectUser(uid); }; })(u.id);
     grid.appendChild(card);
   });
+  } catch(err) {
+    grid.innerHTML = '<div style="color:red;padding:20px">Eroare: ' + err.message + '</div>';
+  }
 }
 
 function selectUser(userId) {
