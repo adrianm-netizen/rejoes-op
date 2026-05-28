@@ -1008,7 +1008,7 @@ function renderHome() {
       '<button class="ghid-btn" onclick="openGhid()">' +
       '<div class="ghid-ico">📖</div>' +
       '<div class="ghid-text">' +
-      '<div class="ghid-title">Ghid Rapid → Cum folosesc aplicația?</div>' +
+      '<div class="ghid-title">Ghid Rapid → Cum evoluăm?</div>' +
       '<div class="ghid-sub">Instrucțiuni pas cu pas · Apasă să vezi! 👆</div>' +
       '</div><div class="ghid-arrow">▶</div></button>' +
       '<div class="section-title">🏭 Warehouse</div>' +
@@ -3022,7 +3022,7 @@ function renderGabiOps() {
   html += '<button class="ghid-btn" onclick="openGhid()">' +
     '<div class="ghid-ico">📖</div>' +
     '<div class="ghid-text">' +
-    '<div class="ghid-title">Ghid Rapid → Cum folosesc aplicația?</div>' +
+    '<div class="ghid-title">Ghid Rapid → Cum evoluăm?</div>' +
     '<div class="ghid-sub">Instrucțiuni pas cu pas · Apasă să vezi! 👆</div>' +
     '</div><div class="ghid-arrow">▶</div></button>';
 
@@ -4122,19 +4122,7 @@ const RETUR_STATUS = {
 
 // ── GHID INSTRUCTIUNI ─────────────────────────────────────
 function openGhid() {
-  var modal = document.getElementById('ghid-modal');
-  if (!modal) return;
-  // Load iframe lazily
-  var iframe = document.getElementById('ghid-iframe');
-  if (iframe && !iframe.src) {
-    iframe.src = 'https://adrianm-netizen.github.io/rejoes-op/ghid.html';
-  }
-  modal.classList.add('open');
-}
-
-function closeGhid() {
-  var modal = document.getElementById('ghid-modal');
-  if (modal) modal.classList.remove('open');
+  window.open('https://adrianm-netizen.github.io/rejoes-op/ghid.html', '_blank');
 }
 
 
@@ -5536,17 +5524,5 @@ window.addEventListener('DOMContentLoaded', () => {
   }, 2200);
 });
 </script>
-
-  <!-- GHID MODAL -->
-  <div class="ghid-modal" id="ghid-modal">
-    <div class="ghid-modal-hdr">
-      <div class="ghid-modal-title">📖 Ghid Rapid S Colect REC</div>
-      <button class="ghid-modal-close" onclick="closeGhid()">✕ Închide</button>
-    </div>
-    <div class="ghid-modal-body">
-      <iframe id="ghid-iframe" src="" allowfullscreen></iframe>
-    </div>
-  </div>
-  </div>
 </body>
 </html>
