@@ -679,9 +679,9 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
             width:28px;height:28px;display:flex;align-items:center;justify-content:center;
             cursor:pointer;font-size:14px;color:var(--muted)">🚪</button>
       </div>
-      <div style="font-size:10px;color:var(--muted);text-align:right;margin-top:2px" id="hdrCount"></div>
-    </div>
+      </div>
   </header>
+  <div id="hdrCount" style="font-size:10px;color:var(--muted);text-align:right;padding:2px 14px 4px;background:var(--bg)"></div>
 
   <main class="content">
 
@@ -1653,49 +1653,54 @@ function setSyncStatus(status) {
   lbl.textContent = s.t;
 }
 
-async function syncEntry(entry) {
+function syncEntry(entry) {
   if (!SHEETS_URL) { setSyncStatus('offline'); return; }
   setSyncStatus('syncing');
-  // Build payload with human-readable fields
-  const payload = { ...entry };
-  if (entry.type === 'pontaj') {
-    payload.dayTypeLabel = ['lucrat','concediu_odihna','concediu_medical',
-      'zi_libera_legala','absenta_nemotivata','liber'].includes(entry.dayType)
-      ? { lucrat:'Lucrat', concediu_odihna:'Concediu Odihnă',
-          concediu_medical:'Concediu Medical', zi_libera_legala:'Zi Liberă Legală',
-          absenta_nemotivata:'Absență Nemotivată', liber:'Zi Liberă' }[entry.dayType]
-      : entry.dayType;
-  }
   try {
-    const resp = await fetch(SHEETS_URL, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      headers: { 'Content-Type': 'application/json' }
-    });
-    const json = await resp.json();
-    if (json.status === 'ok') {
-      setSyncStatus('ok');
-      // Remove from queue if present
-      syncQueue = syncQueue.filter(q => q.id !== entry.id);
-      localStorage.setItem('rejoes_sync_queue', JSON.stringify(syncQueue));
-    } else { throw new Error(json.msg); }
-  } catch (err) {
-    console.warn('Sync error:', err);
-    setSyncStatus('error');
-    // Add to retry queue
-    if (!syncQueue.find(q => q.id === entry.id)) {
-      syncQueue.push(entry);
-      localStorage.setItem('rejoes_sync_queue', JSON.stringify(syncQueue));
-    }
-  }
+    var data = encodeURIComponent(JSON.stringify(entry));
+    var cbName = 'cb_sync_' + Date.now();
+    var script = document.createElement('script');
+    var done = false;
+    window[cbName] = function(j) {
+      done = true;
+      delete window[cbName];
+      script.remove();
+      if (j && j.status === 'ok') {
+        setSyncStatus('ok');
+        syncQueue = syncQueue.filter(function(q){ return q.id !== entry.id; });
+        localStorage.setItem('rejoes_sync_queue', JSON.stringify(syncQueue));
+      } else {
+        setSyncStatus('error');
+        if (!syncQueue.find(function(q){ return q.id === entry.id; })) {
+          syncQueue.push(entry);
+          localStorage.setItem('rejoes_sync_queue', JSON.stringify(syncQueue));
+        }
+      }
+    };
+    script.onerror = function() {
+      if (!done) {
+        done = true; delete window[cbName];
+        setSyncStatus('error');
+        if (!syncQueue.find(function(q){ return q.id === entry.id; })) {
+          syncQueue.push(entry);
+          localStorage.setItem('rejoes_sync_queue', JSON.stringify(syncQueue));
+        }
+      }
+    };
+    setTimeout(function() {
+      if (!done) { done = true; delete window[cbName]; script.remove(); setSyncStatus('error'); }
+    }, 10000);
+    script.src = SHEETS_URL + '?action=save&data=' + data + '&callback=' + cbName;
+    document.head.appendChild(script);
+  } catch(e) { setSyncStatus('error'); }
 }
 
-async function flushQueue() {
+function flushQueue() {
   if (!SHEETS_URL || !syncQueue.length) return;
-  for (const entry of [...syncQueue]) {
-    await syncEntry(entry);
-    await new Promise(r => setTimeout(r, 400));
-  }
+  var q = syncQueue.slice();
+  q.forEach(function(entry, i) {
+    setTimeout(function(){ syncEntry(entry); }, i * 600);
+  });
 }
 
 // ── Settings panel ──
