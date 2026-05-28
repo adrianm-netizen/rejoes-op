@@ -1005,6 +1005,12 @@ function renderHome() {
   var whBtns = document.getElementById('anaWhButtons');
   if (whBtns && currentUser && currentUser.role === 'operator') {
     whBtns.innerHTML =
+      '<button class="ghid-btn" onclick="openGhid()">' +
+      '<div class="ghid-ico">📖</div>' +
+      '<div class="ghid-text">' +
+      '<div class="ghid-title">Ghid Rapid → Cum folosesc aplicația?</div>' +
+      '<div class="ghid-sub">Instrucțiuni pas cu pas · Apasă să vezi! 👆</div>' +
+      '</div><div class="ghid-arrow">▶</div></button>' +
       '<div class="section-title">🏭 Warehouse</div>' +
       '<button class="cmt-btn cmt-btn-store" onclick="openCerereMarfaWH()" style="margin-bottom:7px">' +
       '<span style="font-size:18px">📦</span>' +
