@@ -2171,7 +2171,7 @@ function expandTask(id) {
     (t.location ? '<div style="margin-bottom:4px">📍 '+escHtml(t.location)+'</div>' : '') +
     (t.dueDate ? '<div style="margin-bottom:8px">📅 Termen: '+fmtDate(t.dueDate)+'</div>' : '') +
     '<div style="display:flex;gap:8px;margin-top:8px">' +
-    '<button class="btn btn-ghost" style="flex:1;font-size:11px" onclick="event.stopPropagation();toggleTask(''+id+'')">'+
+    '<button class="btn btn-ghost" style="flex:1;font-size:11px" onclick="event.stopPropagation();toggleTask(&quot;'+id+'&quot;)">'+'
     (t.done?'↩️ Redeschide':'✅ Finalizează')+'</button>' +
     (isManager ? '<button class="btn btn-ghost" style="font-size:11px;color:var(--red)" onclick="event.stopPropagation();deleteTask(''+id+'')">🗑 Șterge</button>' : '') +
     '</div>';
