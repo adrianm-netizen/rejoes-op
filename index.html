@@ -4777,28 +4777,8 @@ function downloadPontaje() {
   showToast('Export descarcat!');
 }
 
-async function renderGabiView() {
-  var el = document.getElementById('pg-gabi');
-  if (!el) return;
 
-  // Tab bar
-  var tabsHtml =
-    '<div style="display:flex;gap:0;background:var(--green);border-radius:0;overflow:hidden;margin-bottom:0">' +
-    '<div class="gabi-tab active" id="gtab-ops" onclick="switchGabiTab(&quot;ops&quot;)" style="flex:1;padding:10px;text-align:center;font-size:11px;font-weight:700;cursor:pointer;color:var(--gold)">📦 Operațiuni</div>' +
-    '<div class="gabi-tab" id="gtab-retur" onclick="switchGabiTab(&quot;retur&quot;)" style="flex:1;padding:10px;text-align:center;font-size:11px;font-weight:700;cursor:pointer;color:var(--muted);position:relative">↩️ Retururi<span id="gabi-notif-badge" style="display:none;position:absolute;top:4px;right:8px;background:var(--red);color:#fff;border-radius:10px;padding:1px 5px;font-size:9px">0</span></div>' +
-    '<div class="gabi-tab" id="gtab-stoc" onclick="switchGabiTab(&quot;stoc&quot;)" style="flex:1;padding:10px;text-align:center;font-size:11px;font-weight:700;cursor:pointer;color:var(--muted)">📊 Stoc</div>' +
-    '<div class="gabi-tab" id="gtab-istoric" onclick="switchGabiTab(&quot;istoric&quot;)" style="flex:1;padding:10px;text-align:center;font-size:11px;font-weight:700;cursor:pointer;color:var(--muted)">📋 Istoric</div>' +
-    '</div>';
-
-  el.innerHTML = tabsHtml +
-    '<div id="gabi-ops" style="padding:14px 14px 80px;overflow-y:auto"></div>' +
-    '<div id="gabi-retururi" style="padding:14px 14px 80px;overflow-y:auto;display:none"></div>' +
-    '<div id="gabi-stoc" style="padding:14px 14px 80px;overflow-y:auto;display:none"></div>' +
-    '<div id="gabi-istoric-wh" style="padding:14px 14px 80px;overflow-y:auto;display:none"></div>';
-
-  renderGabiOps();
-  renderGabiNotifications();
-}
+// renderGabiView is defined above
 
 function switchGabiTab(tab) {
   ['ops','retururi','stoc','istoric-wh'].forEach(function(t) {
