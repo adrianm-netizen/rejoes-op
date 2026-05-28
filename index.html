@@ -2151,7 +2151,7 @@ function taskItemHTML(t, compact) {
   }
   var prioClass = t.priority==='high'?'prio-high':t.priority==='med'?'prio-med':'prio-low';
   var doneClass = (t.done?' done':'')+(dueClass==='overdue'&&!t.done?' overdue':'');
-  var h = '<div class="task-item'+doneClass+'" id="task-'+t.id+'" data-id="'+t.id+'">';
+  var h = '<div class="task-item'+doneClass+'" id="task-'+t.id+'" data-id="'+t.id+'" data-action="expand" style="cursor:pointer">';
   h += '<div class="task-priority '+prioClass+'"></div>';
   h += '<div class="task-check'+(t.done?' checked':'')+'" data-action="toggle" data-id="'+t.id+'">'+(t.done?'✓':'')+'</div>';
   h += '<div class="task-info">';
@@ -2165,6 +2165,29 @@ function taskItemHTML(t, compact) {
   return h;
 }
 
+function expandTask(id) {
+  var existing = document.getElementById('task-expand-'+id);
+  if (existing) { existing.remove(); return; }
+  var t = tasks.find(function(x){ return x.id===id; });
+  if (!t) return;
+  var el = document.getElementById('task-'+id);
+  if (!el) return;
+  var div = document.createElement('div');
+  div.id = 'task-expand-'+id;
+  div.style.cssText = 'background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin:2px 0 8px;font-size:12px;';
+  var inner = '';
+  if (t.desc) inner += '<div style="color:var(--muted);margin-bottom:8px">'+t.desc+'</div>';
+  if (t.assignedTo) inner += '<div style="margin-bottom:4px">👤 '+t.assignedTo+(t.location?' · 📍'+t.location:'')+'</div>';
+  if (t.dueDate) inner += '<div style="margin-bottom:8px">📅 '+fmtDate(t.dueDate)+'</div>';
+  inner += '<div style="display:flex;gap:8px;margin-top:8px">';
+  inner += '<button class="btn btn-ghost" style="flex:1;font-size:11px" data-action="toggle" data-id="'+id+'">'+(t.done?'↩️ Redeschide':'✅ Finalizează')+'</button>';
+  if (isManager) inner += '<button class="btn btn-ghost" style="font-size:11px;color:var(--red)" data-action="delete" data-id="'+id+'">🗑 Șterge</button>';
+  inner += '</div>';
+  div.innerHTML = inner;
+  attachTaskHandlers(div);
+  el.insertAdjacentElement('afterend', div);
+}
+
 function attachTaskHandlers(container) {
   if (!container) return;
   container.onclick = function(e) {
@@ -2174,6 +2197,7 @@ function attachTaskHandlers(container) {
     var action = el.getAttribute('data-action');
     if (action === 'toggle') { e.stopPropagation(); toggleTask(id); }
     if (action === 'delete') { e.stopPropagation(); deleteTask(id); }
+    if (action === 'expand') { expandTask(id); }
   };
 }
 
