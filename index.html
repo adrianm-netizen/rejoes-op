@@ -3544,6 +3544,10 @@ window.admShow = function admShow() {
   if (s) s.textContent = getDailyMessage();
   // Buttons use window.onclick directly
   admSetDate();
+  admRefresh();
+  // Tasks preview
+  var admTaskEl = document.getElementById('adm-task-preview');
+  if (admTaskEl) admTaskEl.innerHTML = '';
 }
 
 window.admMove = function admMove(d) {
@@ -4723,6 +4727,7 @@ function renderTasks() {
     return;
   }
 
+  list.innerHTML = '';
   sorted.forEach(function(t) {
     var st = getTaskStatus(t);
     var badgeClass = 'badge-' + st;
@@ -4730,11 +4735,17 @@ function renderTasks() {
 
     var item = document.createElement('div');
     item.className = 'task-item task-' + st;
+    item.id = 'task-' + t.id;
+    item.style.cursor = 'pointer';
+    item.onclick = (function(tid) { return function(e) {
+      if (e.target.closest('.task-check') || e.target.closest('.task-del')) return;
+      expandTask(tid);
+    }; })(t.id);
 
     var chk = document.createElement('div');
-    chk.className = 'task-check';
+    chk.className = 'task-check' + (t.done ? ' checked' : '');
     chk.textContent = t.done ? '✓' : '';
-    chk.onclick = (function(tid) { return function() { toggleTask(tid); }; })(t.id);
+    chk.onclick = (function(tid) { return function(e) { e.stopPropagation(); toggleTask(tid); }; })(t.id);
 
     var info = document.createElement('div');
     info.className = 'task-info';
@@ -4747,20 +4758,16 @@ function renderTasks() {
     item.appendChild(chk);
     item.appendChild(info);
 
-    if (isManager) {
+    if (currentUser && currentUser.role === 'admin') {
       var del = document.createElement('button');
       del.className = 'task-del';
       del.textContent = '🗑';
-      del.onclick = (function(tid) { return function() { deleteTask(tid); }; })(t.id);
+      del.onclick = (function(tid) { return function(e) { e.stopPropagation(); deleteTask(tid); }; })(t.id);
       item.appendChild(del);
     }
 
-    list.innerHTML = html;
     list.appendChild(item);
-    html = '';
   });
-
-  if (html) list.innerHTML += html;
 }
 
 // ── Home task preview (top 3 active) ──
