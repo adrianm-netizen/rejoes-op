@@ -762,13 +762,13 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
     </div>
 
     <!-- ─── TASKS PAGE ─── -->
-    <div class="page" id="pg-tasks">
-      <div class="pg-title">Task-uri</div>
-      <div class="pg-sub">Planificare și urmărire activități</div>
-      <div id="tasks-add-btn" style="display:none;padding:14px 14px 0">
-        <button onclick="openAddTask()" class="btn btn-primary" style="width:100%">+ Task Nou</button>
+    <div class="page" id="pg-tasks" style="display:flex;flex-direction:column">
+      <div style="padding:14px 14px 8px">
+        <div class="pg-title">Task-uri</div>
+        <div class="pg-sub">Planificare și urmărire activități</div>
+        <button id="btn-add-task" onclick="addTaskIfAdmin()" class="btn btn-primary" style="width:100%;margin-top:10px">+ Task Nou</button>
       </div>
-      <div id="tasksList" style="padding:0 14px 80px"></div>
+      <div id="tasksList" style="padding:0 14px 80px;overflow-y:auto;flex:1"></div>
     </div>
 
     <!-- ─── DANA PAGE ─── -->
@@ -2230,6 +2230,13 @@ function deleteTask(id) {
   saveTasks(); renderTasks(); renderHomeTasks();
 }
 
+function addTaskIfAdmin() {
+  if (currentUser && currentUser.role === 'admin') {
+    openAddTask();
+  } else {
+    alert('Doar administratorul poate adăuga task-uri.');
+  }
+}
 function openAddTask() {
   var empOpts = ['Ana (Op. Manager)', ...EMPLOYEES].map(function(e) {
     return '<option value="'+e+'">'+e+'</option>';
@@ -4735,6 +4742,13 @@ function unlockManager() {
 }
 
 // ── Add Task modal ──
+function addTaskIfAdmin() {
+  if (currentUser && currentUser.role === 'admin') {
+    openAddTask();
+  } else {
+    alert('Doar administratorul poate adăuga task-uri.');
+  }
+}
 function openAddTask() {
   var empOpts = ['Ana (Op. Manager)', ...EMPLOYEES].map(function(e) {
     return '<option value="' + e + '">' + e + '</option>';
