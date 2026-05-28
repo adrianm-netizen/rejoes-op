@@ -2124,14 +2124,14 @@ function taskItemHTML(t, compact) {
   var id = t.id;
   var h = '<div class="task-item'+doneClass+'" id="task-'+id+'">';
   h += '<div class="task-priority '+prioClass+'"></div>';
-  h += '<div class="task-check'+(t.done?' checked':'')+'" onclick="toggleTask(''+id+'')">'+(t.done?'✓':'')+'</div>';
+  h += '<div class="task-check'+(t.done?' checked':'')+'" onclick="toggleTask(&quot;'+id+'&quot;)">'+(t.done?'✓':'')+'</div>';
   h += '<div class="task-info">';
   h += '<div class="task-title">'+escHtml(t.title)+'</div>';
   if (t.assignedTo) h += '<div class="task-meta">'+escHtml(t.assignedTo)+(t.location?' · '+escHtml(t.location):'')+'</div>';
   if (t.desc && !compact) h += '<div class="task-meta" style="margin-top:4px">'+escHtml(t.desc)+'</div>';
   if (dueLabel) h += '<div class="task-due '+dueClass+'">'+dueLabel+'</div>';
   h += '</div>';
-  if (!compact) h += '<button style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px" onclick="deleteTask(''+id+'')">🗑</button>';
+  if (!compact) h += '<button style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px" onclick="deleteTask(&quot;'+id+'&quot;)">🗑</button>';
   h += '</div>';
   return h;
 }
