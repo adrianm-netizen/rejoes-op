@@ -800,7 +800,7 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
     </div>
 
 
-          <div id="adm-task-preview" style="padding:0 14px 80px"></div>
+          <div id="adm-task-preview" style="padding:0 0 8px"></div>
     </div>
 
     <!-- ─── CERERE MARFA PAGE ─── -->
@@ -2110,11 +2110,14 @@ function renderTasksList() {
   });
 
   if (!sorted.length) {
-    list.innerHTML = '<div style="text-align:center;padding:30px">' +
+    list.innerHTML =
+      (isManager ? '<button onclick="openAddTask()" class="btn btn-primary" style="margin-bottom:16px">+ Task Nou</button>' : '') +
+      '<div style="text-align:center;padding:20px">' +
       '<div style="font-size:40px;margin-bottom:12px">📭</div>' +
-      '<div style="color:var(--muted);margin-bottom:16px">Niciun task local.</div>' +
-      '<button class="btn btn-ghost" onclick="fetchTasksFromSheets().then(function(){renderTasks();})" style="font-size:12px">🔄 Reîncarcă din server</button>' +
+      '<div style="color:var(--muted);margin-bottom:16px">Niciun task activ.</div>' +
+      '<button class="btn btn-ghost" onclick="fetchTasksFromSheets().then(function(){renderTasksList();})" style="font-size:12px">🔄 Reîncarcă din server</button>' +
       '</div>';
+    attachTaskHandlers(list);
     return;
   }
 
