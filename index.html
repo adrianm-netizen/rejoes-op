@@ -986,7 +986,7 @@ function openTab(tab) {
     else { renderHome(); renderHomeTaskPreview(); }
   }
   if (tab === 'tasks') renderTasks();
-  if (tab === 'wh') { document.getElementById('whDetailContent').innerHTML=''; renderGabiView(); }
+  if (tab === 'wh') { document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');}); document.getElementById('pg-gabi').classList.add('active'); renderGabiView(); }
 }
 
 // ══════════════════════════════════════════════════
@@ -3004,7 +3004,6 @@ function switchGabiTab(tab) {
 }
 
 function renderGabiOps() {
-  var old_
   var el = document.getElementById('gabi-ops');
   if (!el) return;
 
@@ -4798,7 +4797,6 @@ function switchGabiTab(tab) {
 }
 
 function renderGabiOps() {
-  var old_
   var el = document.getElementById('gabi-ops');
   if (!el) return;
 
