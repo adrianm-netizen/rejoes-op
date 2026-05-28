@@ -765,7 +765,10 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
     <div class="page" id="pg-tasks">
       <div class="pg-title">Task-uri</div>
       <div class="pg-sub">Planificare și urmărire activități</div>
-      <div id="tasksList"></div>
+      <div id="tasks-add-btn" style="display:none;padding:14px 14px 0">
+        <button onclick="openAddTask()" class="btn btn-primary" style="width:100%">+ Task Nou</button>
+      </div>
+      <div id="tasksList" style="padding:0 14px 80px"></div>
     </div>
 
     <!-- ─── DANA PAGE ─── -->
@@ -2111,7 +2114,6 @@ function renderTasksList() {
 
   if (!sorted.length) {
     list.innerHTML =
-      (isManager ? '<button onclick="openAddTask()" class="btn btn-primary" style="margin-bottom:16px">+ Task Nou</button>' : '') +
       '<div style="text-align:center;padding:20px">' +
       '<div style="font-size:40px;margin-bottom:12px">📭</div>' +
       '<div style="color:var(--muted);margin-bottom:16px">Niciun task activ.</div>' +
@@ -2121,9 +2123,7 @@ function renderTasksList() {
     return;
   }
 
-  list.innerHTML =
-    '<button onclick="openAddTask()" class="btn btn-primary" style="margin-bottom:16px">+ Task Nou</button>' +
-    sorted.map(function(t) { return taskItemHTML(t); }).join('');
+  list.innerHTML = sorted.map(function(t) { return taskItemHTML(t); }).join('');
   attachTaskHandlers(list);
 }
 
