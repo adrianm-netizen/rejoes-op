@@ -985,7 +985,11 @@ function openTab(tab) {
     else if (currentUser && currentUser.role === 'admin')  admShow();
     else { renderHome(); renderHomeTaskPreview(); }
   }
-  if (tab === 'tasks') renderTasks();
+  if (tab === 'tasks') {
+    document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+    document.getElementById('pg-tasks').classList.add('active');
+    renderTasks();
+  }
   if (tab === 'wh') { document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');}); document.getElementById('pg-gabi').classList.add('active'); renderGabiView(); }
 }
 
@@ -2076,8 +2080,18 @@ function showToast(msg) {
 function renderTasks() {
   var list = document.getElementById('tasksList');
   if (!list) return;
-  // Fetch fresh tasks from Google Sheets if online
-  fetchTasksFromSheets();
+  // Fetch fresh tasks from Google Sheets then re-render
+  fetchTasksFromSheets().then(function() {
+    renderTasksList();
+  }).catch(function() {
+    renderTasksList();
+  });
+  renderTasksList();
+}
+
+function renderTasksList() {
+  var list = document.getElementById('tasksList');
+  if (!list) return;
 
   var sorted = [...tasks].sort(function(a,b) {
     if (a.done !== b.done) return a.done ? 1 : -1;
