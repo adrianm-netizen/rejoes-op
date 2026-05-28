@@ -4705,12 +4705,7 @@ function renderTasks() {
 
   var html = '';
 
-  // Manager add button (PIN protected)
-  if (isManager) {
-    html += '<button onclick="openAddTask()" class="btn btn-primary" style="margin-bottom:16px;width:100%">+ Adauga Task Nou</button>';
-  } else {
-    html += '<button onclick="unlockManager()" class="btn btn-ghost" style="margin-bottom:16px;font-size:12px">🔒 Manager — Adauga Task</button>';
-  }
+
 
   if (!sorted.length) {
     html += '<div class="hist-empty">Niciun task. Apasa butonul de mai sus pentru a adauga!</div>';
