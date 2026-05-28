@@ -4832,6 +4832,16 @@ function backToGate() {
 }
 
 // ── User Select ──
+
+// ── USERS DATABASE ────────────────────────────────────────
+const USERS_DB = [
+  { id:'adrian', name:'Adrian',  role:'admin',     emoji:'🧭', bg:'#1a3828', color:'#c9a84c', pin:null },
+  { id:'ana',    name:'Ana',     role:'operator',  emoji:'⚙️', bg:'#1a2838', color:'#4a9eda', pin:null },
+  { id:'dana',   name:'Dana',    role:'contabila', emoji:'📊', bg:'#2a1a38', color:'#a04aca', pin:null },
+  { id:'gabi',   name:'Gabi',    role:'warehouse', emoji:'📦', bg:'#1a2818', color:'#4caf7a', pin:null },
+  { id:'olga',   name:'Olga',    role:'contabila', emoji:'🗂️', bg:'#38281a', color:'#ca844a', pin:null }
+];
+
 function showUserSelect() {
   var screen = document.getElementById('auth-users');
   screen.style.display = 'flex';
