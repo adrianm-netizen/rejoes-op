@@ -2965,11 +2965,11 @@ function renderGabiView() {
 
   // Tab bar
   var tabsHtml =
-    '<div style="display:flex;gap:0;background:var(--green);border-radius:0;overflow:hidden;margin-bottom:0">' +
-    '<div class="gabi-tab active" id="gtab-ops" onclick="switchGabiTab(&quot;ops&quot;)" style="flex:1;padding:10px;text-align:center;font-size:11px;font-weight:700;cursor:pointer;color:var(--gold)">📦 Operațiuni</div>' +
-    '<div class="gabi-tab" id="gtab-retur" onclick="switchGabiTab(&quot;retur&quot;)" style="flex:1;padding:10px;text-align:center;font-size:11px;font-weight:700;cursor:pointer;color:var(--muted);position:relative">↩️ Retururi<span id="gabi-notif-badge" style="display:none;position:absolute;top:4px;right:8px;background:var(--red);color:#fff;border-radius:10px;padding:1px 5px;font-size:9px">0</span></div>' +
-    '<div class="gabi-tab" id="gtab-stoc" onclick="switchGabiTab(&quot;stoc&quot;)" style="flex:1;padding:10px;text-align:center;font-size:11px;font-weight:700;cursor:pointer;color:var(--muted)">📊 Stoc</div>' +
-    '<div class="gabi-tab" id="gtab-istoric" onclick="switchGabiTab(&quot;istoric&quot;)" style="flex:1;padding:10px;text-align:center;font-size:11px;font-weight:700;cursor:pointer;color:var(--muted)">📋 Istoric</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 12px 4px;background:var(--bg)">' +
+    '<div class="gabi-tab active" id="gtab-ops" onclick="switchGabiTab(&quot;ops&quot;)" style="background:linear-gradient(135deg,#1a3828,#0f2018);border:1.5px solid var(--gold);border-radius:10px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--gold);box-shadow:0 2px 8px rgba(201,168,76,.2)"><div style=\"font-size:20px;margin-bottom:4px\">📦</div>Operațiuni</div>' +
+    '<div class="gabi-tab" id="gtab-retur" onclick="switchGabiTab(&quot;retur&quot;)" style="background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--muted);position:relative"><div style=\"font-size:20px;margin-bottom:4px\">↩️</div>Retururi<span id="gabi-notif-badge" style="display:none;position:absolute;top:6px;right:8px;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:9px;font-weight:700">!</span></div>' +
+    '<div class="gabi-tab" id="gtab-stoc" onclick="switchGabiTab(&quot;stoc&quot;)" style="background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--muted)"><div style=\"font-size:20px;margin-bottom:4px\">📊</div>Stoc</div>' +
+    '<div class="gabi-tab" id="gtab-istoric" onclick="switchGabiTab(&quot;istoric&quot;)" style="background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--muted)"><div style=\"font-size:20px;margin-bottom:4px\">📋</div>Istoric</div>' +
     '</div>';
 
   el.innerHTML = tabsHtml +
@@ -2988,14 +2988,24 @@ function switchGabiTab(tab) {
   });
   ['ops','retur','stoc','istoric'].forEach(function(t) {
     var el = document.getElementById('gtab-'+t);
-    if (el) { el.style.color='var(--muted)'; }
+    if (el) {
+      el.style.color = 'var(--muted)';
+      el.style.background = 'var(--card)';
+      el.style.border = '1.5px solid var(--border)';
+      el.style.boxShadow = 'none';
+    }
   });
   document.getElementById('gabi-'+tab+(tab==='ops'?'':'s'===tab.slice(-1)?'':tab==='retur'?'uri':tab==='stoc'?'':'wh' )).style.display='block';
 
   var tabMap = {ops:'ops',retur:'retururi',stoc:'stoc',istoric:'istoric-wh'};
   document.getElementById('gabi-'+tabMap[tab]).style.display='block';
   var activeTab = document.getElementById('gtab-'+tab);
-  if (activeTab) activeTab.style.color='var(--gold)';
+  if (activeTab) {
+    activeTab.style.color = 'var(--gold)';
+    activeTab.style.background = 'linear-gradient(135deg,#1a3828,#0f2018)';
+    activeTab.style.border = '1.5px solid var(--gold)';
+    activeTab.style.boxShadow = '0 2px 8px rgba(201,168,76,.2)';
+  }
 
   if (tab==='ops') renderGabiOps();
   else if (tab==='retur') renderGabiRetururi();
@@ -4781,14 +4791,24 @@ function switchGabiTab(tab) {
   });
   ['ops','retur','stoc','istoric'].forEach(function(t) {
     var el = document.getElementById('gtab-'+t);
-    if (el) { el.style.color='var(--muted)'; }
+    if (el) {
+      el.style.color = 'var(--muted)';
+      el.style.background = 'var(--card)';
+      el.style.border = '1.5px solid var(--border)';
+      el.style.boxShadow = 'none';
+    }
   });
   document.getElementById('gabi-'+tab+(tab==='ops'?'':'s'===tab.slice(-1)?'':tab==='retur'?'uri':tab==='stoc'?'':'wh' )).style.display='block';
 
   var tabMap = {ops:'ops',retur:'retururi',stoc:'stoc',istoric:'istoric-wh'};
   document.getElementById('gabi-'+tabMap[tab]).style.display='block';
   var activeTab = document.getElementById('gtab-'+tab);
-  if (activeTab) activeTab.style.color='var(--gold)';
+  if (activeTab) {
+    activeTab.style.color = 'var(--gold)';
+    activeTab.style.background = 'linear-gradient(135deg,#1a3828,#0f2018)';
+    activeTab.style.border = '1.5px solid var(--gold)';
+    activeTab.style.boxShadow = '0 2px 8px rgba(201,168,76,.2)';
+  }
 
   if (tab==='ops') renderGabiOps();
   else if (tab==='retur') renderGabiRetururi();
