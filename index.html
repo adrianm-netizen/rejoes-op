@@ -3484,6 +3484,7 @@ window.admMove = function admMove(d) {
     if (activeTasks.length) {
       admTaskEl.innerHTML = '<div class="section-title">✅ Task-uri active ('+activeTasks.length+')</div>' +
         activeTasks.slice(0,3).map(function(t){ return taskItemHTML(t, true); }).join('');
+      attachTaskHandlers(admTaskEl);
     } else {
       admTaskEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0">Niciun task activ.</div>';
     }
