@@ -2320,42 +2320,41 @@ function rescheduleTaskReminders() {
 // Fetch tasks from Google Sheets (bidirectional sync)
 async function fetchTasksFromSheets() {
   return new Promise(function(resolve) {
-    var url = 'https://docs.google.com/spreadsheets/d/1-0JaKKOhOMP5MWpzCOlptbooOQ973e-Acadgpl9x3LY/gviz/tq?tqx=out:json&sheet=Tasks&t='+Date.now();
-    var cbName = 'cb_gviz_tasks_' + Date.now();
+    var cbName = 'gviz_tasks_' + Date.now();
     var script = document.createElement('script');
     var done = false;
     window[cbName] = function(resp) {
       done = true; delete window[cbName]; script.remove();
       try {
-        var rows = (resp.table && resp.table.rows) ? resp.table.rows : [];
+        var rows = resp.table && resp.table.rows ? resp.table.rows : [];
         var localIds = tasks.map(function(t){ return t.id; });
         var added = 0;
         rows.forEach(function(row) {
           var c = row.c || [];
-          var id = c[0] ? String(c[0].v||'') : '';
-          if (!id || localIds.includes(id)) return;
+          var id = c[0] ? String(c[0].v||'').trim() : '';
+          if (!id || id==='ID' || localIds.includes(id)) return;
           var task = {
             id: id,
             title: c[1] ? String(c[1].v||'') : '',
             desc: c[2] ? String(c[2].v||'') : '',
             assignedTo: c[3] ? String(c[3].v||'') : '',
             location: c[4] ? String(c[4].v||'') : '',
-            dueDate: c[5] ? String(c[5].v||'') : '',
+            dueDate: c[5] && c[5].v ? String(c[5].v) : '',
             priority: c[6] ? String(c[6].v||'med') : 'med',
-            done: c[7] ? (c[7].v === true || c[7].v === 'true') : false,
+            done: c[7] ? (c[7].v===true||c[7].v==='true'||c[7].v==='DA') : false,
             ts: Date.now()
           };
           tasks.push(task);
           localIds.push(id);
           added++;
         });
-        if (added > 0) saveTasks();
+        if (added > 0) { saveTasks(); renderTasksList(); renderHomeTaskPreview(); }
       } catch(e) {}
       resolve();
     };
-    script.onerror = function(){ if(!done){ done=true; delete window[cbName]; resolve(); } };
-    setTimeout(function(){ if(!done){ done=true; delete window[cbName]; script.remove(); resolve(); } }, 8000);
-    script.src = url + '&tqx=out:json;reqId:1&callback=' + cbName;
+    script.onerror = function(){ if(!done){done=true;delete window[cbName];resolve();} };
+    setTimeout(function(){ if(!done){done=true;delete window[cbName];script.remove();resolve();} }, 8000);
+    script.src = 'https://docs.google.com/spreadsheets/d/1-0JaKKOhOMP5MWpzCOlptbooOQ973e-Acadgpl9x3LY/gviz/tq?tqx=out:json;responseHandler:'+cbName+'&sheet=Tasks&t='+Date.now();
     document.head.appendChild(script);
   });
 }
