@@ -1018,7 +1018,10 @@ function renderHome() {
       '<div class="section-title">🏭 Warehouse</div>' +
       '<button class="cmt-btn cmt-btn-store" onclick="openCerereMarfaWH()" style="margin-bottom:7px">' +
       '<span style="font-size:18px">📦</span>' +
-      '<div><div>Cerere Marfă → WH</div><div style="font-size:11px;color:var(--muted);font-weight:400">Solicită marfă de la Gabi</div></div></button>';
+      '<div><div>Cerere Marfă → WH</div><div style="font-size:11px;color:var(--muted);font-weight:400">Solicită marfă de la Gabi</div></div></button>' +
+      '<button class="cmt-btn cmt-btn-store" onclick="openReturAna()" style="margin-bottom:7px">' +
+      '<span style="font-size:18px">↩️</span>' +
+      '<div><div>Notificare Retur → WH</div><div style="font-size:11px;color:var(--muted);font-weight:400">Anunță Gabi de marfa pentru retur</div></div></button>';
   } else if (whBtns) { whBtns.innerHTML = ''; }
   const el = document.getElementById('homeHistory');
   if (!recent.length) { el.innerHTML = '<div class="hist-empty">Nicio înregistrare încă. Apasă un buton de mai sus pentru a începe.</div>'; return; }
