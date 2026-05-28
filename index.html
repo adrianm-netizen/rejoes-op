@@ -4796,72 +4796,8 @@ function switchGabiTab(tab) {
   else if (tab==='istoric') renderIstoricExpedieri('gabi-istoric-wh');
 }
 
-function renderGabiOps() {
-  var el = document.getElementById('gabi-ops');
-  if (!el) return;
 
-  // Gabi's tasks
-  var gabiTasks = tasks.filter(function(t) {
-    return t.assignedTo === 'Gabi' || t.assignedTo === 'CIOBANICA GABRIELA';
-  }).sort(function(a,b) {
-    var ord = {red:0,yellow:1,green:2,done:3};
-    return (ord[getTaskStatus(a)]||2)-(ord[getTaskStatus(b)]||2);
-  });
-
-  var active = gabiTasks.filter(function(t) { return !t.done; });
-  var done   = gabiTasks.filter(function(t) { return t.done; });
-
-  el.innerHTML =
-    '<div class="ov-grid">' +
-    '<div class="ov-card ov-card-green"><div class="ov-val" style="color:var(--green)">' +
-      active.length + '</div><div class="ov-lbl">Tasks active</div></div>' +
-    '<div class="ov-card ov-card-red"><div class="ov-val" style="color:var(--red)">' +
-      active.filter(function(t){return getTaskStatus(t)==='red';}).length +
-      '</div><div class="ov-lbl">Depășite</div></div>' +
-    '</div>' +
-
-    '<div class="section-title">✅ Task-urile mele active</div>' +
-    (active.length ?
-      active.map(function(t) { return taskItemHTML(t, false); }).join('') :
-      '<div class="hist-empty">🎉 Niciun task activ momentan!</div>') +
-
-    (done.length ?
-      '<div class="section-title" style="margin-top:4px;opacity:.6">✓ Finalizate recent</div>' +
-      done.slice(0,3).map(function(t) { return taskItemHTML(t, true); }).join('') : '') +
-
-    '<div class="section-title" style="margin-top:8px">📦 Secțiunea WH</div>' +
-    '<div class="wh-coming">' +
-    '<div style="font-size:48px;margin-bottom:12px">🏗️</div>' +
-    '<div style="font-family:Cormorant Garamond,serif;font-size:20px;color:var(--gold);margin-bottom:8px">Coming Soon!</div>' +
-    '<div style="font-size:13px;color:var(--muted);line-height:1.7">Secțiunea Warehouse e în construcție.<br>Gabi, revenim curând cu funcționalități dedicate depozitului! 📦</div>' +
-    '</div>';
-}
-
-// ══════════════════════════════════════════════════
-// MULTI-USER AUTH SYSTEM
-// ══════════════════════════════════════════════════
-const USERS_DB = [
-  { id:'adrian', name:'Adrian',  initials:'AM', emoji:'🧭', role:'admin',
-    roleLabel:'Admin · S Colect REC', color:'#c9a84c', bg:'rgba(201,168,76,.18)',
-    email:'adrian.m@tm-res.com', phone:'0744574242' },
-  { id:'ana',    name:'Ana',     initials:'AO', emoji:'⚙️', role:'operator',
-    roleLabel:'Operation Manager L2', color:'#4caf7a', bg:'rgba(76,175,122,.18)',
-    email:'ana@rejoes.com',      phone:'0740596354' },
-  { id:'dana',   name:'Dana',    initials:'DU', emoji:'📊', role:'contabila',
-    roleLabel:'Contabil Șef',        color:'#64b5f6', bg:'rgba(100,181,246,.18)',
-    email:'dana.lucean@yahoo.com',    phone:'0745308098' },
-  { id:'gabi',   name:'Gabi',    initials:'GC', emoji:'📦', role:'warehouse',
-    roleLabel:'Manager Depozit',      color:'#ce93d8', bg:'rgba(206,147,216,.18)',
-    email:'gabriela.iacobanu@yahoo.com', phone:'0771139088' },
-  { id:'olga',   name:'Olga',    initials:'OB', emoji:'🗂️', role:'contabila',
-    roleLabel:'Administrator',        color:'#80cbc4', bg:'rgba(128,203,196,.18)',
-    email:'olikvp@gmail.com',         phone:'0773338188' }
-];
-
-let currentUser = null;
-let pinBuffer   = '';
-let pinMode     = 'enter'; // 'enter' | 'setup' | 'confirm'
-let pinSetupTemp = '';
+// renderGabiOps defined above
 
 function getStoredPin(userId) {
   return localStorage.getItem('rejoes_pin_' + userId);
