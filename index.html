@@ -2085,7 +2085,11 @@ function renderTasks() {
   });
 
   if (!sorted.length) {
-    list.innerHTML = '<div class="hist-empty">📭 Niciun task. Apasă + pentru a adăuga!</div>';
+    list.innerHTML = '<div style="text-align:center;padding:30px">' +
+      '<div style="font-size:40px;margin-bottom:12px">📭</div>' +
+      '<div style="color:var(--muted);margin-bottom:16px">Niciun task local.</div>' +
+      '<button class="btn btn-ghost" onclick="fetchTasksFromSheets().then(function(){renderTasks();})" style="font-size:12px">🔄 Reîncarcă din server</button>' +
+      '</div>';
     return;
   }
 
@@ -2247,7 +2251,7 @@ function rescheduleTaskReminders() {
 }
 
 // Fetch tasks from Google Sheets (bidirectional sync)
-async function fetchTasksFromSheets() {
+async async function fetchTasksFromSheets() {
   if (!SHEETS_URL) return;
   try {
     var r = await fetch(SHEETS_URL + '?action=getTasks');
