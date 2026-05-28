@@ -2123,8 +2123,25 @@ function renderTasksList() {
     return;
   }
 
-  list.innerHTML = sorted.map(function(t) { return taskItemHTML(t); }).join('');
-  attachTaskHandlers(list);
+  list.innerHTML = '';
+  sorted.forEach(function(t) {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = taskItemHTML(t);
+    var node = tmp.firstChild;
+    // Re-attach event handlers since outerHTML strips them
+    (function(tid, el) {
+      el.style.cursor = 'pointer';
+      el.onclick = function(e) {
+        if (e.target.closest('.task-check') || e.target.closest('.task-del-btn')) return;
+        expandTask(tid);
+      };
+      var chk = el.querySelector('.task-check');
+      if (chk) chk.onclick = function(e) { e.stopPropagation(); toggleTask(tid); };
+      var db = el.querySelector('.task-del-btn');
+      if (db) db.onclick = function(e) { e.stopPropagation(); deleteTask(tid); };
+    })(t.id, node);
+    list.appendChild(node);
+  });
 }
 
 function renderHomeTasks() {
@@ -2142,31 +2159,75 @@ function renderHomeTasks() {
 
 function taskItemHTML(t, compact) {
   var today = new Date(); today.setHours(0,0,0,0);
-  var due   = t.dueDate ? new Date(t.dueDate) : null;
+  var due = t.dueDate ? new Date(t.dueDate) : null;
   var dueClass = 'ok', dueLabel = '';
   if (due) {
     due.setHours(0,0,0,0);
     var diff = Math.round((due-today)/(1000*60*60*24));
-    if (diff < 0)      { dueClass='overdue'; dueLabel='Intarziat '+Math.abs(diff)+'z'; }
-    else if (diff===0) { dueClass='today';   dueLabel='Azi!'; }
-    else if (diff===1) { dueClass='today';   dueLabel='Maine'; }
-    else               { dueClass='ok';      dueLabel=fmtDate(t.dueDate); }
+    if (diff<0)       { dueClass='overdue'; dueLabel='Intarziat '+Math.abs(diff)+'z'; }
+    else if (diff===0){ dueClass='today';   dueLabel='Azi!'; }
+    else if (diff===1){ dueClass='today';   dueLabel='Maine'; }
+    else              { dueClass='ok';      dueLabel=fmtDate(t.dueDate); }
   }
   var prioClass = t.priority==='high'?'prio-high':t.priority==='med'?'prio-med':'prio-low';
   var doneClass = (t.done?' done':'')+(dueClass==='overdue'&&!t.done?' overdue':'');
-  var h = '<div class="task-item'+doneClass+'" id="task-'+t.id+'" data-id="'+t.id+'" data-action="expand" style="cursor:pointer">';
-  h += '<div class="task-priority '+prioClass+'"></div>';
-  h += '<div class="task-check'+(t.done?' checked':'')+'" data-action="toggle" data-id="'+t.id+'">'+(t.done?'✓':'')+'</div>';
-  h += '<div class="task-info">';
-  h += '<div class="task-title">'+(t.title||'')+'</div>';
-  if (t.assignedTo) h += '<div class="task-meta">'+t.assignedTo+(t.location?' · '+t.location:'')+'</div>';
-  if (t.desc && !compact) h += '<div class="task-meta" style="margin-top:4px">'+t.desc+'</div>';
-  if (dueLabel) h += '<div class="task-due '+dueClass+'">'+dueLabel+'</div>';
-  h += '</div>';
-  if (!compact) h += '<button class="task-del-btn" data-action="delete" data-id="'+t.id+'" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px;flex-shrink:0">🗑</button>';
-  h += '</div>';
-  return h;
+  var id = t.id;
+  // Use window.taskAction to avoid quote issues
+  window._taskIds = window._taskIds || {};
+  window._taskIds[id] = id;
+  var el = document.createElement('div');
+  el.className = 'task-item' + doneClass;
+  el.id = 'task-' + id;
+  el.style.cursor = 'pointer';
+  el.onclick = function(e) {
+    if (e.target.closest('.task-check') || e.target.closest('.task-del-btn')) return;
+    expandTask(id);
+  };
+  var prio = document.createElement('div');
+  prio.className = 'task-priority ' + prioClass;
+  var chk = document.createElement('div');
+  chk.className = 'task-check' + (t.done ? ' checked' : '');
+  chk.textContent = t.done ? '✓' : '';
+  chk.onclick = function(e) { e.stopPropagation(); toggleTask(id); };
+  var info = document.createElement('div');
+  info.className = 'task-info';
+  var ttl = document.createElement('div');
+  ttl.className = 'task-title';
+  ttl.textContent = t.title || '';
+  info.appendChild(ttl);
+  if (t.assignedTo) {
+    var meta = document.createElement('div');
+    meta.className = 'task-meta';
+    meta.textContent = t.assignedTo + (t.location ? ' · ' + t.location : '');
+    info.appendChild(meta);
+  }
+  if (t.desc && !compact) {
+    var desc = document.createElement('div');
+    desc.className = 'task-meta';
+    desc.style.marginTop = '4px';
+    desc.textContent = t.desc;
+    info.appendChild(desc);
+  }
+  if (dueLabel) {
+    var dl = document.createElement('div');
+    dl.className = 'task-due ' + dueClass;
+    dl.textContent = dueLabel;
+    info.appendChild(dl);
+  }
+  el.appendChild(prio);
+  el.appendChild(chk);
+  el.appendChild(info);
+  if (!compact && currentUser && currentUser.role === 'admin') {
+    var db = document.createElement('button');
+    db.className = 'task-del-btn';
+    db.textContent = '🗑';
+    db.style.cssText = 'background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px;flex-shrink:0';
+    db.onclick = function(e) { e.stopPropagation(); deleteTask(id); };
+    el.appendChild(db);
+  }
+  return el.outerHTML;
 }
+
 
 function expandTask(id) {
   var existing = document.getElementById('task-expand-'+id);
@@ -3482,9 +3543,19 @@ window.admMove = function admMove(d) {
   if (admTaskEl) {
     var activeTasks = tasks.filter(function(t){ return !t.done; });
     if (activeTasks.length) {
-      admTaskEl.innerHTML = '<div class="section-title">✅ Task-uri active ('+activeTasks.length+')</div>' +
-        activeTasks.slice(0,3).map(function(t){ return taskItemHTML(t, true); }).join('');
-      attachTaskHandlers(admTaskEl);
+      admTaskEl.innerHTML = '<div class="section-title">✅ Task-uri active ('+activeTasks.length+')</div>';
+      activeTasks.slice(0,3).forEach(function(t) {
+        var tmp = document.createElement('div');
+        tmp.innerHTML = taskItemHTML(t, true);
+        var node = tmp.firstChild;
+        (function(tid, el) {
+          el.style.cursor = 'pointer';
+          el.onclick = function(e) { if(e.target.closest('.task-check')) return; expandTask(tid); };
+          var chk = el.querySelector('.task-check');
+          if (chk) chk.onclick = function(e) { e.stopPropagation(); toggleTask(tid); };
+        })(t.id, node);
+        admTaskEl.appendChild(node);
+      });
     } else {
       admTaskEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0">Niciun task activ.</div>';
     }
@@ -4706,8 +4777,22 @@ function renderHomeTaskPreview() {
   }
 
   el.innerHTML = '';
-  el.innerHTML = active.map(function(t) { return taskItemHTML(t, true); }).join('');
-  attachTaskHandlers(el);
+  el.innerHTML = '';
+  active.forEach(function(t) {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = taskItemHTML(t, true);
+    var node = tmp.firstChild;
+    (function(tid, el) {
+      el.style.cursor = 'pointer';
+      el.onclick = function(e) {
+        if (e.target.closest('.task-check')) return;
+        expandTask(tid);
+      };
+      var chk = el.querySelector('.task-check');
+      if (chk) chk.onclick = function(e) { e.stopPropagation(); toggleTask(tid); };
+    })(t.id, node);
+    el.appendChild(node);
+  });
 }
 
 function toggleTask(id) {
