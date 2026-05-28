@@ -2165,16 +2165,17 @@ function expandTask(id) {
   var div = document.createElement('div');
   div.id = 'task-expand-'+id;
   div.style.cssText = 'background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin:4px 0 8px;font-size:12px;color:var(--text)';
-  div.innerHTML =
-    (t.desc ? '<div style="margin-bottom:8px;color:var(--muted)">'+escHtml(t.desc)+'</div>' : '') +
-    (t.assignedTo ? '<div style="margin-bottom:4px">👤 <strong>'+escHtml(t.assignedTo)+'</strong></div>' : '') +
-    (t.location ? '<div style="margin-bottom:4px">📍 '+escHtml(t.location)+'</div>' : '') +
-    (t.dueDate ? '<div style="margin-bottom:8px">📅 Termen: '+fmtDate(t.dueDate)+'</div>' : '') +
-    '<div style="display:flex;gap:8px;margin-top:8px">' +
-    '<button class="btn btn-ghost" style="flex:1;font-size:11px" onclick="event.stopPropagation();toggleTask(&quot;'+id+'&quot;)">'+'
-    (t.done?'↩️ Redeschide':'✅ Finalizează')+'</button>' +
-    (isManager ? '<button class="btn btn-ghost" style="font-size:11px;color:var(--red)" onclick="event.stopPropagation();deleteTask(''+id+'')">🗑 Șterge</button>' : '') +
-    '</div>';
+  var inner = '';
+  if (t.desc) inner += '<div style="margin-bottom:8px;color:var(--muted)">'+escHtml(t.desc)+'</div>';
+  if (t.assignedTo) inner += '<div style="margin-bottom:4px">👤 <strong>'+escHtml(t.assignedTo)+'</strong></div>';
+  if (t.location) inner += '<div style="margin-bottom:4px">📍 '+escHtml(t.location)+'</div>';
+  if (t.dueDate) inner += '<div style="margin-bottom:8px">📅 Termen: '+fmtDate(t.dueDate)+'</div>';
+  inner += '<div style="display:flex;gap:8px;margin-top:8px">';
+  var btnLabel = t.done ? '↩️ Redeschide' : '✅ Finalizează';
+  inner += '<button class="btn btn-ghost" style="flex:1;font-size:11px" data-tid="'+id+'" onclick="event.stopPropagation();toggleTask(this.dataset.tid)">'+btnLabel+'</button>';
+  if (isManager) inner += '<button class="btn btn-ghost" style="font-size:11px;color:var(--red)" data-tid="'+id+'" onclick="event.stopPropagation();deleteTask(this.dataset.tid)">🗑 Șterge</button>';
+  inner += '</div>';
+  div.innerHTML = inner;
   el.insertAdjacentElement('afterend', div);
 }
 
