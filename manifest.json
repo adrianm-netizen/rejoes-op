@@ -6,7 +6,7 @@
   "display": "standalone",
   "background_color": "#0a1e14",
   "theme_color": "#0a1e14",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "icons": [
     {
       "src": "/rejoes-op/icon-192.png",
