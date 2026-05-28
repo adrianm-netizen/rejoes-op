@@ -704,12 +704,12 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
       <div class="section-title">Acțiuni rapide</div>
       <div class="qa-grid">
         <button class="qa-btn" onclick="openTab('pontaj')">
-          <span class="qa-ico">❓</span>
+          <span class="qa-ico">⏰</span>
           <div class="qa-lbl">Pontaj</div>
           <div class="qa-desc">Înregistrează prezența</div>
         </button>
         <button class="qa-btn" onclick="openTab('raportare')">
-          <span class="qa-ico">❓</span>
+          <span class="qa-ico">💰</span>
           <div class="qa-lbl">Raportare</div>
           <div class="qa-desc">Vânzări & încasări</div>
         </button>
@@ -880,20 +880,20 @@ body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:v
   <!-- BOTTOM NAV -->
   <nav class="tab-nav">
     <button class="tab-item active" id="tab-home" onclick="openTab('home')">
-      <span class="tab-ico">🏠span><span class="tab-lbl">Acasă</span>
+      <span class="tab-ico">🏠</span><span class="tab-lbl">Acasă</span>
     </button>
     <button class="tab-item" id="tab-pontaj" onclick="openTab('pontaj')">
-      <span class="tab-ico">⏱️span><span class="tab-lbl">Pontaj</span>
+      <span class="tab-ico">⏰</span><span class="tab-lbl">Pontaj</span>
     </button>
     <button class="tab-item" id="tab-raportare" onclick="openTab('raportare')">
-      <span class="tab-ico">💶span><span class="tab-lbl">Raportare</span>
+      <span class="tab-ico">💰</span><span class="tab-lbl">Raportare</span>
     </button>
     <button class="tab-item" id="tab-tasks" onclick="openTab('tasks')">
-      <span class="tab-ico">✅span><span class="tab-lbl">Tasks</span>
+      <span class="tab-ico">✅</span><span class="tab-lbl">Tasks</span>
     </button>
-    <button class="tab-item" id="tab-wh" onclick="openTab('wh')" style="display:none"><span class="tab-ico">🏭span><span class="tab-lbl">WH</span></button>
+    <button class="tab-item" id="tab-wh" onclick="openTab('wh')" style="display:none"><span class="tab-ico">📦</span><span class="tab-lbl">WH</span></button>
     <button class="tab-item" id="tab-istoric" onclick="openTab('istoric')">
-      <span class="tab-ico">📋span><span class="tab-lbl">Istoric</span>
+      <span class="tab-ico">📋</span><span class="tab-lbl">Istoric</span>
     </button>
   </nav>
 </div>
@@ -1013,7 +1013,7 @@ function renderHome() {
       '</div><div class="ghid-arrow">▶</div></button>' +
       '<div class="section-title">🏭 Warehouse</div>' +
       '<button class="cmt-btn cmt-btn-store" onclick="openCerereMarfaWH()" style="margin-bottom:7px">' +
-      '<span style="font-size:18px">❓</span>' +
+      '<span style="font-size:18px">📦</span>' +
       '<div><div>Cerere Marfă → WH</div><div style="font-size:11px;color:var(--muted);font-weight:400">Solicită marfă de la Gabi</div></div></button>';
   } else if (whBtns) { whBtns.innerHTML = ''; }
   const el = document.getElementById('homeHistory');
@@ -1227,7 +1227,7 @@ function savePontaj() {
   document.getElementById('pontProg').innerHTML = Array.from({length:PONT_STEPS},()=>`<div class="prog-seg done"></div>`).join('');
   wz.innerHTML = `
     <div class="success-screen">
-      <span class="success-ico">❓</span>
+      <span class="success-ico">✅</span>
       <div class="success-title">Pontaj salvat!</div>
       <div class="success-txt">${entry.emp}<br>${entry.store}<br>${fmtDate(entry.date)}</div>
       <div class="success-detail">
@@ -1530,7 +1530,7 @@ function histItemHTML(e) {
   if (e.type==='pontaj') {
     const hrs = e.dayType==='lucrat'?`${e.hours.toFixed(1)}h`:(DAY_TYPES.find(d=>d.v===e.dayType)?.emoji||'—');
     return `<div class="hist-item">
-      <div class="hist-ico-wrap ico-pontaj">❓</div>
+      <div class="hist-ico-wrap ico-pontaj">⏰</div>
       <div class="hist-info">
         <div class="hist-name">${e.emp}</div>
         <div class="hist-meta">${e.store}</div>
@@ -1544,7 +1544,7 @@ function histItemHTML(e) {
     const isOk = Math.abs(e.difCasa)<0.01;
     const cl = isOk?'var(--green)':Math.abs(e.difCasa)<=20?'var(--orange)':'var(--red)';
     return `<div class="hist-item">
-      <div class="hist-ico-wrap ico-raport">❓</div>
+      <div class="hist-ico-wrap ico-raport">💰</div>
       <div class="hist-info">
         <div class="hist-name">${e.store}</div>
         <div class="hist-meta">${e.casier} · ${e.vanzariZ.toFixed(2)} RON</div>
@@ -2966,17 +2966,12 @@ function renderGabiView() {
   // Tab bar
   var tabsHtml =
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 12px 4px;background:var(--bg)">' +
-    '<div class="gabi-tab active" id="gtab-ops" onclick="switchGabiTab(&quot;ops&quot;)" style="background:linear-gradient(135deg,#1a3828,#0f2018);border:1.5px solid var(--gold);border-radius:10px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--gold);box-shadow:0 2px 8px rgba(201,168,76,.2)">' +
-    '<div style="width:40px;height:40px;margin:0 auto 6px;background:linear-gradient(135deg,#c9a84c,#7a5c1e);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 3px 8px rgba(0,0,0,.4)">🏗️</div>Operațiuni</div>' +
-    '<div class="gabi-tab" id="gtab-retur" onclick="switchGabiTab(&quot;retur&quot;)" style="background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--muted);position:relative">' +
-    '<div style="width:40px;height:40px;margin:0 auto 6px;background:linear-gradient(135deg,#1a3860,#0a1a40);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 3px 8px rgba(0,0,0,.4)">📦</div>' +
-    '<div style="position:absolute;top:8px;right:8px;background:#cc2222;color:white;border-radius:50%;width:18px;height:18px;font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900">✕</div>' +
-    'Retururi<span id="gabi-notif-badge" style="display:none;position:absolute;top:6px;right:8px;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:9px;font-weight:700">!</span></div>' +
-    '<div class="gabi-tab" id="gtab-stoc" onclick="switchGabiTab(&quot;stoc&quot;)" style="background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--muted)">' +
-    '<div style="width:40px;height:40px;margin:0 auto 6px;background:linear-gradient(135deg,#1a4020,#0a2010);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 3px 8px rgba(0,0,0,.4)">📚</div>Stoc</div>' +
-    '<div class="gabi-tab" id="gtab-istoric" onclick="switchGabiTab(&quot;istoric&quot;)" style="background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--muted)">' +
-    '<div style="width:40px;height:40px;margin:0 auto 6px;background:linear-gradient(135deg,#301040,#180820);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 3px 8px rgba(0,0,0,.4)">🗃️</div>Istoric</div>' +
+    '<div class="gabi-tab active" id="gtab-ops" onclick="switchGabiTab(&quot;ops&quot;)" style="background:linear-gradient(135deg,#1a3828,#0f2018);border:1.5px solid var(--gold);border-radius:10px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--gold);box-shadow:0 2px 8px rgba(201,168,76,.2)"><div style=\"font-size:20px;margin-bottom:4px\">📦</div>Operațiuni</div>' +
+    '<div class="gabi-tab" id="gtab-retur" onclick="switchGabiTab(&quot;retur&quot;)" style="background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--muted);position:relative"><div style=\"font-size:20px;margin-bottom:4px\">↩️</div>Retururi<span id="gabi-notif-badge" style="display:none;position:absolute;top:6px;right:8px;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:9px;font-weight:700">!</span></div>' +
+    '<div class="gabi-tab" id="gtab-stoc" onclick="switchGabiTab(&quot;stoc&quot;)" style="background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--muted)"><div style=\"font-size:20px;margin-bottom:4px\">📊</div>Stoc</div>' +
+    '<div class="gabi-tab" id="gtab-istoric" onclick="switchGabiTab(&quot;istoric&quot;)" style="background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;color:var(--muted)"><div style=\"font-size:20px;margin-bottom:4px\">📋</div>Istoric</div>' +
     '</div>';
+
   el.innerHTML = tabsHtml +
     '<div id="gabi-ops" style="padding:14px 14px 80px;overflow-y:auto"></div>' +
     '<div id="gabi-retururi" style="padding:14px 14px 80px;overflow-y:auto;display:none"></div>' +
