@@ -4409,6 +4409,8 @@ function enterApp() {
   setTimeout(function() {
     document.getElementById('auth-pin').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
+    // Auto-unlock manager for admin
+    if (currentUser && currentUser.role === 'admin') isManager = true;
     setupRoleUI();
     // Show correct home page per role
     var role = currentUser ? currentUser.role : 'operator';
