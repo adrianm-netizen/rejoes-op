@@ -9768,6 +9768,33 @@ async function cloudPullEcorgData() {
   } catch(err){ console.error('cloudPullEcorgData failed:', err); }
 }
 
+// Etapa 11C — auto-restaurare din cloud dacă local e gol (profil Chrome gestionat șterge datele la închidere)
+async function autoRestoreIfEmpty() {
+  if (!window.FB || !window.FB.db) return;
+  // rulează DOAR dacă local e gol — deci nu poate suprascrie date locale existente
+  const localEmpty = (DB.pontaj||[]).length === 0 && (DB.inventar||[]).length === 0 && (DB.nomenclator||[]).length === 0;
+  if (!localEmpty) return;
+  try {
+    const authed = await ensureFirebaseAuth();
+    if (!authed) return;
+    const snap = await window.FB.db.ref('pontaj').once('value');
+    const v = snap.val();
+    const cloudN = Array.isArray(v) ? v.length : (v && typeof v==='object' ? Object.keys(v).length : 0);
+    if (cloudN === 0) return; // cloud gol → nimic de restaurat
+    console.log('[auto-restore] local gol + cloud are date → restaurez automat');
+    try { setSyncStatus('syncing'); } catch(e){}
+    for (const col of CLOUD_COLLECTIONS) {
+      try { const s = await window.FB.db.ref(col).once('value'); const val = s.val(); if (val!==null&&val!==undefined) DB[col] = Array.isArray(val)?val:Object.values(val); } catch(e){}
+    }
+    try { _origSave(); } catch(e){ save(); }
+    try { await cloudPullReceipts(); } catch(e){}
+    try { await cloudPullEcorgData(); } catch(e){}
+    try { setSyncStatus('ok'); } catch(e){}
+    try { toast('✓ Date restaurate automat din cloud'); } catch(e){}
+    try { if (DB.session && DB.session.user) { renderNav(); go(currentView||'dashboard'); } } catch(e){}
+  } catch(err){ console.error('[auto-restore] failed:', err); }
+}
+
 async function cloudPushAll() {
   if (!window.FB) { toast('Firebase nu e conectat'); return; }
   toast('Încep urcarea în cloud...');
@@ -10190,6 +10217,9 @@ try {
     }
   }, 800);
 } catch(e) {}
+
+// Etapa 11C — auto-restaurare din cloud la pornire dacă local e gol (profil gestionat șterge datele)
+setTimeout(() => { try { autoRestoreIfEmpty(); } catch(e){} }, 2000);
 
 if (DB.session && DB.session.user && DB.users[DB.session.user]) {
   document.getElementById('loginScreen').style.display = 'none';
