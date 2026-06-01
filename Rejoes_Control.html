@@ -68,6 +68,7 @@
   }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -431,6 +432,10 @@ const SEED = {
   ],
   balantaCashBank: 0,       // Etapa 10E — cash în bancă (input manual, actualizat periodic)
   balantaCashBankUpdate: null, // ISO date — când a fost actualizat ultima dată
+  bankStatements: {         // Etapa 11 — extrase bancare BT (sumar per cont/lună, LOCAL only, nu în cloud)
+    imports: [],            // [{period:'YYYY-MM', dataImport:ISO, accounts:[{acc, cur, descriere, soldInitial, soldFinal, debitTotal, creditTotal, txCount}]}]
+    cashUpdatedFrom: null   // ultima perioadă din care s-a setat balantaCashBank
+  },
   ecorgImports: {           // Date importate din e:Corg (xlsx)
     vanzariCategorii: [],   // [{sursa, dataImport, perioadaStart, perioadaEnd, randuri:[{categorie, revenue, cost, grossProfit, profitabilityPct}]}]
     posShifts: [],          // [{sursa, dataImport, magazin, casa, ziPosShift, retailSalesRECe, retailReturnRECe}]
@@ -3382,6 +3387,107 @@ function renderSetari() {
 // Parser xlsx pentru rapoartele exportate din e:Corg (RBLabs Platform)
 // Detectează tipul raportului din primele celule și mapează în structuri DB
 
+// ========== Etapa 11 — Import extrase bancare BT (cash flow real) ==========
+function parseCsvLine(line) {
+  const out = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"') { if (line[i+1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else cur += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ',') { out.push(cur); cur = ''; }
+      else cur += c;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+function parseBtNum(s) {
+  s = (s||'').toString().trim().replace(/ /g,'').replace(/\s/g,'');
+  if (!s) return 0;
+  s = s.replace(/,/g,''); // BT: separator zecimal '.', fără separator de mii
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+function parseBtCsv(text) {
+  const lines = text.split(/\r?\n/);
+  const h = {}; let txCount = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const cells = parseCsvLine(lines[i]);
+    const key = (cells[0]||'').trim().replace(/:$/,'');
+    if (key === 'Numar cont') h.acc = (cells[1]||'').trim();
+    else if (key === 'Descriere cont') h.descriere = (cells[1]||'').trim();
+    else if (key === 'Moneda cont') h.cur = (cells[1]||'').trim();
+    else if (key === 'De la') h.dela = (cells[1]||'').trim();
+    else if (key === 'Sold initial') h.soldInitial = parseBtNum(cells[1]);
+    else if (key === 'Sold final cont') h.soldFinal = parseBtNum(cells[1]);
+    else if (key === 'Rulaj total cont DEBIT') h.debitTotal = parseBtNum(cells[1]);
+    else if (key === 'Rulaj total cont CREDIT') h.creditTotal = parseBtNum(cells[1]);
+    else if (/^\d{2}\/\d{2}\/\d{4}$/.test((cells[0]||'').trim()) && cells.length >= 7) txCount++;
+  }
+  const m = (h.dela||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  h.period = m ? `${m[3]}-${m[2]}` : null;
+  h.txCount = txCount;
+  if (!h.acc || !h.period) return null;
+  return h;
+}
+async function importExtraseBancare(event) {
+  const files = Array.from(event.target.files || []);
+  const log = document.getElementById('extraseBancareLog');
+  if (!files.length) return;
+  if (typeof JSZip === 'undefined') { if(log) log.innerHTML = '<span style="color:var(--danger)">⚠ JSZip nu s-a încărcat — verifică internetul și reîncarcă pagina.</span>'; return; }
+  if (log) log.innerHTML = '⏳ Procesez extrasele...';
+  if (!DB.bankStatements) DB.bankStatements = { imports: [], cashUpdatedFrom: null };
+  const byPeriod = {}; let csvCount = 0, errors = 0;
+  for (const f of files) {
+    try {
+      let csvs = [];
+      if (/\.zip$/i.test(f.name)) {
+        const zip = await JSZip.loadAsync(f);
+        for (const name of Object.keys(zip.files)) {
+          if (/\.csv$/i.test(name) && !zip.files[name].dir) csvs.push(await zip.files[name].async('string'));
+        }
+      } else if (/\.csv$/i.test(f.name)) {
+        csvs.push(await f.text());
+      }
+      for (const text of csvs) {
+        const rec = parseBtCsv(text);
+        if (!rec) continue;
+        csvCount++;
+        if (!byPeriod[rec.period]) byPeriod[rec.period] = {};
+        byPeriod[rec.period][rec.acc] = { acc: rec.acc, cur: rec.cur, descriere: rec.descriere, soldInitial: rec.soldInitial, soldFinal: rec.soldFinal, debitTotal: rec.debitTotal, creditTotal: rec.creditTotal, txCount: rec.txCount };
+      }
+    } catch(e) { errors++; console.error('Extras', f.name, e); }
+  }
+  let added = 0, updated = 0;
+  Object.keys(byPeriod).forEach(period => {
+    const accounts = Object.values(byPeriod[period]);
+    const idx = DB.bankStatements.imports.findIndex(im => im.period === period);
+    const entry = { period, dataImport: new Date().toISOString(), accounts };
+    if (idx >= 0) { DB.bankStatements.imports[idx] = entry; updated++; }
+    else { DB.bankStatements.imports.push(entry); added++; }
+  });
+  DB.bankStatements.imports.sort((a,b) => (a.period||'').localeCompare(b.period||''));
+  const last = DB.bankStatements.imports[DB.bankStatements.imports.length-1];
+  if (last) {
+    const ronCash = last.accounts.filter(a=>a.cur==='RON').reduce((s,a)=>s+(a.soldFinal||0),0);
+    DB.balantaCashBank = Math.round(ronCash*100)/100;
+    DB.balantaCashBankUpdate = new Date().toISOString();
+    DB.bankStatements.cashUpdatedFrom = last.period;
+  }
+  save();
+  if (log) log.innerHTML = `<span style="color:var(--accent-hover)">✓ ${csvCount} extrase procesate · ${added} luni noi, ${updated} actualizate${errors?` · ${errors} erori (vezi consola)`:''}. Cash în bancă setat din ${last?last.period:'-'}: <strong>${fmt(DB.balantaCashBank)} RON</strong>.</span>`;
+  toast(`✓ Extrase importate: ${added+updated} luni`);
+  setTimeout(() => renderSetari(), 800);
+}
+function stergeToateExtrase() {
+  if (!confirm('Ștergi toate extrasele bancare importate? (Soldul de cash setat manual rămâne.)')) return;
+  DB.bankStatements = { imports: [], cashUpdatedFrom: null };
+  save(); renderSetari(); toast('Extrase șterse');
+}
+
 function renderEcorgTab(body) {
   if (!DB.ecorgImports) DB.ecorgImports = { vanzariCategorii: [], posShifts: [], achizitii: [], receiptFiles: [], financial: [] };
   if (!DB.ecorgImports.receiptFiles) DB.ecorgImports.receiptFiles = [];
@@ -3398,6 +3504,12 @@ function renderEcorgTab(body) {
   const frTotalSales = fr.reduce((s,f) => s + ((f.totalLuna && f.totalLuna['Sales'])||0), 0);
   const frTotalOpEx = fr.reduce((s,f) => s + ((f.totalLuna && f.totalLuna['Operating expenses'])||0), 0);
   const frTotalProfit = fr.reduce((s,f) => s + ((f.totalLuna && f.totalLuna['Operational profit'])||0), 0);
+  if (!DB.bankStatements) DB.bankStatements = { imports: [], cashUpdatedFrom: null };
+  const bsImports = (DB.bankStatements.imports||[]).slice().sort((a,b)=>(a.period||'').localeCompare(b.period||''));
+  const bsLast = bsImports[bsImports.length-1] || null;
+  const bsCashRON = bsLast ? bsLast.accounts.filter(a=>a.cur==='RON').reduce((s,a)=>s+(a.soldFinal||0),0) : 0;
+  const bsCashEUR = bsLast ? bsLast.accounts.filter(a=>a.cur==='EUR').reduce((s,a)=>s+(a.soldFinal||0),0) : 0;
+  const bsAccRON = bsLast ? bsLast.accounts.filter(a=>a.cur==='RON').length : 0;
   body.innerHTML = `
     <div class="card" style="background:#f8fdf9;border-left:4px solid var(--accent);margin-bottom:14px">
       <h3 style="font-size:14px;color:var(--accent-hover);margin-bottom:6px">📥 Import date din e:Corg / RBLabs Platform</h3>
@@ -3494,6 +3606,51 @@ function renderEcorgTab(body) {
           </tr>`;
         }).join('')}</tbody>
       </table></div>`}
+    </div>
+
+    <div class="card" style="margin-bottom:14px;border-left:4px solid #0ea5e9">
+      <div class="section-head">
+        <h3 style="font-size:14px;margin:0">🏦 Extrase bancare — cash flow real (${bsImports.length} luni)</h3>
+        ${bsImports.length > 0 ? `<button class="btn btn-sm btn-ghost" onclick="stergeToateExtrase()" title="Șterge toate extrasele">🗑 Șterge tot</button>` : ''}
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin:8px 0">
+        Încarcă fișierele <strong>ZIP</strong> cu extrasele lunare BT (toate conturile, format CSV). Aplicația citește soldurile și rulajele reale și actualizează automat „Cash în bancă" din Balanța provizorie. Poți selecta mai multe luni deodată.
+      </p>
+      <label class="btn btn-primary" style="cursor:pointer">
+        🏦 Selectează extrase (.zip / .csv)
+        <input type="file" accept=".zip,.csv" multiple style="display:none" onchange="importExtraseBancare(event)">
+      </label>
+      <div id="extraseBancareLog" style="margin-top:10px;font-size:12px"></div>
+      ${bsImports.length === 0 ? '<p style="color:var(--text-muted);font-size:13px;margin-top:10px">Niciun extras importat. Încarcă ZIP-urile lunare de la BT (ex: <code>Extrase_toate_conturile_2026-04_...CSV.ZIP</code>).</p>' : `
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px">
+          <div style="flex:1;min-width:170px;background:#f0f9ff;border-radius:8px;padding:10px">
+            <small style="color:var(--text-muted)">💵 Cash actual RON (${bsLast.period})</small>
+            <div style="font-size:20px;font-weight:700;color:#0369a1">${fmt(bsCashRON)} RON</div>
+            <small style="color:var(--text-muted)">${bsAccRON} conturi RON · sold final</small>
+          </div>
+          ${bsCashEUR>0?`<div style="flex:1;min-width:130px;background:#fefce8;border-radius:8px;padding:10px"><small style="color:var(--text-muted)">💶 Cash EUR</small><div style="font-size:20px;font-weight:700;color:#a16207">${fmt(bsCashEUR)} EUR</div></div>`:''}
+        </div>
+        <div class="table-wrap" style="margin-top:12px"><table>
+          <thead><tr><th>Luna</th><th class="num">Intrări RON</th><th class="num">Ieșiri RON</th><th class="num">Net</th><th class="num">Sold final RON</th><th class="num">EUR</th></tr></thead>
+          <tbody>${bsImports.slice().reverse().map(im => {
+            const ron = im.accounts.filter(a=>a.cur==='RON');
+            const eur = im.accounts.filter(a=>a.cur==='EUR');
+            const inc = ron.reduce((s,a)=>s+(a.creditTotal||0),0);
+            const out = ron.reduce((s,a)=>s+(a.debitTotal||0),0);
+            const net = inc-out;
+            const sf = ron.reduce((s,a)=>s+(a.soldFinal||0),0);
+            const sfe = eur.reduce((s,a)=>s+(a.soldFinal||0),0);
+            return `<tr>
+              <td><strong>${im.period}</strong></td>
+              <td class="num" style="color:var(--accent-hover)">${fmt(inc)}</td>
+              <td class="num" style="color:var(--danger)">${fmt(out)}</td>
+              <td class="num" style="font-weight:700;color:${net>=0?'var(--accent-hover)':'var(--danger)'}">${fmt(net)}</td>
+              <td class="num">${fmt(sf)}</td>
+              <td class="num"><small>${sfe?fmt(sfe):'—'}</small></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>
+      `}
     </div>
 
     <div class="card" style="margin-bottom:14px;border-left:4px solid #6366f1">
