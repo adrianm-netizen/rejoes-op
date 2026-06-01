@@ -3480,6 +3480,7 @@ async function importExtraseBancare(event) {
   save();
   if (log) log.innerHTML = `<span style="color:var(--accent-hover)">✓ ${csvCount} extrase procesate · ${added} luni noi, ${updated} actualizate${errors?` · ${errors} erori (vezi consola)`:''}. Cash în bancă setat din ${last?last.period:'-'}: <strong>${fmt(DB.balantaCashBank)} RON</strong>.</span>`;
   toast(`✓ Extrase importate: ${added+updated} luni`);
+  try { cloudPushEcorgData(); } catch(e){} // backup cloud auto
   setTimeout(() => renderSetari(), 800);
 }
 function stergeToateExtrase() {
@@ -3838,6 +3839,7 @@ async function importEcorgFiles(event) {
   toast(`Import: ${okN} OK${failN?' / '+failN+' eșuate':''}`);
   // 🛡 Eliberez blocajul live sync după 12s (dă timp auto-push să termine 5s + buffer)
   setTimeout(() => { _importInProgress = false; console.log('[live-sync] blocaj import eliberat'); }, 12000);
+  try { cloudPushEcorgData(); } catch(e){} // backup cloud auto
   setTimeout(()=>renderSetari(), 500);
 }
 
@@ -4493,6 +4495,7 @@ function importFacturiEcorgPaste() {
   log.innerHTML = `<span style="color:var(--accent-hover)">✓ Importat ${batch.facturi.length} facturi, ${batch.perioadaStart} → ${batch.perioadaEnd}, total ${fmt(totalSum)} RON${autoMsg}.</span>`;
   ta.value = '';
   toast(`✓ ${batch.facturi.length} facturi importate (${fmt(totalSum)} RON)${autoMarcate>0?', '+autoMarcate+' auto-marcate':''}`);
+  try { cloudPushEcorgData(); } catch(e){} // backup cloud auto
   setTimeout(() => renderSetari(), 800);
 }
 
@@ -9726,6 +9729,45 @@ const CLOUD_COLLECTIONS = [
 ];
 // NU includem: angajati (CNP/IBAN sensibile), users (PIN-uri), setari, session, _backups (sunt locale per device), ecorgImports (vezi nota mai sus)
 
+// ========== Etapa 11B — Backup cloud pentru date LOCAL-only (Financial/Achiziții/Extrase) ==========
+// Stocate ca JSON-string (cheile Financial conțin "/" → nu pot fi chei Firebase native).
+// Push manual/la-import (one-way, fără live-sync). Pull cu protecție anti-pierdere.
+async function cloudPushEcorgData() {
+  if (!window.FB || !window.FB.db) return;
+  try {
+    const e = DB.ecorgImports || {};
+    await window.FB.db.ref('ecorgDataJson').set(JSON.stringify({
+      financial: e.financial||[], achizitii: e.achizitii||[],
+      vanzariCategorii: e.vanzariCategorii||[], posShifts: e.posShifts||[]
+    }));
+    await window.FB.db.ref('bankStatementsJson').set(JSON.stringify(DB.bankStatements||{imports:[],cashUpdatedFrom:null}));
+  } catch(err){ console.error('cloudPushEcorgData failed:', err); }
+}
+async function cloudPullEcorgData() {
+  if (!window.FB || !window.FB.db) return;
+  try {
+    const raw = (await window.FB.db.ref('ecorgDataJson').once('value')).val();
+    if (raw) {
+      const e = JSON.parse(raw);
+      if (!DB.ecorgImports) DB.ecorgImports = { vanzariCategorii:[], posShifts:[], achizitii:[], receiptFiles:[], financial:[] };
+      ['financial','achizitii','vanzariCategorii','posShifts'].forEach(k => {
+        const cloudArr = Array.isArray(e[k]) ? e[k] : [];
+        const localArr = Array.isArray(DB.ecorgImports[k]) ? DB.ecorgImports[k] : [];
+        // anti-pierdere: nu suprascrie local mai mare cu cloud mai mic
+        if (cloudArr.length >= localArr.length) DB.ecorgImports[k] = cloudArr;
+      });
+    }
+    const bsraw = (await window.FB.db.ref('bankStatementsJson').once('value')).val();
+    if (bsraw) {
+      const bs = JSON.parse(bsraw);
+      const localN = (DB.bankStatements && DB.bankStatements.imports || []).length;
+      if (bs && Array.isArray(bs.imports) && bs.imports.length >= localN) DB.bankStatements = bs;
+    }
+    save();
+    invalidateEcorgCache && invalidateEcorgCache();
+  } catch(err){ console.error('cloudPullEcorgData failed:', err); }
+}
+
 async function cloudPushAll() {
   if (!window.FB) { toast('Firebase nu e conectat'); return; }
   toast('Încep urcarea în cloud...');
@@ -9737,6 +9779,7 @@ async function cloudPushAll() {
       ok++;
     } catch(e){ console.error('Push '+col+' failed:', e); fail++; }
   }
+  await cloudPushEcorgData(); // backup Financial/Achiziții/Extrase (local-only)
   toast(`✓ Urcate ${ok} colecții${fail?' / '+fail+' eșuate':''}`);
   cloudStatus();
 }
@@ -10077,8 +10120,9 @@ async function fullPullFromCloud() {
     _origSave(); // save fără a triggera auto-push
     // Pull receipts din IndexedDB
     const n = await cloudPullReceipts();
+    await cloudPullEcorgData(); // restaurează Financial/Achiziții/Extrase din cloud
     setSyncStatus('ok');
-    toast(`✓ Descărcat ${ok} colecții + ${n} receipt items. Reîncarc...`);
+    toast(`✓ Descărcat ${ok} colecții + ${n} receipt items + Financial/Achiziții/Extrase. Reîncarc...`);
     setTimeout(() => location.reload(), 1500);
   } catch(e) {
     setSyncStatus('error');
