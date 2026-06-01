@@ -517,11 +517,18 @@ const VIEWS_ALL = [
   {id:'setari', label:'Setări', icon:'M10.3 3.3a1 1 0 011.4 0l1 1a1 1 0 00.7.3h1.5a1 1 0 011 1V7a1 1 0 00.3.7l1 1a1 1 0 010 1.4l-1 1a1 1 0 00-.3.7v1.5a1 1 0 01-1 1H14a1 1 0 00-.7.3l-1 1a1 1 0 01-1.4 0l-1-1a1 1 0 00-.7-.3H7.6a1 1 0 01-1-1V14a1 1 0 00-.3-.7l-1-1a1 1 0 010-1.4l1-1A1 1 0 006.6 9V7.6a1 1 0 011-1H9a1 1 0 00.7-.3l1-1zM10 13a3 3 0 100-6 3 3 0 000 6z', roles:['admin','owner']}
 ];
 let VIEWS = VIEWS_ALL;
+// Olga (owner) vede doar pagini de analiză/raportare — meniu simplificat
+const OWNER_VIEWS = ['analize','dashboard','briefing','profit','raportare','inventar','alerte'];
 let currentView = 'dashboard';
 
 function renderNav() {
   // Filter VIEWS by current role
-  VIEWS = VIEWS_ALL.filter(v => !DB.session.role || v.roles.includes(DB.session.role));
+  VIEWS = VIEWS_ALL.filter(v => {
+    if (!DB.session.role) return true;
+    if (!v.roles.includes(DB.session.role)) return false;
+    if (DB.session.role === 'owner') return OWNER_VIEWS.includes(v.id); // Olga: meniu simplificat
+    return true;
+  });
   // userBlock vechi eliminat — info-ul utilizatorului apare acum sus în sidebar-brand (Etapa 12 UI tweaks)
   document.getElementById('nav').innerHTML = VIEWS.map(v => `
     <div class="nav-item ${currentView===v.id?'active':''}" data-view="${v.id}">
@@ -562,7 +569,8 @@ function go(view) {
   document.getElementById('pageMeta').textContent = new Date().toLocaleDateString('ro-RO',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
   // Role check: if current view not allowed for role, redirect
   const v = VIEWS_ALL.find(x => x.id === view);
-  if (v && DB.session.role && !v.roles.includes(DB.session.role)) {
+  const ownerBlocked = DB.session.role === 'owner' && !OWNER_VIEWS.includes(view);
+  if (v && DB.session.role && (!v.roles.includes(DB.session.role) || ownerBlocked)) {
     currentView = DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : (DB.session.role === 'owner' ? 'analize' : 'dashboard'));
     renderNav();
     return go(currentView);
