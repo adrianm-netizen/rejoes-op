@@ -502,6 +502,7 @@ const VIEWS_ALL = [
   {id:'dashboard', label:'Dashboard', icon:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', roles:['admin','owner']},
   {id:'briefing', label:'Briefing', icon:'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8', roles:['admin','owner']},
   {id:'profit', label:'Profit', icon:'M3 3v18h18 M7 14l4-4 4 4 5-5', roles:['admin','owner']},
+  {id:'raportzilnic', label:'📋 Raport zilnic', icon:'M9 17v-6h6v6M3 7l9-4 9 4M5 7v14h14V7', roles:['admin','owner']},
   {id:'pontaj', label:'Pontaj', icon:'M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', roles:['admin','owner','operator','contabil-sef']},
   {id:'raportare', label:'Raportare zilnică', icon:'M9 17v-6h6v6M3 7l9-4 9 4M5 7v14h14V7', roles:['admin','owner','operator','contabil-sef']},
   {id:'tasks', label:'Tasks', icon:'M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z', roles:['admin','owner','operator','manager-depozit']},
@@ -518,7 +519,7 @@ const VIEWS_ALL = [
 ];
 let VIEWS = VIEWS_ALL;
 // Olga (owner) vede doar pagini de analiză/raportare — meniu simplificat
-const OWNER_VIEWS = ['analize','dashboard','briefing','profit','raportare','inventar','alerte'];
+const OWNER_VIEWS = ['analize','dashboard','briefing','profit','raportzilnic','inventar','alerte'];
 let currentView = 'dashboard';
 
 function renderNav() {
@@ -562,7 +563,7 @@ function renderNav() {
 function go(view) {
   currentView = view;
   renderNav();
-  const titles = {analize:'📊 Analize', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
+  const titles = {analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
     diferente:'Diferențe casă', inventar:'Inventar', alerte:'Alerte automate',
     import:'Import / Export date', setari:'Setări'};
   document.getElementById('pageTitle').textContent = titles[view];
@@ -575,7 +576,7 @@ function go(view) {
     renderNav();
     return go(currentView);
   }
-  ({analize:renderAnalize, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
+  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
     diferente:renderDiferente, inventar:renderInventar, alerte:renderAlerte, import:renderImport, setari:renderSetari})[view]();
 }
 
@@ -697,6 +698,34 @@ async function renderAnalize() {
         <div style="font-size:11px;color:var(--text-muted);margin-top:6px">ℹ Comparația cu „normalitatea pieței" necesită date externe de sector (nu le avem în app). Aici comparăm doar cu propria dinamică (luni/perioade). Putem adăuga un benchmark de piață dacă obținem o sursă de date.</div>
       </div>`;
   } catch(e){ const b=document.getElementById('analizeBody'); if(b) b.innerHTML='<p style="color:var(--danger);font-size:12px">Eroare la calcul: '+escapeHtml(e.message)+'</p>'; console.error('renderAnalize', e); }
+}
+
+// ========== Raport zilnic pe magazine (read-only, pentru Olga) ==========
+function renderRaportZilnic() {
+  const rap = (DB.raportari||[]);
+  const byDate = {};
+  rap.forEach(r => { if(r.data){ (byDate[r.data]=byDate[r.data]||[]).push(r); } });
+  const dates = Object.keys(byDate).sort().reverse().slice(0,30);
+  const fmtDiff = v => `<span style="color:${Math.abs(v)<1?'#0a7d3b':Math.abs(v)<20?'#b45309':'#dc2626'}">${fmt(v)}</span>`;
+  document.getElementById('content').innerHTML = `
+    <div style="max-width:920px;margin:0 auto">
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 12px">Raport zilnic pe magazine — doar vizualizare · ultimele ${dates.length} zile cu date</p>
+      ${dates.length===0 ? '<div class="card"><p style="color:var(--text-muted);font-size:13px">Nu există încă raportări introduse de Ana.</p></div>' : dates.map(d => {
+        const rows = byDate[d].slice().sort((a,b)=>String(a.magazin||'').localeCompare(String(b.magazin||'')));
+        const totV = rows.reduce((s,r)=>s+(+r.vanzari||0),0);
+        const totB = rows.reduce((s,r)=>s+(+r.bonuri||0),0);
+        return `<div class="card" style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px">
+            <h3 style="font-size:14px;margin:0">${d} <span style="color:var(--text-muted);font-weight:400;font-size:12px">${typeof dayOfWeek==='function'?dayOfWeek(d):''}</span></h3>
+            <div style="font-size:13px"><strong style="color:#0a7d3b">${fmt(totV)} lei</strong> <span style="color:var(--text-muted);font-size:11px">· ${totB} bonuri</span></div>
+          </div>
+          ${rows.map(r => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;margin:6px 0;align-items:center">
+            <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${mag(r.magazin)}${r.casier?` <span style="color:var(--text-muted)">· ${escapeHtml(r.casier)}</span>`:''}</div>
+            <div style="text-align:right;flex-shrink:0;white-space:nowrap"><strong>${fmt(r.vanzari)}</strong> lei <span style="color:var(--text-muted)">· ${r.bonuri||0} bon</span> · dif ${fmtDiff(+r.diferenta||0)}</div>
+          </div>`).join('')}
+        </div>`;
+      }).join('')}
+    </div>`;
 }
 
 function renderDashboard() {
