@@ -498,6 +498,7 @@ const roleLabel = (r) => ROLE_LABEL[r] || r || '—';
 
 // ---------- NAV ----------
 const VIEWS_ALL = [
+  {id:'analize', label:'📊 Analize', icon:'M3 3v18h18 M7 15l3-3 3 3 5-6', roles:['admin','owner']},
   {id:'dashboard', label:'Dashboard', icon:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', roles:['admin','owner']},
   {id:'briefing', label:'Briefing', icon:'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8', roles:['admin','owner']},
   {id:'profit', label:'Profit', icon:'M3 3v18h18 M7 14l4-4 4 4 5-5', roles:['admin','owner']},
@@ -554,7 +555,7 @@ function renderNav() {
 function go(view) {
   currentView = view;
   renderNav();
-  const titles = {dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
+  const titles = {analize:'📊 Analize', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
     diferente:'Diferențe casă', inventar:'Inventar', alerte:'Alerte automate',
     import:'Import / Export date', setari:'Setări'};
   document.getElementById('pageTitle').textContent = titles[view];
@@ -562,11 +563,11 @@ function go(view) {
   // Role check: if current view not allowed for role, redirect
   const v = VIEWS_ALL.find(x => x.id === view);
   if (v && DB.session.role && !v.roles.includes(DB.session.role)) {
-    currentView = DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : 'dashboard');
+    currentView = DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : (DB.session.role === 'owner' ? 'analize' : 'dashboard'));
     renderNav();
     return go(currentView);
   }
-  ({dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
+  ({analize:renderAnalize, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
     diferente:renderDiferente, inventar:renderInventar, alerte:renderAlerte, import:renderImport, setari:renderSetari})[view]();
 }
 
@@ -584,6 +585,111 @@ document.getElementById('modal').onclick = (e) => { if (e.target.id === 'modal')
 // ---------- DASHBOARD ----------
 let dashLuna = new Date().getMonth()+1;
 let dashAn = new Date().getFullYear();
+
+// ========== Pagina ANALIZE (Olga) — overview phone-first, doar citire ==========
+let analizePeriod = 'tot'; // 'luna30' | 'zile90' | 'tot'
+function _miniBars(rows, color, fmtVal) {
+  if (!rows || !rows.length) return '<p style="color:var(--text-muted);font-size:12px;margin:6px 0">Fără date în perioada selectată.</p>';
+  const max = Math.max(1, ...rows.map(r => Math.abs(r.value||0)));
+  return rows.map(r => {
+    const w = Math.max(2, Math.abs(r.value||0)/max*100);
+    const neg = (r.value||0) < 0;
+    return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px">
+      <div style="width:84px;flex-shrink:0;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(String(r.label))}">${escapeHtml(String(r.label))}</div>
+      <div style="flex:1;background:#eef2f0;border-radius:5px;height:16px;overflow:hidden;min-width:30px">
+        <div style="width:${w}%;height:100%;background:${neg?'#dc2626':color};border-radius:5px"></div>
+      </div>
+      <div style="width:96px;flex-shrink:0;text-align:right;font-weight:600;${neg?'color:#dc2626':''}">${fmtVal?fmtVal(r.value):fmt(r.value)}${r.extra?`<span style="color:var(--text-muted);font-weight:400"> ${r.extra}</span>`:''}</div>
+    </div>`;
+  }).join('');
+}
+function _lunaScurt(p){ if(!p) return '?'; const a=p.split('-'); const luni=['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','nov','dec']; return (luni[parseInt(a[1])-1]||a[1])+" '"+a[0].slice(2); }
+function _ziScurt(d){ if(!d) return '?'; const a=d.split('-'); return a[2]+'.'+a[1]; }
+async function renderAnalize() {
+  const fin = (DB.ecorgImports && DB.ecorgImports.financial || []).slice().sort((a,b)=>(a.perioada||'').localeCompare(b.perioada||''));
+  const finS = fin.map(f => ({ p:f.perioada, sales:(f.totalLuna&&f.totalLuna['Sales'])||0, profit:(f.totalLuna&&f.totalLuna['Operational profit'])||0 }));
+  const lastFin = finS[finS.length-1]||null, prevFin = finS[finS.length-2]||null;
+  const bs = (DB.bankStatements && DB.bankStatements.imports || []).slice().sort((a,b)=>(a.period||'').localeCompare(b.period||''));
+  const bankS = bs.map(im => { const ron=(im.accounts||[]).filter(a=>a.cur==='RON'); return { p:im.period, net:ron.reduce((s,a)=>s+((a.creditTotal||0)-(a.debitTotal||0)),0), cash:ron.reduce((s,a)=>s+(a.soldFinal||0),0) }; });
+  const lastBank = bankS[bankS.length-1]||null;
+  const facturi = (DB.ecorgImports && DB.ecorgImports.achizitii || []).flatMap(a=>a.facturi||[]);
+  const neachitate = facturi.filter(f => (f.status||'neachitata')==='neachitata');
+  const datorii = neachitate.reduce((s,f)=>s+parseEfacturaAmount(f.Total),0);
+  const salesNow = lastFin?lastFin.sales:0, salesPrev = prevFin?prevFin.sales:0;
+  const salesDelta = salesPrev? (salesNow-salesPrev)/salesPrev*100 : null;
+  const profitNow = lastFin?lastFin.profit:0, cashNow = lastBank?lastBank.cash:0, netNow = lastBank?lastBank.net:0;
+  const kpi = (t,v,sub,col) => `<div style="flex:1 1 150px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">${t}</div><div style="font-size:21px;font-weight:700;color:${col||'var(--text)'};margin-top:4px">${v}</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">${sub||''}</div></div>`;
+  const dTxt = salesDelta===null?'':`${salesDelta>=0?'▲':'▼'} ${fmt(Math.abs(salesDelta),1)}% vs luna ant.`;
+  const periodBtns = [['luna30','30 zile'],['zile90','90 zile'],['tot','Tot']].map(([k,l])=>`<button class="btn btn-sm ${analizePeriod===k?'btn-primary':''}" onclick="analizePeriod='${k}';renderAnalize()">${l}</button>`).join('');
+  document.getElementById('content').innerHTML = `
+    <div style="max-width:920px;margin:0 auto">
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 12px">Dinamica business-ului dintr-o privire${lastFin?` · ultima lună cu date: <strong>${_lunaScurt(lastFin.p)}</strong>`:''}. <span style="font-size:11px">(date din importurile e:Corg, nu timp-real)</span></p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+        ${kpi('Vânzări lună', fmt(salesNow,0)+' lei', dTxt, '#0a7d3b')}
+        ${kpi('Profit operațional', fmt(profitNow,0)+' lei', lastFin?_lunaScurt(lastFin.p):'', profitNow>=0?'#0a7d3b':'#dc2626')}
+        ${kpi('Cash în bancă', fmt(cashNow,0)+' lei', lastBank?_lunaScurt(lastBank.p):'', '#0369a1')}
+        ${kpi('Cash flow net', fmt(netNow,0)+' lei', 'ultima lună', netNow>=0?'#0a7d3b':'#dc2626')}
+        ${kpi('Datorii furnizori', fmt(datorii,0)+' lei', neachitate.length+' facturi neachitate', datorii>0?'#b45309':'#0a7d3b')}
+      </div>
+      <div class="card" style="margin-bottom:14px"><h3 style="font-size:14px;margin:0 0 10px">📈 Vânzări lunare</h3>${_miniBars(finS.map(s=>({label:_lunaScurt(s.p), value:s.sales})), '#0a7d3b', v=>fmt(v,0))}</div>
+      <div class="card" style="margin-bottom:14px"><h3 style="font-size:14px;margin:0 0 10px">💰 Profit operațional lunar</h3>${_miniBars(finS.map(s=>({label:_lunaScurt(s.p), value:s.profit})), '#0a7d3b', v=>fmt(v,0))}</div>
+      <div class="card" style="margin-bottom:14px"><h3 style="font-size:14px;margin:0 0 10px">🏦 Cash flow net lunar</h3>${_miniBars(bankS.map(s=>({label:_lunaScurt(s.p), value:s.net})), '#0369a1', v=>fmt(v,0))}</div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><h3 style="font-size:14px;margin:0">🛒 Analiză vânzări (din bonuri)</h3><div style="display:flex;gap:4px">${periodBtns}</div></div>
+        <div id="analizeBody" style="margin-top:10px"><p style="color:var(--text-muted);font-size:12px"><em>Se calculează din bonuri...</em></p></div>
+      </div>
+    </div>`;
+  // ----- partea async: analize din bonuri -----
+  try {
+    const today = new Date(); const iso = d => d.toISOString().slice(0,10);
+    const rf = (DB.ecorgImports && DB.ecorgImports.receiptFiles)||[];
+    let from, to = iso(today);
+    if (analizePeriod==='luna30'){ const s=new Date(today); s.setDate(s.getDate()-30); from=iso(s); }
+    else if (analizePeriod==='zile90'){ const s=new Date(today); s.setDate(s.getDate()-90); from=iso(s); }
+    else { const st=rf.map(f=>f.perioadaStart).filter(Boolean).sort(); const en=rf.map(f=>f.perioadaEnd).filter(Boolean).sort(); from=st[0]||'2024-01-01'; to=en[en.length-1]||iso(today); }
+    const d = await computeProfitDataAsync(from, to, null);
+    const body = document.getElementById('analizeBody'); if (!body) return;
+    if (!d || (d.vanzari||0)===0) { body.innerHTML='<p style="color:var(--text-muted);font-size:12px">Fără bonuri în perioada selectată. Încearcă „Tot".</p>'; return; }
+    // cost per produs (din sortari aprobate) pentru adaos
+    const costMap = {};
+    (DB.sortari||[]).filter(s=>s.statusAprobare==='approved').forEach(s => (s.articoleRezultate||[]).forEach(a => { if(a.produsId&&a.costPerBuc){ const p=(DB.nomenclator||[]).find(x=>x.id===a.produsId); if(p&&p.denumire){ const k=p.denumire.toLowerCase(); (costMap[k]=costMap[k]||{sum:0,n:0}); costMap[k].sum+=a.costPerBuc; costMap[k].n++; } } }));
+    // vânzări pe zi (din items)
+    let dailyRows = [];
+    try {
+      const items = await getEcorgReceiptsForPeriod(from, to, null);
+      const perZi = {};
+      items.forEach(it => { if(it.data){ perZi[it.data]=(perZi[it.data]||0)+(it.amount||0); } });
+      dailyRows = Object.entries(perZi).sort((a,b)=>a[0].localeCompare(b[0])).slice(-30).map(([z,v])=>({label:_ziScurt(z), value:v}));
+    } catch(e){}
+    const topProd = (d.perProdus||[]).slice(0,8).map(x=>({label:x.produs||'—', value:x.revenue, extra:'· '+fmt(x.qty,0)+' buc'}));
+    const topMag = (d.perMagazin||[]).map(x=>({label:(typeof mag==='function'?mag(x.magazin):x.magazin), value:x.revenue}));
+    const topCas = (d.perCasier||[]).slice(0,8).map(x=>({label:x.casier||'—', value:x.revenue}));
+    const topCat = (d.perCategorie||[]).slice(0,7).map(x=>({label:x.categorie||'—', value:x.revenue}));
+    // marfă care stagnează: produse din nomenclator cu vânzări mici/zero în perioadă
+    const vandutLower = {}; (d.perProdus||[]).forEach(x => { vandutLower[(x.produs||'').toLowerCase()] = x; });
+    const stagnante = (DB.nomenclator||[]).map(p => { const x = vandutLower[(p.denumire||'').toLowerCase()]; return { nume:p.denumire, qty: x?x.qty:0, rev: x?x.revenue:0 }; })
+      .filter(p => p.nume).sort((a,b)=> a.qty - b.qty).slice(0,8).map(p=>({label:p.nume, value:p.qty, extra: p.rev>0?'· '+fmt(p.rev,0)+' lei':'· 0 vânzări'}));
+    // adaos comercial: top produse cu cost cunoscut
+    const adaos = (d.perProdus||[]).map(x => { const c=costMap[(x.produs||'').toLowerCase()]; if(!c||!c.n||!x.qty) return null; const avgPrice=x.revenue/x.qty; const avgCost=c.sum/c.n; if(avgCost<=0) return null; return {nume:x.produs, markup:(avgPrice-avgCost)/avgCost*100, avgPrice, avgCost, rev:x.revenue}; })
+      .filter(Boolean).sort((a,b)=>b.rev-a.rev).slice(0,8);
+    const marjaBruta = d.vanzari>0 ? (d.marjaBrutaReala||0)/d.vanzari*100 : 0;
+    body.innerHTML = `
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Perioadă: <strong>${from}</strong> → <strong>${to}</strong> · Vânzări: <strong>${fmt(d.vanzari)} lei</strong> · ${d.bonuri} bonuri · bon mediu ${fmt(d.bonMediu)} lei</div>
+      <div style="font-weight:600;font-size:12px;margin:12px 0 4px">📅 Vânzări pe zi ${dailyRows.length>=30?'(ultimele 30 zile)':''}</div>${_miniBars(dailyRows,'#0a7d3b',v=>fmt(v,0))}
+      <div style="font-weight:600;font-size:12px;margin:14px 0 4px">🏪 Pe magazin</div>${_miniBars(topMag,'#0369a1',v=>fmt(v,0))}
+      <div style="font-weight:600;font-size:12px;margin:14px 0 4px">👤 Pe casier/angajat</div>${_miniBars(topCas,'#7c3aed',v=>fmt(v,0))}
+      <div style="font-weight:600;font-size:12px;margin:14px 0 4px">🗂 Pe categorii</div>${_miniBars(topCat,'#0a7d3b',v=>fmt(v,0))}
+      <div style="font-weight:600;font-size:12px;margin:14px 0 4px">🔥 Marfă care se vinde cel mai bine</div>${_miniBars(topProd,'#0a7d3b',v=>fmt(v,0))}
+      <div style="font-weight:600;font-size:12px;margin:14px 0 4px">🐌 Marfă care stagnează (vânzări mici/zero)</div>${_miniBars(stagnante,'#b45309',v=>fmt(v,0)+' buc')}
+      <div style="font-weight:600;font-size:12px;margin:14px 0 4px">🏷 Adaos comercial (unde avem cost real)</div>
+      ${adaos.length? adaos.map(a=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;margin:4px 0;padding:4px 0;border-bottom:1px solid var(--border)"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(a.nume)}">${escapeHtml(a.nume)}</span><span style="flex-shrink:0;font-weight:600;color:${a.markup>=0?'#0a7d3b':'#dc2626'}">+${fmt(a.markup,0)}% <span style="color:var(--text-muted);font-weight:400">(${fmt(a.avgCost,1)}→${fmt(a.avgPrice,1)})</span></span></div>`).join('') : '<p style="color:var(--text-muted);font-size:12px">Nu există încă date de cost (din sortări Erdotex) pentru produsele vândute în perioadă.</p>'}
+      <div style="margin-top:16px;padding:12px;background:#f0f7f3;border-radius:8px;border-left:3px solid var(--accent)">
+        <div style="font-weight:600;font-size:13px">📊 Benchmark intern</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Marjă brută reală în perioadă: <strong style="color:var(--text)">${fmt(marjaBruta,1)}%</strong> (vânzări minus cost mărfii vândute, unde costul e cunoscut).</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">ℹ Comparația cu „normalitatea pieței" necesită date externe de sector (nu le avem în app). Aici comparăm doar cu propria dinamică (luni/perioade). Putem adăuga un benchmark de piață dacă obținem o sursă de date.</div>
+      </div>`;
+  } catch(e){ const b=document.getElementById('analizeBody'); if(b) b.innerHTML='<p style="color:var(--danger);font-size:12px">Eroare la calcul: '+escapeHtml(e.message)+'</p>'; console.error('renderAnalize', e); }
+}
 
 function renderDashboard() {
   const luna = dashLuna, an = dashAn;
@@ -6273,7 +6379,7 @@ function doLogin() {
   // Backup automat ÎNAINTE de orice operațiune cloud (paranoia după pierderile repetate)
   try { if (typeof createBackup === 'function') createBackup('login-' + pickedUser); } catch(e) { console.warn('Auto-backup login failed:', e); }
   document.getElementById('loginScreen').style.display = 'none';
-  currentView = DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : 'dashboard');
+  currentView = DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : (DB.session.role === 'owner' ? 'analize' : 'dashboard'));
   renderNav();
   go(currentView);
   toast(`Bun venit, ${DB.users[pickedUser].nume}!`);
@@ -10223,7 +10329,7 @@ setTimeout(() => { try { autoRestoreIfEmpty(); } catch(e){} }, 2000);
 
 if (DB.session && DB.session.user && DB.users[DB.session.user]) {
   document.getElementById('loginScreen').style.display = 'none';
-  currentView = DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : 'dashboard');
+  currentView = DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : (DB.session.role === 'owner' ? 'analize' : 'dashboard'));
   renderNav();
   go(currentView);
   // Etapa 12 — auto auth la reload (sesiune existentă)
