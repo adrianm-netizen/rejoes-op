@@ -5249,11 +5249,17 @@ function renderBalantaProvizorie(body) {
   const profitAvg = salesAvg - opexAvg;
 
   // 3. CHELTUIELI RECURENTE LUNARE (din DB.cheltuieliMagazin/Angajati/Fixe — Etapa 10A)
-  const cheltRecurenteLunare = totalCheltuieliLunare(todayStr) || 0;
+  // totalCheltuieliLunare returnează obiect {total, totalMag, totalAng, totalFix}
+  const _chelt = totalCheltuieliLunare(todayStr);
+  const cheltRecurenteLunare = (_chelt && typeof _chelt === 'object') ? (_chelt.total || 0) : (_chelt || 0);
+  // Dacă nu sunt configurate cheltuieli recurente, folosim OpEx mediu din Financial Results
+  // (fallback realistic — altfel cash flow ar fi fals optimist)
+  const cheltEfective = cheltRecurenteLunare > 0 ? cheltRecurenteLunare : opexAvg;
+  const cheltSursa = cheltRecurenteLunare > 0 ? 'configurate manual' : 'OpEx medie ' + finRapoarte.length + ' luni Financial Results';
 
   // 4. CASH FLOW ESTIMAT 30 ZILE
-  // intrări estimate (sales next 30 days = sales medie) - cheltuieli estimate (chelt recurente + facturi scadente 30 zile)
-  const cashFlow30zile = salesAvg - cheltRecurenteLunare - (sumDepasite + sumScadente7zile + scadenteLista.filter(s => s.days > 7 && s.days <= 30).reduce((a,b) => a + b.total, 0));
+  // intrări estimate (sales next 30 days = sales medie) - cheltuieli efective (recurente sau OpEx medie) - facturi scadente 30 zile
+  const cashFlow30zile = salesAvg - cheltEfective - (sumDepasite + sumScadente7zile + scadenteLista.filter(s => s.days > 7 && s.days <= 30).reduce((a,b) => a + b.total, 0));
 
   // 5. CASH ÎN BANCĂ + aport necesar
   const cashBank = DB.balantaCashBank || 0;
@@ -5289,7 +5295,7 @@ function renderBalantaProvizorie(body) {
     }
     cashFlowBlock = '<table style="width:100%;font-size:13px">' +
       '<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 10px">+ Sales estimate (medie ' + finRapoarte.length + ' luni)</td><td class="num" style="padding:6px 10px;color:#0a7d3b"><strong>+' + fmt(salesAvg) + ' RON</strong></td></tr>' +
-      '<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 10px">− Cheltuieli recurente lunare (chirii + salarii + fixe)</td><td class="num" style="padding:6px 10px;color:#dc2626">−' + fmt(cheltRecurenteLunare) + ' RON</td></tr>' +
+      '<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 10px">− Cheltuieli lunare (' + cheltSursa + ')</td><td class="num" style="padding:6px 10px;color:#dc2626">−' + fmt(cheltEfective) + ' RON</td></tr>' +
       '<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 10px">− Facturi scadente in urmatoarele 30 zile (neachitate)</td><td class="num" style="padding:6px 10px;color:#dc2626">−' + fmt(sumScadenteTotale) + ' RON</td></tr>' +
       '<tr style="background:' + cashFlowBg + ';font-weight:700"><td style="padding:8px 10px">= Cash flow estimat 30 zile</td><td class="num" style="padding:8px 10px;color:' + cashFlowColor + '">' + cashFlowSign + fmt(cashFlow30zile) + ' RON</td></tr>' +
       '<tr style="border-top:2px solid var(--border)"><td style="padding:6px 10px">Cash actual in banca</td><td class="num" style="padding:6px 10px">' + fmt(cashBank) + ' RON</td></tr>' +
@@ -9554,10 +9560,14 @@ const CLOUD_COLLECTIONS = [
   'comenzi','retururi','transferuri',
   'casari','retururiClienti','discounturi',         // Etapa 2
   'verificariProgramate',                            // Etapa 4
-  'ecorgImports',                                    // Etapa 9 — doar metadata files (NU items raw, alea sunt în IndexedDB)
-  'cheltuieliMagazin','cheltuieliAngajati','cheltuieliFixe'  // Etapa 10 Faza A
+  // 'ecorgImports' — EXCLUS DIN CLOUD (31 mai 2026, după 3 incidente pierdere date Financial+Receipt+Facturi)
+  //   Date mari + sync logic fragil = pierderi repetate. Stocate DOAR local + IndexedDB.
+  //   Trade-off: Olga nu vede Profit/Balanță pe telefon, dar Adrian nu mai pierde date.
+  'cheltuieliMagazin','cheltuieliAngajati','cheltuieliFixe',  // Etapa 10 Faza A
+  'furnizoriAutoExclude',  // Etapa 10E — reguli auto-marcare furnizori (mic, safe)
+  'balantaCashBank','balantaCashBankUpdate'  // Etapa 10E — cash în bancă (1 număr + 1 timestamp, safe)
 ];
-// NU includem: angajati (CNP/IBAN sensibile), users (PIN-uri), setari, session, _backups (sunt locale per device)
+// NU includem: angajati (CNP/IBAN sensibile), users (PIN-uri), setari, session, _backups (sunt locale per device), ecorgImports (vezi nota mai sus)
 
 async function cloudPushAll() {
   if (!window.FB) { toast('Firebase nu e conectat'); return; }
@@ -9883,18 +9893,30 @@ async function manualSyncNow() {
 async function fullPullFromCloud() {
   if (!window.FB) { toast('Firebase nu e conectat'); return; }
   if (!confirm('Înlocuiește toate datele locale cu cele din cloud?\n\nVa descărca: localStorage + IndexedDB (receipts). Datele de pe acest device se vor pierde dacă nu sunt deja în cloud.')) return;
+  // Backup forțat ÎNAINTE de pull — protecție extra (Etapa 12 hardening)
+  try { if (typeof createBackup === 'function') createBackup('pre-pull-cloud-' + Date.now()); } catch(e){}
   setSyncStatus('syncing');
   try {
     // Pull localStorage collections
-    let ok = 0;
+    let ok = 0, skipped = 0, skipList = [];
     for (const col of CLOUD_COLLECTIONS) {
       const snap = await window.FB.db.ref(col).once('value');
       const val = snap.val();
+      // Safety: dacă cloud e gol/null DAR local are date, NU șterge
+      const localLen = Array.isArray(DB[col]) ? DB[col].length : (DB[col] && typeof DB[col]==='object' ? Object.keys(DB[col]).length : 0);
+      const cloudLen = Array.isArray(val) ? val.length : (val && typeof val==='object' ? Object.keys(val).length : 0);
+      if (cloudLen === 0 && localLen > 0) {
+        console.warn(`[pull] ${col} SKIPPED — cloud=0 vs local=${localLen} (protecție anti-pierdere)`);
+        skipped++;
+        skipList.push(col);
+        continue;
+      }
       if (val !== null && val !== undefined) {
         DB[col] = Array.isArray(val) ? val : Object.values(val);
         ok++;
       }
     }
+    if (skipped > 0) alert(`⚠ ${skipped} colecții NU s-au descărcat (cloud gol, local cu date):\n${skipList.join(', ')}\n\nDatele locale au fost păstrate.`);
     _origSave(); // save fără a triggera auto-push
     // Pull receipts din IndexedDB
     const n = await cloudPullReceipts();
