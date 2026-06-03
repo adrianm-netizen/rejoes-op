@@ -69,6 +69,7 @@
 </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -735,12 +736,13 @@ function renderDashboard() {
     const recs = DB.pontaj.filter(p => p.angajat === a.nume && isLunaSelectata(p.data, an, luna));
     const zileLucrate = recs.filter(r => r.tipZi && r.tipZi.includes('Lucrat')).length;
     const oreLucrate = recs.reduce((s,r) => s + (parseFloat(r.oreLucrate)||0), 0);
-    const norma = normaForLuna(a.program, an, luna);
+    const norma = normaAngajatLuna(a, an, luna);
     return {
       ...a,
       zileLucrate, oreLucrate, norma,
       diff: oreLucrate - norma,
-      status: oreLucrate >= norma ? 'OK' : (oreLucrate >= norma*0.85 ? 'Aproape' : 'Sub norma')
+      depasit: oreLucrate > norma,
+      status: oreLucrate > norma ? 'Depășit' : (oreLucrate >= norma ? 'OK' : (oreLucrate >= norma*0.85 ? 'Aproape' : 'Sub norma'))
     };
   }).sort((x,y) => y.oreLucrate - x.oreLucrate);
 
@@ -818,12 +820,12 @@ function renderDashboard() {
       </div>
       <div class="table-wrap"><table>
         <thead><tr><th>#</th><th>Angajat</th><th>Program</th><th class="num">Zile lucrate</th><th class="num">Ore lucrate</th><th class="num">Norma luna</th><th class="num">+/- Norma</th><th>Status</th></tr></thead>
-        <tbody>${angajatiStats.map((a,i)=>`<tr>
-          <td>${i+1}</td><td><strong>${a.nume}</strong></td><td>${a.program||'<em style="color:#94a3b8">—</em>'}</td>
+        <tbody>${angajatiStats.map((a,i)=>`<tr style="${a.depasit?'background:#fdecea':''}">
+          <td>${i+1}</td><td><strong>${a.depasit?'⚠ ':''}${a.nume}</strong></td><td>${a.program||'<em style="color:#94a3b8">—</em>'}</td>
           <td class="num">${a.zileLucrate}</td><td class="num"><strong>${fmt(a.oreLucrate,1)} h</strong></td>
           <td class="num">${a.norma} h</td>
-          <td class="num" style="color:${a.diff>=0?'var(--success)':'var(--danger)'}">${a.diff>=0?'+':''}${fmt(a.diff,1)} h</td>
-          <td><span class="badge ${a.status==='OK'?'badge-ok':a.status==='Aproape'?'badge-warn':'badge-danger'}">${a.status}</span></td>
+          <td class="num" style="color:${a.depasit?'#b00020':a.diff>=0?'var(--success)':'var(--danger)'};font-weight:${a.depasit?'700':'400'}">${a.diff>=0?'+':''}${fmt(a.diff,1)} h</td>
+          <td><span class="badge ${a.status==='OK'?'badge-ok':a.status==='Depășit'?'badge-danger':a.status==='Aproape'?'badge-warn':'badge-danger'}" ${a.depasit?'style="background:#b00020;color:#fff"':''}>${a.depasit?'⚠ '+a.status:a.status}</span></td>
         </tr>`).join('')}</tbody>
       </table></div>
     </div>
@@ -869,6 +871,7 @@ let pontajFiltruAng = 'TOATE';
 function isContabil() { return DB.session.role === 'contabil-sef'; }
 function isReadOnly() { return isContabil(); }
 function isAdminLike() { return DB.session.role === 'admin' || DB.session.role === 'owner'; }
+function isAdmin() { return DB.session.role === 'admin'; }
 
 function renderEdenredView() {
   // Render the Edenred tab content from Setări directly here (read+export for contabil)
@@ -919,9 +922,12 @@ function renderPontaj() {
           <select id="pAng" class="btn"><option value="TOATE">Toți angajații</option>${DB.angajati.filter(a=>a.status==='Activ').map(a=>`<option value="${a.nume}" ${a.nume===pontajFiltruAng?'selected':''}>${a.nume}</option>`).join('')}</select>
         </div>
         <div class="toolbar">
-          ${!isReadOnly() ? `<button class="btn btn-primary btn-sm" onclick="newPontaj()">+ Pontaj zilnic</button>
+          ${(!isReadOnly() && !isAdmin()) ? `<button class="btn btn-primary btn-sm" onclick="newPontaj()">+ Pontaj zilnic</button>` : ''}
+          ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="newPontaj()">+ Pontaj zilnic</button>
           <button class="btn btn-sm" onclick="completareLunaTipic()">⚡ Auto-completare luna</button>` : ''}
-          <button class="btn btn-sm" onclick="exportPontaj()">📥 Export Excel</button>
+          <button class="btn btn-sm btn-primary" style="background:#37618a;border-color:#37618a" onclick="exportCentralizator()">📊 Centralizator (Dana)</button>
+          <button class="btn btn-sm" onclick="exportPontajIndividual()">📝 Pontaj individual</button>
+          <button class="btn btn-sm" onclick="exportPontaj()">📥 Listă (Sumar/Detaliu)</button>
           ${isReadOnly() ? '<button class="btn btn-sm" onclick="exportPontajSaga()">📥 Export SAGA</button>' : ''}
         </div>
       </div>
@@ -946,7 +952,7 @@ function renderPontaj() {
             <td>${r.oraStart||'—'}</td><td>${r.oraSfarsit||'—'}</td>
             <td class="num"><strong>${r.oreLucrate ? fmt(parseFloat(r.oreLucrate),1)+' h' : '—'}</strong></td>
             <td><small>${r.observatii||''}</small></td>
-            <td>${!isReadOnly() ? `<button class="btn btn-sm btn-ghost" onclick="editPontaj(${idx})">✎</button><button class="btn btn-sm btn-ghost" onclick="delPontaj(${idx})">×</button>` : '<small style="color:var(--text-muted)">read-only</small>'}</td>
+            <td>${isAdmin() ? `<button class="btn btn-sm btn-ghost" onclick="editPontaj(${idx})">✎</button><button class="btn btn-sm btn-ghost" onclick="delPontaj(${idx})">×</button>` : '<small style="color:var(--text-muted)" title="Ajustările doar de admin">—</small>'}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>`}
@@ -1042,11 +1048,16 @@ function savePontaj(idx) {
     observatii: document.getElementById('pf_obs').value,
     salvatLa: nowISO()
   };
-  if (idx>=0) DB.pontaj[idx] = rec;
-  else {
-    // upsert: dacă există deja pentru data + angajat, înlocuiește
+  if (idx>=0) {
+    if (!isAdmin()) { toast('Ajustările existente le poate face doar adminul'); return; }
+    DB.pontaj[idx] = rec;
+  } else {
+    // upsert: dacă există deja pentru data + angajat
     const i = DB.pontaj.findIndex(p => p.data===rec.data && p.angajat===rec.angajat);
-    if (i>=0) DB.pontaj[i] = rec; else DB.pontaj.push(rec);
+    if (i>=0) {
+      if (!isAdmin()) { toast('Există deja pontaj pentru această zi — modificarea o face doar adminul'); return; }
+      DB.pontaj[i] = rec;
+    } else DB.pontaj.push(rec);
   }
   save(); closeModal(); renderPontaj(); toast('Pontaj salvat');
 }
@@ -6281,6 +6292,17 @@ function editAngHR(i) {
     <div class="form-row">
       <div class="form-field" style="flex:3"><label>Adresa</label><input type="text" id="hrAdr" value="${(a.adresa||'').replace(/"/g,'&quot;')}"></div>
     </div>
+    <div style="background:#f0f7f3;border-radius:8px;padding:10px;margin-top:6px">
+      <div style="font-size:12px;font-weight:600;color:var(--accent-hover);margin-bottom:8px">⏱ Normă pontaj (gol = se deduce din program „${escapeHtml(a.program||'—')}")</div>
+      <div class="form-row">
+        <div class="form-field"><label>Ore normă / zi</label><input type="number" step="0.5" id="hrOreZi" value="${a.oreNormaZi||''}" placeholder="ex. 7, 8, 10, 2"></div>
+        <div class="form-field"><label>Ore sâmbătă</label><input type="number" step="0.5" id="hrOreSat" value="${a.oreSambata||''}" placeholder="ex. 4 (0 dacă nu)"></div>
+        <div class="form-field"><label>Normă lună fixă (override)</label><input type="number" step="1" id="hrNormaFix" value="${a.normaLunaFixa||''}" placeholder="ex. 140 (2+2)"></div>
+        <div class="form-field"><label>Tichete în weekend?</label>
+          <select id="hrTichetWk"><option value="" ${a.tichetWeekend==null||a.tichetWeekend===''?'selected':''}>Auto (din program)</option><option value="true" ${a.tichetWeekend===true||a.tichetWeekend==='true'?'selected':''}>Da (2+2)</option><option value="false" ${a.tichetWeekend===false||a.tichetWeekend==='false'?'selected':''}>Nu (7h/8h)</option></select>
+        </div>
+      </div>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
       <button class="btn" onclick="closeModal()">Anulează</button>
       <button class="btn btn-primary" onclick="saveAngHR(${i})">Salvează</button>
@@ -6299,6 +6321,11 @@ function saveAngHR(i) {
   a.adresa = document.getElementById('hrAdr').value;
   const vt = parseFloat(document.getElementById('hrValTichet').value);
   a.valoareTichet = (!isNaN(vt) && vt > 0) ? vt : '';
+  // Normă pontaj configurabilă
+  const oz = document.getElementById('hrOreZi').value; a.oreNormaZi = oz!=='' ? oz : '';
+  const os = document.getElementById('hrOreSat').value; a.oreSambata = os!=='' ? os : '';
+  const nf = document.getElementById('hrNormaFix').value; a.normaLunaFixa = nf!=='' ? nf : '';
+  const tw = document.getElementById('hrTichetWk').value; a.tichetWeekend = tw!=='' ? (tw==='true') : '';
   save(); closeModal(); renderSetari(); toast('Date HR salvate');
 }
 
@@ -6798,6 +6825,144 @@ function exportPontaj(){
   XLSX.utils.book_append_sheet(wb, wsSumar, 'Sumar');
   XLSX.utils.book_append_sheet(wb, wsDet, 'Detaliu pe zile');
   dwn(wb, `Pontaj_${lunaNume}_${an}.xlsx`);
+}
+
+// ===================== PONTAJ v2 — Centralizator + Individual (ExcelJS) =====================
+const ZILE_LUCR_OFICIALE_2026 = {1:18,2:20,3:22,4:20,5:20,6:21,7:23,8:21,9:22,10:22,11:20,12:21};
+function zileLucrOficiale(an,luna){
+  if(an===2026 && ZILE_LUCR_OFICIALE_2026[luna]) return ZILE_LUCR_OFICIALE_2026[luna];
+  let n=0,d=new Date(an,luna-1,1); while(d.getMonth()===luna-1){const w=d.getDay(); if(w>=1&&w<=5)n++; d.setDate(d.getDate()+1);} return n;
+}
+function sambeteLuna(an,luna){ let n=0,d=new Date(an,luna-1,1); while(d.getMonth()===luna-1){if(d.getDay()===6)n++; d.setDate(d.getDate()+1);} return n; }
+// Config normă per angajat: explicit (Date HR) > derivat din program
+function normConfigAngajat(a){
+  const p=(a&&a.program)||''; let oreZi=8, sat=0, tw=false, fix=null;
+  if(/7h/.test(p)&&/Sb/i.test(p)){oreZi=7;sat=4;}
+  else if(/8h/.test(p)&&/Sb/i.test(p)){oreZi=8;sat=4;}
+  else if(/2\+2/.test(p)||/10h/.test(p)){oreZi=10;sat=0;tw=true;fix=140;}
+  else if(/4h/.test(p)){oreZi=4;}
+  else if(/2h/.test(p)){oreZi=2;}
+  else if(/7h/.test(p)){oreZi=7;}
+  if(a){
+    if(a.oreNormaZi!=null && a.oreNormaZi!=='') oreZi=parseFloat(a.oreNormaZi);
+    if(a.oreSambata!=null && a.oreSambata!=='') sat=parseFloat(a.oreSambata);
+    if(a.tichetWeekend!=null && a.tichetWeekend!=='') tw=(a.tichetWeekend===true||a.tichetWeekend==='true'||a.tichetWeekend==1);
+    if(a.normaLunaFixa!=null && a.normaLunaFixa!=='') fix=parseFloat(a.normaLunaFixa);
+  }
+  return {oreZi,sat,tw,fix};
+}
+function normaAngajatLuna(a,an,luna){ const c=normConfigAngajat(a); if(c.fix) return c.fix; return zileLucrOficiale(an,luna)*c.oreZi + sambeteLuna(an,luna)*c.sat; }
+function tipCelula(tipZi, ore){ const t=tipZi||''; if(t.includes('Lucrat')){const f=parseFloat(ore); return isNaN(f)?'':f;} if(t.includes('Concediu Odih'))return'CO'; if(t.includes('Concediu Medical'))return'CM'; if(t.includes('Legal'))return'Liber'; if(t.includes('Învoire'))return'Înv'; if(t.includes('Liberă (NU)'))return'NU'; return ''; }
+async function dwnXLSX(wb, filename){
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+}
+function _bord(){ const s={style:'thin',color:{argb:'FFD5D5D5'}}; return {top:s,left:s,right:s,bottom:s}; }
+function _fill(argb){ return {type:'pattern',pattern:'solid',fgColor:{argb}}; }
+function _colLetter(n){let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
+
+async function exportCentralizator(){
+  if(typeof ExcelJS==='undefined'){ toast('ExcelJS nu s-a încărcat — reîncarcă pagina.'); return; }
+  const an=pontajAn, luna=pontajLuna, lunaNume=LUNI_RO[luna-1];
+  const nzile=new Date(an,luna,0).getDate();
+  const ZI=['L','Ma','Mi','J','V','S','D'];
+  const dow=d=>{const x=new Date(an,luna-1,d).getDay(); return (x+6)%7;};
+  const wd=zileLucrOficiale(an,luna), nsat=sambeteLuna(an,luna);
+  const recs=DB.pontaj.filter(p=>isLunaSelectata(p.data,an,luna));
+  const activi=DB.angajati.filter(a=>a.status==='Activ');
+  const byday={}; recs.forEach(r=>{ const zi=parseInt(String(r.data).slice(8,10)); byday[r.angajat+'|'+zi]=[r.tipZi,r.oreLucrate]; });
+  const grup={}; activi.forEach(a=>{ const p=mag(a.magazin)||a.magazin||'(fără punct)'; (grup[p]=grup[p]||[]).push(a); });
+  const puncte=Object.keys(grup).sort();
+  const EXTRA=['Total ore','Normă','Dif.','⚠','Zile lucr.','CO (zile)','Ore tichet','Tichete','Val/tichet','Total tichete'];
+  const wb=new ExcelJS.Workbook(); wb.creator='Rejoes';
+  function buildSheet(wsName, listaPuncte, titlu){
+    const sh=wb.addWorksheet(wsName,{views:[{state:'frozen',xSplit:3,ySplit:4}]});
+    const base=3+nzile, totalCols=base+EXTRA.length;
+    sh.mergeCells(1,1,1,Math.min(totalCols,12));
+    sh.getCell(1,1).value=titlu; sh.getCell(1,1).font={bold:true,size:13,color:{argb:'FF1F4A3A'}};
+    sh.getCell(2,1).value=`Normă oficială: ${wd*8}h full-time · ${wd} zile L-V · ${nsat} sâmbete · Tichete=ROUND(ore tichet/8) (7h fără sâmbătă, 2+2 cu weekend)`;
+    sh.getCell(2,1).font={italic:true,size:10,color:{argb:'FF666666'}};
+    const heads=['Nume angajat','Funcție','Punct de lucru']; for(let z=1;z<=nzile;z++) heads.push(z); EXTRA.forEach(e=>heads.push(e));
+    heads.forEach((h,j)=>{ const c=sh.getCell(3,j+1); c.value=h; c.font={bold:true,color:{argb:'FFFFFFFF'},size:9}; c.alignment={horizontal:'center',vertical:'middle',wrapText:true}; c.fill=_fill(j<3?'FF1F4A3A':(j>=base?'FF37618A':'FF2D7A55')); c.border=_bord(); });
+    for(let z=1;z<=nzile;z++){ const c=sh.getCell(4,3+z); const dw=dow(z); c.value=ZI[dw]; c.alignment={horizontal:'center'}; c.font={size:8,color:{argb:'FF888888'}}; if(dw>=5)c.fill=_fill('FFF0F0F0'); c.border=_bord(); }
+    let r=5;
+    for(const p of listaPuncte){
+      sh.mergeCells(r,1,r,totalCols); const gc=sh.getCell(r,1); gc.value='▼ '+p; gc.font={bold:true,color:{argb:'FF14352A'}}; gc.fill=_fill('FFD6EBE0'); r++;
+      const membri=grup[p].slice().sort((x,y)=>x.nume.localeCompare(y.nume,'ro'));
+      for(const a of membri){
+        const n=a.nume, cfg=normConfigAngajat(a);
+        sh.getCell(r,1).value=n; sh.getCell(r,1).font={bold:true,size:9};
+        sh.getCell(r,2).value=a.rol||''; sh.getCell(r,3).value=p;
+        let tot=0, zl=0, co=0, oreTichet=0;
+        for(let z=1;z<=nzile;z++){ const rec=byday[n+'|'+z]||['','']; const v=tipCelula(rec[0],rec[1]); const c=sh.getCell(r,3+z); c.value=v; c.alignment={horizontal:'center'}; c.font={size:9}; c.border=_bord(); const dw=dow(z);
+          if(typeof v==='number'){tot+=v; zl++; if(dw<5||cfg.tw) oreTichet+=v;}
+          else if(v==='NU'){c.font={size:9,color:{argb:'FFAAAAAA'}};}
+          else if(v==='CO'){c.fill=_fill('FFFFF3CD'); co++;}
+          else if(v==='CM'){c.fill=_fill('FFFDE2E2');}
+          if(v===''&&dw>=5)c.fill=_fill('FFF0F0F0');
+        }
+        const nrm=normaAngajatLuna(a,an,luna); const dif=Math.round((tot-nrm)*10)/10; const over=dif>0;
+        const oreTichetCol=_colLetter(base+7), ticheteCol=_colLetter(base+8), valCol=_colLetter(base+9);
+        const valTichet=(a.valoareTichet!=null&&a.valoareTichet!=='')?parseFloat(a.valoareTichet):'';
+        [[1,Math.round(tot*10)/10],[2,nrm],[3,dif],[4,over?'⚠':''],[5,zl],[6,co],[7,Math.round(oreTichet*10)/10]].forEach(([off,val])=>{ const c=sh.getCell(r,base+off); c.value=val; c.alignment={horizontal:'center'}; c.font={size:9}; c.border=_bord(); });
+        const tc=sh.getCell(r,base+8); tc.value={formula:`ROUND(${oreTichetCol}${r}/8,0)`}; tc.alignment={horizontal:'center'}; tc.font={size:9,bold:true}; tc.border=_bord();
+        const vc=sh.getCell(r,base+9); vc.value=valTichet; vc.alignment={horizontal:'center'}; vc.font={size:9}; vc.border=_bord();
+        const ttc=sh.getCell(r,base+10); ttc.value={formula:`${ticheteCol}${r}*${valCol}${r}`}; ttc.alignment={horizontal:'center'}; ttc.font={size:9}; ttc.border=_bord();
+        for(let cc=1;cc<=3;cc++) sh.getCell(r,cc).border=_bord();
+        if(over){ for(let cc=base+1;cc<=totalCols;cc++) sh.getCell(r,cc).fill=_fill('FFF8CBCB'); sh.getCell(r,base+3).font={bold:true,color:{argb:'FFB00020'},size:9}; sh.getCell(r,base+4).font={bold:true,color:{argb:'FFB00020'}}; }
+        else sh.getCell(r,base+3).font={color:{argb:'FF1F7A4D'},size:9};
+        sh.getRow(r).outlineLevel=1; r++;
+      }
+    }
+    sh.getColumn(1).width=24; sh.getColumn(2).width=16; sh.getColumn(3).width=20;
+    for(let z=1;z<=nzile;z++) sh.getColumn(3+z).width=4;
+    [8,8,7,4,9,9,8,8,10,12].forEach((w,j)=>sh.getColumn(base+1+j).width=w);
+    sh.properties.outlineLevelRow=1;
+    sh.getCell(r+1,1).value='Legendă: număr=ore · NU=zi liberă · CO=concediu odihnă · CM=concediu medical · Liber=liber legal · Înv=învoire · ⚠=peste normă (roșu) · Tichete=ROUND(ore tichet/8)';
+    sh.getCell(r+1,1).font={italic:true,size:9,color:{argb:'FF666666'}};
+  }
+  buildSheet('CENTRALIZATOR', puncte, `CENTRALIZATOR PONTAJ — ${lunaNume} ${an}`);
+  for(const p of puncte){ const nm=(p.split(' ')[0]||'LOC').replace(/[^A-Za-z0-9-]/g,'').slice(0,28)||'LOC'; buildSheet(nm,[p],`PONTAJ ${p} — ${lunaNume} ${an}`); }
+  await dwnXLSX(wb, `Centralizator_Pontaj_${lunaNume}_${an}.xlsx`);
+  toast('✓ Centralizator descărcat');
+}
+
+async function exportPontajIndividual(){
+  if(typeof ExcelJS==='undefined'){ toast('ExcelJS nu s-a încărcat — reîncarcă pagina.'); return; }
+  const an=pontajAn, luna=pontajLuna, lunaNume=LUNI_RO[luna-1];
+  const nzile=new Date(an,luna,0).getDate();
+  const ZIRO=['Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă','Duminică'];
+  const dow=d=>{const x=new Date(an,luna-1,d).getDay(); return (x+6)%7;};
+  const recs=DB.pontaj.filter(p=>isLunaSelectata(p.data,an,luna));
+  const activi=DB.angajati.filter(a=>a.status==='Activ');
+  const byday={}; recs.forEach(r=>{ const zi=parseInt(String(r.data).slice(8,10)); byday[r.angajat+'|'+zi]=r; });
+  const grup={}; activi.forEach(a=>{ const p=mag(a.magazin)||a.magazin||'(fără punct)'; (grup[p]=grup[p]||[]).push(a); });
+  const puncte=Object.keys(grup).sort();
+  const wb=new ExcelJS.Workbook(); wb.creator='Rejoes';
+  for(const p of puncte){
+    const nm=(p.split(' ')[0]||'LOC').replace(/[^A-Za-z0-9-]/g,'').slice(0,28)||'LOC';
+    const sh=wb.addWorksheet(nm);
+    let r=1; const membri=grup[p].slice().sort((x,y)=>x.nume.localeCompare(y.nume,'ro'));
+    for(const a of membri){
+      sh.mergeCells(r,1,r,6); sh.getCell(r,1).value=`PONTAJ INDIVIDUAL — ${(a.nume+' '+(a.prenume||'')).trim()}`; sh.getCell(r,1).font={bold:true,size:12,color:{argb:'FF1F4A3A'}}; r++;
+      sh.mergeCells(r,1,r,6); sh.getCell(r,1).value=`Funcție: ${a.rol||'—'} · Punct de lucru: ${p} · ${lunaNume} ${an} · CNP: ${a.cnp||'—'}`; sh.getCell(r,1).font={size:10,color:{argb:'FF666666'}}; r++;
+      ['Data','Ziua','Oră venire','Oră plecare','Ore','Semnătură'].forEach((h,j)=>{ const c=sh.getCell(r,j+1); c.value=h; c.font={bold:true,color:{argb:'FFFFFFFF'},size:10}; c.fill=_fill('FF1F4A3A'); c.alignment={horizontal:'center'}; c.border=_bord(); }); r++;
+      let totOre=0;
+      for(let z=1;z<=nzile;z++){ const rec=byday[a.nume+'|'+z]; const v=rec?tipCelula(rec.tipZi,rec.oreLucrate):''; const lucrat=(typeof v==='number');
+        const row=[`${an}-${String(luna).padStart(2,'0')}-${String(z).padStart(2,'0')}`, ZIRO[dow(z)], lucrat?(rec.oraStart==='—'?'':rec.oraStart||''):'', lucrat?(rec.oraSfarsit==='—'?'':rec.oraSfarsit||''):'', lucrat?v:v, ''];
+        row.forEach((val,j)=>{ const c=sh.getCell(r,j+1); c.value=val; c.font={size:9}; c.alignment={horizontal:(j===0||j===1)?'left':'center'}; c.border=_bord(); });
+        if(dow(z)>=5){ for(let j=1;j<=6;j++) sh.getCell(r,j).fill=_fill('FFF7F7F7'); }
+        if(lucrat) totOre+=v; r++;
+      }
+      sh.getCell(r,4).value='TOTAL ore:'; sh.getCell(r,4).font={bold:true}; sh.getCell(r,5).value=Math.round(totOre*10)/10; sh.getCell(r,5).font={bold:true}; for(let j=1;j<=6;j++) sh.getCell(r,j).border=_bord(); r++;
+      sh.mergeCells(r,1,r,6); sh.getCell(r,1).value='Semnătura se acceptă și fără. Document pentru dosarul punctului de lucru.'; sh.getCell(r,1).font={italic:true,size:8,color:{argb:'FF999999'}}; r+=2;
+    }
+    sh.getColumn(1).width=13; sh.getColumn(2).width=11; sh.getColumn(3).width=12; sh.getColumn(4).width=12; sh.getColumn(5).width=8; sh.getColumn(6).width=22;
+  }
+  await dwnXLSX(wb, `Pontaj_Individual_${lunaNume}_${an}.xlsx`);
+  toast('✓ Pontaj individual descărcat');
 }
 function exportRap(){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(DB.raportari), 'Raportare'); dwn(wb,`Raportare_${todayISO()}.xlsx`); }
 function exportDif(){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(DB.diferente.map(d=>({...d,magazin:mag(d.magazin)}))), 'Diferente'); dwn(wb,`Diferente_${todayISO()}.xlsx`); }
