@@ -6301,6 +6301,9 @@ function editAngHR(i) {
         <div class="form-field"><label>Tichete în weekend?</label>
           <select id="hrTichetWk"><option value="" ${a.tichetWeekend==null||a.tichetWeekend===''?'selected':''}>Auto (din program)</option><option value="true" ${a.tichetWeekend===true||a.tichetWeekend==='true'?'selected':''}>Da (2+2)</option><option value="false" ${a.tichetWeekend===false||a.tichetWeekend==='false'?'selected':''}>Nu (7h/8h)</option></select>
         </div>
+        <div class="form-field"><label>Mod tichete</label>
+          <select id="hrTichetMod"><option value="" ${!a.tichetPerZi?'selected':''}>Formulă ROUND(ore/8)</option><option value="true" ${a.tichetPerZi===true||a.tichetPerZi==='true'?'selected':''}>1 tichet / zi lucrată</option></select>
+        </div>
       </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
@@ -6326,6 +6329,7 @@ function saveAngHR(i) {
   const os = document.getElementById('hrOreSat').value; a.oreSambata = os!=='' ? os : '';
   const nf = document.getElementById('hrNormaFix').value; a.normaLunaFixa = nf!=='' ? nf : '';
   const tw = document.getElementById('hrTichetWk').value; a.tichetWeekend = tw!=='' ? (tw==='true') : '';
+  const tm = document.getElementById('hrTichetMod').value; a.tichetPerZi = tm==='true';
   save(); closeModal(); renderSetari(); toast('Date HR salvate');
 }
 
@@ -6895,9 +6899,9 @@ async function exportCentralizator(){
         const n=a.nume, cfg=normConfigAngajat(a);
         sh.getCell(r,1).value=n; sh.getCell(r,1).font={bold:true,size:9};
         sh.getCell(r,2).value=a.rol||''; sh.getCell(r,3).value=p;
-        let tot=0, zl=0, co=0, oreTichet=0;
+        let tot=0, zl=0, co=0, oreTichet=0, zileTichet=0;
         for(let z=1;z<=nzile;z++){ const rec=byday[n+'|'+z]||['','']; const v=tipCelula(rec[0],rec[1]); const c=sh.getCell(r,3+z); c.value=v; c.alignment={horizontal:'center'}; c.font={size:9}; c.border=_bord(); const dw=dow(z);
-          if(typeof v==='number'){tot+=v; zl++; if(dw<5||cfg.tw) oreTichet+=v;}
+          if(typeof v==='number'){tot+=v; zl++; if(dw<5||cfg.tw){oreTichet+=v; zileTichet++;}}
           else if(v==='NU'){c.font={size:9,color:{argb:'FFAAAAAA'}};}
           else if(v==='CO'){c.fill=_fill('FFFFF3CD'); co++;}
           else if(v==='CM'){c.fill=_fill('FFFDE2E2');}
@@ -6907,9 +6911,10 @@ async function exportCentralizator(){
         const oreTichetCol=_colLetter(base+7), ticheteCol=_colLetter(base+8), valCol=_colLetter(base+9);
         const valTichet=(a.valoareTichet!=null&&a.valoareTichet!=='')?parseFloat(a.valoareTichet):'';
         [[1,Math.round(tot*10)/10],[2,nrm],[3,dif],[4,over?'⚠':''],[5,zl],[6,co],[7,Math.round(oreTichet*10)/10]].forEach(([off,val])=>{ const c=sh.getCell(r,base+off); c.value=val; c.alignment={horizontal:'center'}; c.font={size:9}; c.border=_bord(); });
-        const tc=sh.getCell(r,base+8); tc.value={formula:`ROUND(${oreTichetCol}${r}/8,0)`}; tc.alignment={horizontal:'center'}; tc.font={size:9,bold:true}; tc.border=_bord();
-        const vc=sh.getCell(r,base+9); vc.value=valTichet; vc.alignment={horizontal:'center'}; vc.font={size:9}; vc.border=_bord();
-        const ttc=sh.getCell(r,base+10); ttc.value={formula:`${ticheteCol}${r}*${valCol}${r}`}; ttc.alignment={horizontal:'center'}; ttc.font={size:9}; ttc.border=_bord();
+        const perZiTichet=(a.tichetPerZi===true||a.tichetPerZi==='true');
+        const tc=sh.getCell(r,base+8); tc.value = perZiTichet ? zileTichet : {formula:`ROUND(${oreTichetCol}${r}/8,0)`}; tc.alignment={horizontal:'center'}; tc.font={size:9,bold:true}; tc.border=_bord();
+        const vc=sh.getCell(r,base+9); if(valTichet!=='') vc.value=valTichet; vc.alignment={horizontal:'center'}; vc.font={size:9}; vc.border=_bord();
+        const ttc=sh.getCell(r,base+10); ttc.value={formula:`IF(${valCol}${r}="","",${ticheteCol}${r}*${valCol}${r})`}; ttc.alignment={horizontal:'center'}; ttc.font={size:9}; ttc.border=_bord();
         for(let cc=1;cc<=3;cc++) sh.getCell(r,cc).border=_bord();
         if(over){ for(let cc=base+1;cc<=totalCols;cc++) sh.getCell(r,cc).fill=_fill('FFF8CBCB'); sh.getCell(r,base+3).font={bold:true,color:{argb:'FFB00020'},size:9}; sh.getCell(r,base+4).font={bold:true,color:{argb:'FFB00020'}}; }
         else sh.getCell(r,base+3).font={color:{argb:'FF1F7A4D'},size:9};
