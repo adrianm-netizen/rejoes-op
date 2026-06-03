@@ -3668,16 +3668,20 @@ function stergeToateExtrase() {
 
 /* ============ FAZA 2 — RECONCILIERE FACTURI ↔ PLĂȚI ============ */
 let bankTxCache = null;       // cache tranzacții din IndexedDB (încărcat la nevoie)
-let bankTxLoading = false;
+let bankTxLoadPromise = null; // promisiune în curs — apelanții concurenți o așteaptă pe aceeași
 
 async function ensureBankTxCache(forceReload) {
   if (bankTxCache && !forceReload) return bankTxCache;
-  if (bankTxLoading) return null;
-  bankTxLoading = true;
-  try { bankTxCache = await idbBankGetAll(); }
-  catch(e) { console.error('Încărcare bank_tx', e); bankTxCache = []; }
-  bankTxLoading = false;
-  return bankTxCache;
+  // Dacă o încărcare e deja în curs, așteaptă ACEEAȘI promisiune (evită race condition
+  // între reconciliere și lista de tranzacții care cer datele simultan).
+  if (bankTxLoadPromise && !forceReload) return bankTxLoadPromise;
+  bankTxLoadPromise = (async () => {
+    try { bankTxCache = await idbBankGetAll(); }
+    catch(e) { console.error('Încărcare bank_tx', e); bankTxCache = []; }
+    bankTxLoadPromise = null;
+    return bankTxCache;
+  })();
+  return bankTxLoadPromise;
 }
 
 // Normalizare nume (diacritice, semne) pentru potrivire
