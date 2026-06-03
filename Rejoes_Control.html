@@ -3083,9 +3083,10 @@ function renderImport() {
         <button class="btn" onclick="exportRap()">Raportări</button>
         <button class="btn" onclick="exportDif()">Diferențe</button>
         <button class="btn" onclick="exportInv()">Inventar</button>
-        <button class="btn" onclick="exportBackup()">💾 Backup JSON</button>
+        <button class="btn btn-primary" onclick="exportBackup()" style="background:#0a7d3b;border-color:#0a7d3b" title="Salvează TOT: pontaj, e:Corg, extrase bancare, facturi — backupul complet pentru siguranță">💾 Backup JSON (COMPLET — pentru siguranță)</button>
         <label class="btn" style="cursor:pointer">📤 Restaurează backup<input type="file" accept=".json" style="display:none" onchange="importBackup(event)"></label>
       </div>
+      <p style="margin-top:8px;font-size:12px;color:#0a7d3b">✅ <strong>Acesta</strong> e backupul de siguranță complet — salvează absolut toate datele (inclusiv e:Corg și extrasele bancare). Fă-l periodic și mută fișierul în folderul OneDrive Pontaj.</p>
     </div>
   `;
 }
@@ -5049,6 +5050,15 @@ function renderBackupTab(body) {
   const backups = DB._backups || [];
   const totalKB = backups.reduce((s,b)=>s+(b.sizeKB||0), 0);
   body.innerHTML = `
+    <div class="card" style="background:#fdecea;border:2px solid #c0392b;border-left:6px solid #c0392b;margin-bottom:14px">
+      <h3 style="font-size:15px;color:#922b21;margin-bottom:6px">⚠️ ATENȚIE — pentru backup de siguranță NU folosi butoanele de aici!</h3>
+      <p style="font-size:13px;color:#7b241c;margin-bottom:10px">
+        Snapshot-urile din această pagină sunt <strong>parțiale</strong> — NU conțin datele e:Corg (Financial, Receipt, facturi) și NICI extrasele bancare.
+        Dacă vrei un backup complet în caz că pierzi datele, mergi la <strong>Import / Export → 💾 Backup JSON</strong>. Acela salvează TOT.
+      </p>
+      <button class="btn btn-primary btn-sm" onclick="go('import')" style="background:#c0392b;border-color:#c0392b">📥 Du-mă la Import / Export pentru backup complet</button>
+    </div>
+
     <div class="card" style="background:#fef9e7;border-left:4px solid var(--warning);margin-bottom:14px">
       <h3 style="font-size:14px;color:#92660e;margin-bottom:6px">🛡 De ce backup?</h3>
       <p style="font-size:12px;color:var(--text-muted)">
@@ -5059,7 +5069,7 @@ function renderBackupTab(body) {
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
       <button class="btn btn-primary btn-sm" onclick="manualBackup()">📸 Backup manual nou</button>
-      <button class="btn btn-sm" onclick="downloadFullDB()">⬇️ Descarcă snapshot complet ACUM</button>
+      <button class="btn btn-sm" onclick="downloadFullDB()" title="Parțial — fără date e:Corg și extrase bancare. Pentru backup complet folosește Import/Export → Backup JSON">⬇️ Descarcă snapshot parțial</button>
       <label class="btn btn-sm" style="cursor:pointer">📤 Import backup din fișier<input type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(event)"></label>
       <button class="btn btn-sm" onclick="exportPontajSAGA()">📊 Export pontaj SAGA (CSV)</button>
     </div>
