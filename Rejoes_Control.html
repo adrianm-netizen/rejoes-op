@@ -3555,9 +3555,14 @@ function parseBtNum(s) {
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 }
+// Convertește DD/MM/YYYY → YYYY-MM-DD
+function btDateToISO(s) {
+  const m = (s||'').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+}
 function parseBtCsv(text) {
   const lines = text.split(/\r?\n/);
-  const h = {}; let txCount = 0;
+  const h = {}; let txCount = 0; const transactions = [];
   for (let i = 0; i < lines.length; i++) {
     const cells = parseCsvLine(lines[i]);
     const key = (cells[0]||'').trim().replace(/:$/,'');
@@ -3569,11 +3574,24 @@ function parseBtCsv(text) {
     else if (key === 'Sold final cont') h.soldFinal = parseBtNum(cells[1]);
     else if (key === 'Rulaj total cont DEBIT') h.debitTotal = parseBtNum(cells[1]);
     else if (key === 'Rulaj total cont CREDIT') h.creditTotal = parseBtNum(cells[1]);
-    else if (/^\d{2}\/\d{2}\/\d{4}$/.test((cells[0]||'').trim()) && cells.length >= 7) txCount++;
+    else if (/^\d{2}\/\d{2}\/\d{4}$/.test((cells[0]||'').trim()) && cells.length >= 7) {
+      txCount++;
+      // Coloane: Data tranz, Data valuta, Referinta, Tip tranzactie, Descriere, Debit, Credit
+      transactions.push({
+        data: btDateToISO(cells[0]),
+        dataValuta: btDateToISO(cells[1]),
+        ref: (cells[2]||'').trim(),
+        tip: (cells[3]||'').trim(),
+        descriere: (cells[4]||'').trim(),
+        debit: parseBtNum(cells[5]) || 0,
+        credit: parseBtNum(cells[6]) || 0
+      });
+    }
   }
   const m = (h.dela||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   h.period = m ? `${m[3]}-${m[2]}` : null;
   h.txCount = txCount;
+  h.transactions = transactions;
   if (!h.acc || !h.period) return null;
   return h;
 }
@@ -3584,7 +3602,8 @@ async function importExtraseBancare(event) {
   if (typeof JSZip === 'undefined') { if(log) log.innerHTML = '<span style="color:var(--danger)">⚠ JSZip nu s-a încărcat — verifică internetul și reîncarcă pagina.</span>'; return; }
   if (log) log.innerHTML = '⏳ Procesez extrasele...';
   if (!DB.bankStatements) DB.bankStatements = { imports: [], cashUpdatedFrom: null };
-  const byPeriod = {}; let csvCount = 0, errors = 0;
+  const byPeriod = {}; let csvCount = 0, errors = 0, txTotal = 0;
+  const txByAccPeriod = {}; // 'IBAN|YYYY-MM' -> [tx,...] pentru scriere în IndexedDB
   for (const f of files) {
     try {
       let csvs = [];
@@ -3602,9 +3621,21 @@ async function importExtraseBancare(event) {
         csvCount++;
         if (!byPeriod[rec.period]) byPeriod[rec.period] = {};
         byPeriod[rec.period][rec.acc] = { acc: rec.acc, cur: rec.cur, descriere: rec.descriere, soldInitial: rec.soldInitial, soldFinal: rec.soldFinal, debitTotal: rec.debitTotal, creditTotal: rec.creditTotal, txCount: rec.txCount };
+        const accPeriod = rec.acc + '|' + rec.period;
+        txByAccPeriod[accPeriod] = (rec.transactions||[]).map(t => ({ ...t, acc: rec.acc, cur: rec.cur, period: rec.period, accPeriod }));
+        txTotal += (rec.transactions||[]).length;
       }
     } catch(e) { errors++; console.error('Extras', f.name, e); }
   }
+  // Scrie tranzacțiile în IndexedDB — dedup: șterge întâi cont+lună existent, apoi inserează
+  let txWritten = 0;
+  try {
+    for (const accPeriod of Object.keys(txByAccPeriod)) {
+      await idbBankDeleteByAccPeriod(accPeriod);
+      if (txByAccPeriod[accPeriod].length) txWritten += await idbBankInsert(txByAccPeriod[accPeriod]);
+    }
+    bankTxCache = null; // invalidează cache-ul ca să reîncarce tranzacțiile noi
+  } catch(e) { console.error('Scriere bank_tx în IndexedDB', e); }
   let added = 0, updated = 0;
   Object.keys(byPeriod).forEach(period => {
     const accounts = Object.values(byPeriod[period]);
@@ -3622,15 +3653,249 @@ async function importExtraseBancare(event) {
     DB.bankStatements.cashUpdatedFrom = last.period;
   }
   save();
-  if (log) log.innerHTML = `<span style="color:var(--accent-hover)">✓ ${csvCount} extrase procesate · ${added} luni noi, ${updated} actualizate${errors?` · ${errors} erori (vezi consola)`:''}. Cash în bancă setat din ${last?last.period:'-'}: <strong>${fmt(DB.balantaCashBank)} RON</strong>.</span>`;
+  if (log) log.innerHTML = `<span style="color:var(--accent-hover)">✓ ${csvCount} extrase procesate · ${added} luni noi, ${updated} actualizate · ${txWritten} tranzacții salvate${errors?` · ${errors} erori (vezi consola)`:''}. Cash în bancă setat din ${last?last.period:'-'}: <strong>${fmt(DB.balantaCashBank)} RON</strong>.</span>`;
   toast(`✓ Extrase importate: ${added+updated} luni`);
   try { cloudPushEcorgData(); } catch(e){} // backup cloud auto
   setTimeout(() => renderSetari(), 800);
 }
 function stergeToateExtrase() {
-  if (!confirm('Ștergi toate extrasele bancare importate? (Soldul de cash setat manual rămâne.)')) return;
+  if (!confirm('Ștergi toate extrasele bancare importate? (Soldul de cash setat manual rămâne. Se șterg și tranzacțiile din IndexedDB.)')) return;
   DB.bankStatements = { imports: [], cashUpdatedFrom: null };
-  save(); renderSetari(); toast('Extrase șterse');
+  idbBankDeleteAll().catch(e => console.error('Ștergere bank_tx', e));
+  bankTxCache = null;
+  save(); renderSetari(); toast('Extrase + tranzacții șterse');
+}
+
+/* ============ FAZA 2 — RECONCILIERE FACTURI ↔ PLĂȚI ============ */
+let bankTxCache = null;       // cache tranzacții din IndexedDB (încărcat la nevoie)
+let bankTxLoading = false;
+
+async function ensureBankTxCache(forceReload) {
+  if (bankTxCache && !forceReload) return bankTxCache;
+  if (bankTxLoading) return null;
+  bankTxLoading = true;
+  try { bankTxCache = await idbBankGetAll(); }
+  catch(e) { console.error('Încărcare bank_tx', e); bankTxCache = []; }
+  bankTxLoading = false;
+  return bankTxCache;
+}
+
+// Normalizare nume (diacritice, semne) pentru potrivire
+function normNume(s) {
+  return (s||'').toUpperCase()
+    .replace(/[ȘŞ]/g,'S').replace(/[ȚŢ]/g,'T').replace(/[ĂÂ]/g,'A').replace(/Î/g,'I')
+    .replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+}
+const RECON_STOPWORDS = new Set(['SRL','SA','SRO','PFA','IFN','SNC','SCS','COMPANY','TRADE','SERV','SERVICE','SERVICES','GRUP','GROUP','COM','PROD','PRODUCTION','IMPEX','DISTRIBUTION','DISTRIBUTIE','LOGISTIC','LOGISTICS','ROMANIA','THE','AND','SC','CONSULTING','SOLUTIONS','INTERNATIONAL']);
+function numeTokens(s) {
+  return normNume(s).split(' ').filter(w => w.length >= 3 && !RECON_STOPWORDS.has(w));
+}
+// Câte zile între două date ISO (b - a)
+function zileIntre(aISO, bISO) {
+  if (!aISO || !bISO) return null;
+  return Math.round((new Date(bISO) - new Date(aISO)) / 86400000);
+}
+
+// Găsește tranzacții candidate (debit) pentru o factură. Întoarce listă sortată după scor.
+function gasestePotriviri(factura, txDebit) {
+  const suma = parseEfacturaAmount(factura.Total);
+  if (!suma) return [];
+  const tokens = numeTokens(factura.SupplierName);
+  const issueISO = (factura.Date && /^\d{2}\.\d{2}\.\d{4}$/.test(factura.Date))
+    ? (() => { const [d,m,y]=factura.Date.split('.'); return `${y}-${m}-${d}`; })() : null;
+  const scadISO = factura.scadenta || null;
+  const out = [];
+  for (const t of txDebit) {
+    const dif = Math.abs((t.debit||0) - suma);
+    if (dif > 0.05) continue; // sumă trebuie să coincidă (toleranță 5 bani)
+    const descN = normNume(t.descriere) + ' ' + normNume(t.tip);
+    const tokenHits = tokens.filter(tok => descN.includes(tok));
+    const supplierScore = tokens.length ? tokenHits.length / tokens.length : 0;
+    // Fereastră dată: de la 5 zile înainte de emitere până la 45 zile după scadență
+    let dateScore = 0, zileFataDeScad = null;
+    if (t.data) {
+      if (scadISO) zileFataDeScad = zileIntre(scadISO, t.data);
+      const dupaEmitere = issueISO ? zileIntre(issueISO, t.data) : 0;
+      const inFereastra = (dupaEmitere === null || dupaEmitere >= -5) &&
+                          (scadISO ? (zileFataDeScad <= 45) : (dupaEmitere <= 75));
+      if (inFereastra) {
+        const absScad = zileFataDeScad !== null ? Math.abs(zileFataDeScad) : 30;
+        dateScore = absScad <= 15 ? 1 : (absScad <= 45 ? 0.5 : 0.2);
+      }
+    }
+    // Nivel încredere conform criteriului ales: sumă + furnizor + dată
+    let nivel;
+    if (supplierScore > 0 && dateScore >= 0.5) nivel = 'high';
+    else if (supplierScore > 0 || dateScore >= 0.5) nivel = 'medium';
+    else nivel = 'low'; // doar sumă
+    const scor = supplierScore * 100 + dateScore * 40 + (10 - Math.min(10, dif*100));
+    out.push({ tx: t, nivel, scor, supplierScore, tokenHits, zileFataDeScad });
+  }
+  out.sort((a,b) => b.scor - a.scor);
+  return out;
+}
+
+// Construiește raportul de reconciliere pentru toate facturile neachitate
+function construiesteReconciliere() {
+  const achizitii = (DB.ecorgImports && DB.ecorgImports.achizitii) || [];
+  const txDebit = (bankTxCache||[]).filter(t => (t.debit||0) > 0);
+  const rezultate = [];
+  achizitii.forEach((batch, bi) => {
+    (batch.facturi||[]).forEach((f, fi) => {
+      if ((f.status||'neachitata') !== 'neachitata') return;
+      const potriviri = gasestePotriviri(f, txDebit);
+      rezultate.push({ batchIdx: bi, facturaIdx: fi, factura: f, potriviri });
+    });
+  });
+  // Sortează: cele cu potrivire high primele, apoi după sumă desc
+  rezultate.sort((a,b) => {
+    const na = a.potriviri[0]?.nivel === 'high' ? 0 : a.potriviri.length ? 1 : 2;
+    const nb = b.potriviri[0]?.nivel === 'high' ? 0 : b.potriviri.length ? 1 : 2;
+    if (na !== nb) return na - nb;
+    return parseEfacturaAmount(b.factura.Total) - parseEfacturaAmount(a.factura.Total);
+  });
+  return rezultate;
+}
+
+// Confirmă manual o plată găsită pentru o factură
+function confirmaPlata(batchIdx, facturaIdx, txRef, txData, suma) {
+  const f = DB.ecorgImports?.achizitii?.[batchIdx]?.facturi?.[facturaIdx];
+  if (!f) { toast('Factură negăsită'); return; }
+  f.status = 'achitata_firma';
+  f.dataAchitare = txData || todayISO();
+  f.plataRef = txRef || '';
+  f.plataDebit = suma || parseEfacturaAmount(f.Total);
+  f.reconciliat = true;
+  recalcAchizitiiTotaluri(batchIdx);
+  save();
+  toast('✓ Factură marcată achitată (firmă)');
+  renderReconciliereBox();
+  try { cloudPushEcorgData(); } catch(e){}
+}
+
+// Recalculează (statusurile sunt derivate la afișare, dar păstrăm hook pentru viitor)
+function recalcAchizitiiTotaluri(batchIdx) { /* totalSum rămâne suma facturilor; statusul e per factură */ }
+
+const RECON_NIVEL = {
+  high:   { txt: 'Sigur',  bg: '#f0f7f3', color: '#0a7d3b', bord: '#0a7d3b' },
+  medium: { txt: 'Posibil', bg: '#fffbeb', color: '#b45309', bord: '#f59e0b' },
+  low:    { txt: 'Doar sumă', bg: '#f8fafc', color: '#64748b', bord: '#cbd5e1' }
+};
+
+// Randează panoul de reconciliere (async — citește din IndexedDB)
+async function renderReconciliereBox() {
+  const box = document.getElementById('reconciliereBox');
+  if (!box) return;
+  await ensureBankTxCache();
+  const txDebitCount = (bankTxCache||[]).filter(t => (t.debit||0) > 0).length;
+  if (!bankTxCache || bankTxCache.length === 0) {
+    box.innerHTML = `<p style="color:var(--text-muted);font-size:13px">Nicio tranzacție bancară încărcată. Importă întâi extrasele bancare (ZIP) mai sus, apoi revino aici.</p>`;
+    return;
+  }
+  const rez = construiesteReconciliere();
+  if (rez.length === 0) {
+    box.innerHTML = `<p style="color:#0a7d3b;font-size:13px">✓ Nu există facturi neachitate de reconciliat. Toate sunt marcate (achitată / privat / anulată).</p>`;
+    return;
+  }
+  const cuPotrivire = rez.filter(r => r.potriviri.length > 0).length;
+  box.innerHTML = `
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+      ${rez.length} facturi neachitate · ${cuPotrivire} au plăți posibile în extrase (${txDebitCount} tranzacții debit analizate).
+      Verifică sugestia și apasă <strong>Confirmă</strong> pentru a marca factura achitată din firmă.
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Furnizor</th><th>Factură</th><th class="num">Sumă</th><th>Scadență</th><th>Plată găsită în extras</th><th></th></tr></thead>
+      <tbody>${rez.map(r => {
+        const f = r.factura;
+        const suma = parseEfacturaAmount(f.Total);
+        const best = r.potriviri[0];
+        let plataCol, actiune;
+        if (!best) {
+          plataCol = `<span style="color:var(--text-muted);font-size:12px">— nicio plată cu această sumă —</span>`;
+          actiune = '';
+        } else {
+          const nv = RECON_NIVEL[best.nivel];
+          const zile = best.zileFataDeScad;
+          const zileTxt = zile === null ? '' : (zile === 0 ? 'fix la scadență' : (zile > 0 ? `+${zile}z după scad.` : `${zile}z`));
+          plataCol = `
+            <div style="background:${nv.bg};border-left:3px solid ${nv.bord};padding:6px 9px;border-radius:6px">
+              <span class="badge" style="background:${nv.bord};color:#fff;font-size:9px">${nv.txt}</span>
+              <strong style="font-size:12px"> ${fmt(best.tx.debit)} RON</strong>
+              <div style="font-size:11px;color:var(--text-muted)">${best.tx.data||'?'} · ${best.tx.acc?best.tx.acc.slice(-4):''} ${zileTxt?'· '+zileTxt:''}</div>
+              <div style="font-size:10.5px;color:#475569;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(best.tx.descriere)}">${escapeHtml(best.tx.descriere||best.tx.tip||'')}</div>
+              ${r.potriviri.length > 1 ? `<div style="font-size:10px;color:var(--text-muted)">+${r.potriviri.length-1} alte plăți cu aceeași sumă</div>` : ''}
+            </div>`;
+          actiune = `<button class="btn btn-sm btn-primary" style="background:#0a7d3b;border-color:#0a7d3b" onclick="confirmaPlata(${r.batchIdx},${r.facturaIdx},'${escapeHtml(best.tx.ref)}','${best.tx.data||''}',${best.tx.debit})">✓ Confirmă</button>`;
+        }
+        return `<tr>
+          <td><strong style="font-size:12px">${escapeHtml(f.SupplierName||'—')}</strong></td>
+          <td><small>${escapeHtml(f.Number||'')}<br>${f.Date||''}</small></td>
+          <td class="num"><strong>${fmt(suma)}</strong></td>
+          <td><small>${f.scadenta||'—'}</small></td>
+          <td>${plataCol}</td>
+          <td>${actiune}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+}
+
+// ---- Listă tranzacții filtrabilă ----
+let txFilter = { acc: '', period: '', tip: '', q: '' };
+async function renderTranzactiiBox() {
+  const box = document.getElementById('tranzactiiBox');
+  if (!box) return;
+  await ensureBankTxCache();
+  const all = bankTxCache || [];
+  if (all.length === 0) {
+    box.innerHTML = `<p style="color:var(--text-muted);font-size:13px">Nicio tranzacție. Importă extrasele bancare (ZIP) mai sus.</p>`;
+    return;
+  }
+  const accs = [...new Set(all.map(t => t.acc))].sort();
+  const periods = [...new Set(all.map(t => t.period))].sort().reverse();
+  const q = (txFilter.q||'').toUpperCase();
+  let rows = all.filter(t =>
+    (!txFilter.acc || t.acc === txFilter.acc) &&
+    (!txFilter.period || t.period === txFilter.period) &&
+    (!txFilter.tip || (txFilter.tip === 'debit' ? (t.debit>0) : (t.credit>0))) &&
+    (!q || (normNume(t.descriere)+' '+normNume(t.tip)+' '+(t.ref||'')).toUpperCase().includes(q))
+  );
+  rows.sort((a,b) => (b.data||'').localeCompare(a.data||''));
+  const totalDeb = rows.reduce((s,t)=>s+(t.debit||0),0);
+  const totalCre = rows.reduce((s,t)=>s+(t.credit||0),0);
+  const LIMIT = 300;
+  const shown = rows.slice(0, LIMIT);
+  box.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+      <select onchange="txFilter.acc=this.value;renderTranzactiiBox()" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:12px">
+        <option value="">Toate conturile</option>
+        ${accs.map(a=>`<option value="${a}" ${txFilter.acc===a?'selected':''}>${a.slice(0,4)}…${a.slice(-4)} (${all.filter(t=>t.acc===a)[0]?.cur||''})</option>`).join('')}
+      </select>
+      <select onchange="txFilter.period=this.value;renderTranzactiiBox()" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:12px">
+        <option value="">Toate lunile</option>
+        ${periods.map(p=>`<option value="${p}" ${txFilter.period===p?'selected':''}>${p}</option>`).join('')}
+      </select>
+      <select onchange="txFilter.tip=this.value;renderTranzactiiBox()" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-size:12px">
+        <option value="">Debit + Credit</option>
+        <option value="debit" ${txFilter.tip==='debit'?'selected':''}>Doar ieșiri (debit)</option>
+        <option value="credit" ${txFilter.tip==='credit'?'selected':''}>Doar intrări (credit)</option>
+      </select>
+      <input type="text" placeholder="Caută în descriere / referință…" value="${escapeHtml(txFilter.q||'')}" oninput="txFilter.q=this.value;clearTimeout(window._txQT);window._txQT=setTimeout(renderTranzactiiBox,250)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;flex:1;min-width:160px">
+      ${(txFilter.acc||txFilter.period||txFilter.tip||txFilter.q)?`<button class="btn btn-sm btn-ghost" onclick="txFilter={acc:'',period:'',tip:'',q:''};renderTranzactiiBox()">✕ resetează</button>`:''}
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
+      ${rows.length} tranzacții · ieșiri <strong style="color:var(--danger)">${fmt(totalDeb)}</strong> · intrări <strong style="color:var(--accent-hover)">${fmt(totalCre)}</strong>${rows.length>LIMIT?` · se afișează primele ${LIMIT}`:''}
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Data</th><th>Cont</th><th>Tip</th><th>Descriere</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+      <tbody>${shown.map(t=>`<tr>
+        <td><small>${t.data||'?'}</small></td>
+        <td><small>…${(t.acc||'').slice(-4)}</small></td>
+        <td><small>${escapeHtml(t.tip||'')}</small></td>
+        <td><small title="${escapeHtml(t.descriere)}" style="display:block;max-width:340px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(t.descriere||'')}</small></td>
+        <td class="num">${t.debit?`<span style="color:var(--danger)">${fmt(t.debit)}</span>`:''}</td>
+        <td class="num">${t.credit?`<span style="color:var(--accent-hover)">${fmt(t.credit)}</span>`:''}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
 }
 
 function renderEcorgTab(body) {
@@ -3868,6 +4133,25 @@ function renderEcorgTab(body) {
       </div>
     </div>
 
+    <div class="card" style="margin-bottom:14px;border-left:4px solid #0a7d3b">
+      <div class="section-head">
+        <h3 style="font-size:14px;margin:0">🔗 Reconciliere facturi ↔ plăți din extras</h3>
+        <button class="btn btn-sm btn-ghost" onclick="ensureBankTxCache(true).then(renderReconciliereBox)" title="Reîncarcă din IndexedDB">↻ Reîmprospătează</button>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin:8px 0">
+        Aplicația caută în extrasele bancare plăți care se potrivesc cu facturile neachitate (aceeași sumă + numele furnizorului + dată apropiată de scadență). Verifici sugestia și confirmi achitarea — nimic nu se marchează automat.
+      </p>
+      <div id="reconciliereBox" style="margin-top:8px"><p style="color:var(--text-muted);font-size:13px">Se încarcă…</p></div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;border-left:4px solid #0ea5e9">
+      <div class="section-head">
+        <h3 style="font-size:14px;margin:0">📋 Tranzacții bancare — listă filtrabilă</h3>
+        <button class="btn btn-sm btn-ghost" onclick="ensureBankTxCache(true).then(renderTranzactiiBox)" title="Reîncarcă din IndexedDB">↻ Reîmprospătează</button>
+      </div>
+      <div id="tranzactiiBox" style="margin-top:8px"><p style="color:var(--text-muted);font-size:13px">Se încarcă…</p></div>
+    </div>
+
     <div class="card" style="margin-bottom:14px">
       <h3 style="font-size:14px;margin-bottom:10px">📊 Vânzări per categorie importate (${vc.length} fișiere)</h3>
       ${vc.length === 0 ? '<p style="color:var(--text-muted);font-size:13px">Niciun import încă. Exportă "Sales /Types of items" din e:Corg și încarcă fișierul aici.</p>' :
@@ -3910,6 +4194,8 @@ function renderEcorgTab(body) {
       </table></div>`}
     </div>
   `;
+  // Faza 2 — randează async panourile de reconciliere + tranzacții (citesc din IndexedDB)
+  setTimeout(() => { try { renderReconciliereBox(); renderTranzactiiBox(); } catch(e) { console.error(e); } }, 30);
 }
 
 async function importEcorgFiles(event) {
@@ -3989,8 +4275,9 @@ async function importEcorgFiles(event) {
 
 // ========== IndexedDB layer pentru receipt items (volume mari) ==========
 const IDB_NAME = 'rejoes_ecorg';
-const IDB_VERSION = 1;
+const IDB_VERSION = 2;
 const IDB_STORE_RECEIPTS = 'receipt_items';
+const IDB_STORE_BANKTX = 'bank_tx';   // Faza 2 extrase — tranzacții individuale
 
 function idbOpen() {
   return new Promise((resolve, reject) => {
@@ -4008,7 +4295,65 @@ function idbOpen() {
         store.createIndex('produs', 'produs', { unique: false });
         store.createIndex('sursa', 'sursa', { unique: false });
       }
+      if (!db.objectStoreNames.contains(IDB_STORE_BANKTX)) {
+        const bt = db.createObjectStore(IDB_STORE_BANKTX, { keyPath: 'id', autoIncrement: true });
+        bt.createIndex('accPeriod', 'accPeriod', { unique: false }); // 'IBAN|YYYY-MM' pentru dedup
+        bt.createIndex('acc', 'acc', { unique: false });
+        bt.createIndex('period', 'period', { unique: false });
+        bt.createIndex('data', 'data', { unique: false });
+      }
     };
+  });
+}
+
+// ---- bank_tx helpers (Faza 2) ----
+async function idbBankInsert(items) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE_BANKTX, 'readwrite');
+    const store = tx.objectStore(IDB_STORE_BANKTX);
+    items.forEach(it => store.add(it));
+    tx.oncomplete = () => { db.close(); resolve(items.length); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+async function idbBankDeleteByAccPeriod(accPeriod) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE_BANKTX, 'readwrite');
+    const idx = tx.objectStore(IDB_STORE_BANKTX).index('accPeriod');
+    const req = idx.openCursor(IDBKeyRange.only(accPeriod));
+    let n = 0;
+    req.onsuccess = (e) => { const c = e.target.result; if (c) { c.delete(); n++; c.continue(); } };
+    tx.oncomplete = () => { db.close(); resolve(n); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+async function idbBankDeleteAll() {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE_BANKTX, 'readwrite');
+    tx.objectStore(IDB_STORE_BANKTX).clear();
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+async function idbBankGetAll() {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE_BANKTX, 'readonly');
+    const req = tx.objectStore(IDB_STORE_BANKTX).getAll();
+    req.onsuccess = () => { db.close(); resolve(req.result||[]); };
+    req.onerror = () => { db.close(); reject(req.error); };
+  });
+}
+async function idbBankCount() {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE_BANKTX, 'readonly');
+    const req = tx.objectStore(IDB_STORE_BANKTX).count();
+    req.onsuccess = () => { db.close(); resolve(req.result); };
+    req.onerror = () => { db.close(); reject(req.error); };
   });
 }
 
