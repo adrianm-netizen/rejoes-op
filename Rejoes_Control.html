@@ -6724,7 +6724,81 @@ function exportPontajSaga() {
   toast('✓ Export SAGA descărcat. Formatul va fi ajustat la modelul Danei.');
 }
 
-function exportPontaj(){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(DB.pontaj.filter(p=>isLunaSelectata(p.data,pontajAn,pontajLuna))), `Pontaj_${LUNI_RO[pontajLuna-1]}`); dwn(wb,`Pontaj_${LUNI_RO[pontajLuna-1]}_${pontajAn}.xlsx`); }
+// Tip zi fără emoji (pentru raport curat)
+function tipCurat(tz){ const t = TIPURI_ZI.find(x => tz && tz.includes(x.id)); return t ? t.label : (tz||'').replace(/[🟢🔴📅🏖️🏥✋️]/g,'').trim(); }
+// Potrivire tolerantă nume pontaj ↔ baza angajați (ordine inversată / nume scurtat)
+function tokenizeNume(s){ return (s||'').toUpperCase().replace(/[ȘŞ]/g,'S').replace(/[ȚŢ]/g,'T').replace(/[ĂÂ]/g,'A').replace(/Î/g,'I').replace(/[-]/g,' ').replace(/[^A-Z ]/g,' ').split(/\s+/).filter(Boolean); }
+function gasesteAngajat(nume){
+  let a = DB.angajati.find(x => x.nume === nume);
+  if (a) return a;
+  const t = tokenizeNume(nume); if (!t.length) return null;
+  const ts = new Set(t);
+  return DB.angajati.find(x => {
+    const xt = tokenizeNume(x.nume); const xs = new Set(xt);
+    const shared = t.filter(w => xs.has(w)).length;
+    // potrivire dacă toate tokenele celui mai scurt sunt în celălalt ȘI ≥2 comune
+    const allShorterIn = (t.length <= xt.length) ? t.every(w => xs.has(w)) : xt.every(w => ts.has(w));
+    return shared >= 2 && allShorterIn;
+  }) || null;
+}
+// Statistici lunare per angajat (pentru export)
+function statPontajAngajat(nume, recs, an, luna){
+  const rs = recs.filter(r => r.angajat === nume).sort((a,b) => (a.data||'').localeCompare(b.data||''));
+  const zileLucrate = rs.filter(r => (r.tipZi||'').includes('Lucrat')).length;
+  const ore = rs.reduce((s,r) => s + (parseFloat(r.oreLucrate)||0), 0);
+  const concediuO = rs.filter(r => (r.tipZi||'').includes('Concediu Odihnă')).length;
+  const concediuM = rs.filter(r => (r.tipZi||'').includes('Concediu Medical')).length;
+  const libLegale = rs.filter(r => (r.tipZi||'').includes('Zi Liberă Legală')).length;
+  const libere = rs.filter(r => (r.tipZi||'').includes('Zi Liberă (NU)')).length;
+  const invoire = rs.filter(r => (r.tipZi||'').includes('Învoire')).length;
+  const angObj = gasesteAngajat(nume);
+  const norma = angObj ? normaForLuna(angObj.program, an, luna) : null;
+  return { rs, zileLucrate, ore, concediuO, concediuM, libLegale, libere, invoire, norma, program: angObj ? angObj.program : '—' };
+}
+function exportPontaj(){
+  const an = pontajAn, luna = pontajLuna, lunaNume = LUNI_RO[luna-1];
+  const recs = DB.pontaj.filter(p => isLunaSelectata(p.data, an, luna));
+  const angajati = [...new Set(recs.map(r => r.angajat))].sort((a,b) => a.localeCompare(b,'ro'));
+
+  // ---- Foaia 1: SUMAR (o linie per angajat) ----
+  const sumar = [
+    [`SUMAR PONTAJ — ${lunaNume} ${an}`],
+    [],
+    ['Angajat','Program','Normă (h)','Zile lucrate','Ore lucrate','Diferență (h)','Concediu odihnă','Concediu medical','Libere legale','Zile libere','Învoiri']
+  ];
+  let totOre = 0, totZile = 0, totNorma = 0;
+  angajati.forEach(n => {
+    const s = statPontajAngajat(n, recs, an, luna);
+    totOre += s.ore; totZile += s.zileLucrate; totNorma += (s.norma || 0);
+    const dif = s.norma ? +(s.ore - s.norma).toFixed(1) : '';
+    sumar.push([n, s.program, s.norma || '—', s.zileLucrate, +s.ore.toFixed(1), dif, s.concediuO, s.concediuM, s.libLegale, s.libere, s.invoire]);
+  });
+  sumar.push([]);
+  sumar.push(['TOTAL', '', totNorma, totZile, +totOre.toFixed(1), +(totOre - totNorma).toFixed(1), '', '', '', '', '']);
+  const wsSumar = XLSX.utils.aoa_to_sheet(sumar);
+  wsSumar['!cols'] = [{wch:30},{wch:16},{wch:10},{wch:12},{wch:12},{wch:13},{wch:15},{wch:15},{wch:13},{wch:11},{wch:9}];
+
+  // ---- Foaia 2: DETALIU pe zile, grupat pe angajat ----
+  const det = [[`DETALIU PONTAJ pe zile — ${lunaNume} ${an}`], []];
+  angajati.forEach(n => {
+    const s = statPontajAngajat(n, recs, an, luna);
+    det.push([`▼ ${n}   (${s.program} · normă ${s.norma||'—'}h)`]);
+    det.push(['Data','Zi','Locație','Tip zi','Start','Sfârșit','Ore','Observații']);
+    s.rs.forEach(r => {
+      const oreNum = parseFloat(r.oreLucrate);
+      det.push([r.data, dayOfWeek(r.data), r.locatie||'', tipCurat(r.tipZi), r.oraStart==='—'?'':r.oraStart||'', r.oraSfarsit==='—'?'':r.oraSfarsit||'', isNaN(oreNum)?'':oreNum, r.observatii||'']);
+    });
+    det.push(['', '', '', `TOTAL ${n}:`, '', '', +s.ore.toFixed(1), `${s.zileLucrate} zile lucrate`]);
+    det.push([]);
+  });
+  const wsDet = XLSX.utils.aoa_to_sheet(det);
+  wsDet['!cols'] = [{wch:12},{wch:5},{wch:22},{wch:18},{wch:8},{wch:8},{wch:7},{wch:24}];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsSumar, 'Sumar');
+  XLSX.utils.book_append_sheet(wb, wsDet, 'Detaliu pe zile');
+  dwn(wb, `Pontaj_${lunaNume}_${an}.xlsx`);
+}
 function exportRap(){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(DB.raportari), 'Raportare'); dwn(wb,`Raportare_${todayISO()}.xlsx`); }
 function exportDif(){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(DB.diferente.map(d=>({...d,magazin:mag(d.magazin)}))), 'Diferente'); dwn(wb,`Diferente_${todayISO()}.xlsx`); }
 function exportInv(){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(DB.inventar.map(it=>({...it,magazin:mag(it.magazin)}))), 'Inventar'); dwn(wb,`Inventar_${todayISO()}.xlsx`); }
