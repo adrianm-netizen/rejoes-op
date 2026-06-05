@@ -1,24 +1,14 @@
 {
-  "name": "Rejoes Operation Management",
-  "short_name": "Rejoes OpMgmt",
-  "start_url": "/rejoes-op/",
-  "scope": "/rejoes-op/",
+  "name": "Rejoes Op. Management",
+  "short_name": "S Colect",
+  "start_url": "Rejoes_Control.html",
+  "scope": ".",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0a1e14",
-  "theme_color": "#0a1e14",
-  "orientation": "any",
+  "theme_color": "#1f4a3a",
   "icons": [
-    {
-      "src": "/rejoes-op/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/rejoes-op/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "appicon_192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "appicon_512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ]
 }
