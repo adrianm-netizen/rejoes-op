@@ -9816,7 +9816,8 @@ function renderPreturi() {
     <div class="card">
       <div class="tabs">
         ${isAdmin ? `<div class="tab ${preturiTab==='pending'?'active':''}" onclick="preturiTab='pending';renderPreturi()">⏳ Pending aprobare <span style="background:var(--warning);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${countSortariPending()}</span></div>` : ''}
-        <div class="tab ${preturiTab==='aprobate'?'active':''}" onclick="preturiTab='aprobate';renderPreturi()">✓ Prețuri aprobate ${isAdmin?'':`<span style="background:var(--accent);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${countProduseAprobate()}</span>`}</div>
+        <div class="tab ${preturiTab==='aprobate'?'active':''}" onclick="preturiTab='aprobate';renderPreturi()">🆕 Din sortări ${isAdmin?'':`<span style="background:var(--accent);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${countProduseAprobate()}</span>`}</div>
+        <div class="tab ${preturiTab==='catalog'?'active':''}" onclick="preturiTab='catalog';renderPreturi()">📋 Din catalog</div>
         <div class="tab ${preturiTab==='discount'?'active':''}" onclick="preturiTab='discount';renderPreturi()">🏷 Discount ${nrDiscActive>0?`<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${nrDiscActive}</span>`:''}</div>
         ${isAdmin ? `<div class="tab ${preturiTab==='propuneri'?'active':''}" onclick="preturiTab='propuneri';renderPreturi()">🔔 Propuneri raft ${countPropuneriPret()>0?`<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${countPropuneriPret()}</span>`:''}</div>` : ''}
         ${isAdmin ? `<div class="tab ${preturiTab==='respinse'?'active':''}" onclick="preturiTab='respinse';renderPreturi()">✗ Respinse</div>` : ''}
@@ -9827,9 +9828,63 @@ function renderPreturi() {
   const body = document.getElementById('preturiBody');
   if (preturiTab === 'pending') renderPreturiPending(body);
   else if (preturiTab === 'aprobate') renderPreturiAprobate(body, isAdmin);
+  else if (preturiTab === 'catalog') renderPreturiCatalog(body, isAdmin);
   else if (preturiTab === 'discount') renderPreturiDiscount(body);
   else if (preturiTab === 'propuneri') renderPropuneriPret(body);
   else if (preturiTab === 'respinse') renderPreturiRespinse(body);
+}
+
+// Mod "Din catalog": caută orice produs din nomenclator, vede prețul actual, propune unul nou
+function renderPreturiCatalog(body, isAdmin) {
+  const magazineActive = DB.magazine.filter(m => m.status === 'Activ' && m.id && m.id.startsWith('MAG-'));
+  const q = (preturiSearch||'').toLowerCase().trim();
+  let rows = [];
+  if (q.length >= 1) {
+    rows = (DB.nomenclator||[]).filter(p =>
+      (p.denumire||'').toLowerCase().includes(q) ||
+      (p.categorie||'').toLowerCase().includes(q) ||
+      (p.cod||'').toLowerCase().includes(q)
+    ).sort((a,b)=>(a.denumire||'').localeCompare(b.denumire||'','ro')).slice(0, 80);
+  }
+  const locLabel = preturiMagSelector ? mag(preturiMagSelector).split(' ')[0] : 'GLOBAL';
+  body.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <select onchange="preturiMagSelector=this.value;renderPreturi()" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+        <option value="">🌐 Preț GLOBAL (toate magazinele)</option>
+        ${magazineActive.map(m => `<option value="${m.id}" ${m.id===preturiMagSelector?'selected':''}>${m.id} ${m.nume}</option>`).join('')}
+      </select>
+      <input type="text" id="preturiSearchInput" placeholder="🔍 caută produs (nume sau cod)..." oninput="onPreturiSearch(this.value)" value="${preturiSearch||''}" style="flex:1;min-width:220px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+    </div>
+    ${!isAdmin ? `<div style="background:#eef6f0;border-left:3px solid var(--accent);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:12px;color:#1f5b3d">📋 Caută orice produs din catalog, vezi prețul actual și apasă <strong>📤 Propune</strong>. Adrian aprobă, apoi devine oficial.</div>` : ''}
+    ${q.length < 1 ? `<div class="empty"><h4>Caută un produs</h4><p>Scrie numele sau codul produsului în bara de sus ca să ${isAdmin?'setezi':'propui'} un preț. (${(DB.nomenclator||[]).length} produse în catalog)</p></div>` :
+      rows.length === 0 ? `<div class="empty"><h4>Niciun produs</h4><p>Nimic pentru „${escapeHtml(q)}".</p></div>` :
+      `<div class="table-wrap"><table>
+        <thead><tr><th>Produs</th><th>Categorie</th><th class="num">Preț ${locLabel}</th><th class="num">Preț nou</th><th></th></tr></thead>
+        <tbody>${rows.map(p => {
+          const pretMag = preturiMagSelector ? getPretRaft(p.id, preturiMagSelector) : null;
+          const pretGlobal = getPretRaft(p.id, null);
+          const valDisplay = pretMag !== null ? pretMag : (preturiMagSelector ? '' : (pretGlobal || ''));
+          const selectorId = preturiMagSelector ? 'raft_'+p.id+'_'+preturiMagSelector : 'raft_'+p.id;
+          const setFn = preturiMagSelector ? `setPretRaftMag('${p.id}','${preturiMagSelector}')` : `setPretRaft('${p.id}')`;
+          const keyNow = preturiMagSelector || 'GLOBAL';
+          const props = (p.propuneriPret||[]).filter(pr => (pr.magazin||'GLOBAL')===keyNow);
+          const lastProp = props.length ? props[props.length-1] : null;
+          const propBadge = !lastProp ? '' :
+            lastProp.status==='propus' ? `<div style="font-size:10px;color:#b45309;margin-top:2px">⏳ propus ${fmt(lastProp.val)} — în așteptare</div>`
+            : lastProp.status==='aprobat' ? `<div style="font-size:10px;color:#0a7d3b;margin-top:2px">✓ ultima aprobată</div>`
+            : `<div style="font-size:10px;color:#b91c1c;margin-top:2px">✗ respins${lastProp.motiv?': '+escapeHtml(lastProp.motiv):''}</div>`;
+          return `<tr>
+            <td><strong>${escapeHtml(p.denumire||p.id)}</strong></td>
+            <td><small style="color:var(--text-muted)">${escapeHtml(p.categorie||'')}</small></td>
+            <td class="num">${valDisplay!==''&&valDisplay!=null?fmt(valDisplay):'<small style="color:var(--text-muted)">—</small>'}</td>
+            <td class="num"><input type="number" step="0.01" id="${selectorId}" placeholder="preț nou" style="width:100px;padding:5px 7px;border:1px solid var(--border);border-radius:5px;text-align:right">${propBadge}</td>
+            <td><button class="btn btn-sm btn-primary" onclick="${setFn}">${isAdmin ? '💾' : '📤 Propune'}</button></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`}
+  `;
+  const el = document.getElementById('preturiSearchInput');
+  if (el && document.activeElement !== el) { /* nu fura focus la randare normală */ }
 }
 
 // Numără propunerile de preț raft în așteptare (status 'propus')
@@ -10480,6 +10535,7 @@ function renderPreturiAprobate(body, isAdmin) {
         <button class="btn btn-sm btn-ghost" onclick="pretBulkClear()">✕</button>
       ` : ''}
     </div>
+    ${!isAdmin ? `<div style="background:#eef6f0;border-left:3px solid var(--accent);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:12px;color:#1f5b3d">📤 <strong>Cum propui un preț:</strong> scrie prețul în câmpul produsului și apasă <strong>📤 Propune</strong>. Adrian îl aprobă, apoi devine preț oficial. Aici apar doar produsele cu cost aprobat din sortări.</div>` : ''}
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
       ${preturiMagSelector ? `🏪 <strong>${mag(preturiMagSelector)}</strong> — prețurile setate aici sunt specifice acestui magazin. Cele goale folosesc prețul GLOBAL.` : `🌐 <strong>Preț GLOBAL</strong> — aplicat în toate magazinele când nu există preț specific pentru un magazin anume.`}
     </p>
@@ -10530,7 +10586,7 @@ function renderPreturiAprobate(body, isAdmin) {
             ${propBadge}
           </td>
           <td>
-            <button class="btn btn-sm btn-primary" onclick="${setFn}">💾</button>
+            <button class="btn btn-sm btn-primary" onclick="${setFn}">${isAdmin ? '💾' : '📤 Propune'}</button>
             ${istoricN>0?`<button class="btn btn-sm btn-ghost" onclick="showIstoricPreturi('${r.produsId}')" title="${istoricN} modificări">📈</button>`:''}
           </td>
         </tr>`;
