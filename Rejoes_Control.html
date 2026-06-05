@@ -9838,6 +9838,17 @@ function countPropuneriPret() {
   (DB.nomenclator||[]).forEach(p => (p.propuneriPret||[]).forEach(pr => { if (pr.status === 'propus') n++; }));
   return n;
 }
+// Căutare prețuri cu debounce + păstrarea focusului (evită re-render la fiecare literă)
+let _preturiSearchTimer = null;
+function onPreturiSearch(v) {
+  preturiSearch = v;
+  clearTimeout(_preturiSearchTimer);
+  _preturiSearchTimer = setTimeout(() => {
+    renderPreturi();
+    const el = document.getElementById('preturiSearchInput');
+    if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch(e){} }
+  }, 220);
+}
 
 function renderPreturiDiscount(body) {
   const today = todayISO();
@@ -10462,7 +10473,7 @@ function renderPreturiAprobate(body, isAdmin) {
         <option value="">🌐 Preț GLOBAL (toate magazinele)</option>
         ${magazineActive.map(m => `<option value="${m.id}" ${m.id===preturiMagSelector?'selected':''}>${m.id} ${m.nume}</option>`).join('')}
       </select>
-      <input type="text" placeholder="🔍 caută produs..." oninput="preturiSearch=this.value;renderPreturi()" value="${preturiSearch||''}" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+      <input type="text" id="preturiSearchInput" placeholder="🔍 caută produs..." oninput="onPreturiSearch(this.value)" value="${preturiSearch||''}" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px">
       ${preturiBulkSelectie.size > 0 ? `
         <span style="font-size:12px;color:var(--text-muted)"><strong>${preturiBulkSelectie.size}</strong> selectate</span>
         <button class="btn btn-sm btn-primary" onclick="pretBulkApply()">⚡ Bulk update</button>
@@ -10870,6 +10881,24 @@ function setAutoSync(enable) {
   }
 }
 
+// Colecții care se UNESC la sincronizare (nu se suprascriu) — protejează înregistrările
+// introduse pe un device de a fi șterse de altul cu date mai vechi/divergente.
+const _MERGE_COLLECTIONS = {
+  pontaj:    r => (r.data||'') + '|' + (r.angajat||''),
+  raportari: r => (r.data||'') + '|' + (r.magazin||'') + '|' + (r.casier||'')
+};
+function _mergeArrById(local, incoming, keyFn) {
+  const map = new Map();
+  (Array.isArray(local) ? local : []).forEach(r => { if (r) map.set(keyFn(r), r); });
+  (Array.isArray(incoming) ? incoming : []).forEach(r => {
+    if (!r) return;
+    const k = keyFn(r), ex = map.get(k);
+    if (!ex) map.set(k, r);
+    else if ((r.salvatLa||'') > (ex.salvatLa||'')) map.set(k, r); // păstrează cel mai recent
+  });
+  return [...map.values()];
+}
+
 // Live sync — ascultă modificările Firebase și aplică instant local
 function startLiveSync() {
   if (!window.FB) return;
@@ -10917,7 +10946,8 @@ function startLiveSync() {
         return;
       }
       // PROTECȚIE: cloud mult mai mic decât local (probabil push încă în curs)
-      if (localLen > 5 && cloudLen < localLen / 2) {
+      // — NU se aplică la colecțiile "merge" (pontaj/raportari): unirea nu pierde niciodată date locale
+      if (!_MERGE_COLLECTIONS[col] && localLen > 5 && cloudLen < localLen / 2) {
         console.log(`[live-sync] ${col} ignorat — cloud (${cloudLen}) << local (${localLen})`);
         return;
       }
@@ -10925,9 +10955,17 @@ function startLiveSync() {
       const localStr = JSON.stringify(DB[col] || []);
       const newStr = JSON.stringify(newData);
       if (localStr === newStr) return;
-      console.log(`[live-sync] ${col} actualizat din cloud (${newData.length} înregistrări)`);
       _applyingFromCloud = true;
-      DB[col] = newData;
+      if (_MERGE_COLLECTIONS[col]) {
+        // UNIRE: combină înregistrările locale cu cele din cloud (nu suprascrie)
+        const merged = _mergeArrById(DB[col], newData, _MERGE_COLLECTIONS[col]);
+        if (JSON.stringify(merged) === localStr) { _applyingFromCloud = false; return; }
+        console.log(`[live-sync] ${col} UNIT din cloud (local ${localLen} + cloud ${cloudLen} → ${merged.length})`);
+        DB[col] = merged;
+      } else {
+        console.log(`[live-sync] ${col} actualizat din cloud (${newData.length} înregistrări)`);
+        DB[col] = newData;
+      }
       _origSave(); // save direct, fără să triggeze auto-push
       _applyingFromCloud = false;
       invalidateEcorgCache();
