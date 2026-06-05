@@ -963,7 +963,7 @@ function renderPontaj() {
             <td>${r.oraStart||'—'}</td><td>${r.oraSfarsit||'—'}</td>
             <td class="num"><strong>${r.oreLucrate ? fmt(parseFloat(r.oreLucrate),1)+' h' : '—'}</strong></td>
             <td><small>${r.observatii||''}</small></td>
-            <td>${isAdmin() ? `<button class="btn btn-sm btn-ghost" onclick="editPontaj(${idx})">✎</button><button class="btn btn-sm btn-ghost" onclick="delPontaj(${idx})">×</button>` : '<small style="color:var(--text-muted)" title="Ajustările doar de admin">—</small>'}</td>
+            <td>${!isReadOnly() ? `<button class="btn btn-sm btn-ghost" onclick="editPontaj(${idx})">✎</button><button class="btn btn-sm btn-ghost" onclick="delPontaj(${idx})">×</button>` : '<small style="color:var(--text-muted)" title="Doar vizualizare">—</small>'}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>`}
@@ -1059,20 +1059,38 @@ function savePontaj(idx) {
     observatii: document.getElementById('pf_obs').value,
     salvatLa: nowISO()
   };
+  let modificare = false, prev = null;
   if (idx>=0) {
-    if (!isAdmin()) { toast('Ajustările existente le poate face doar adminul'); return; }
+    prev = DB.pontaj[idx];
+    modificare = true;
+    rec.modCount = ((prev && prev.modCount) || 0) + 1;
     DB.pontaj[idx] = rec;
   } else {
     // upsert: dacă există deja pentru data + angajat
     const i = DB.pontaj.findIndex(p => p.data===rec.data && p.angajat===rec.angajat);
     if (i>=0) {
-      if (!isAdmin()) { toast('Există deja pontaj pentru această zi — modificarea o face doar adminul'); return; }
+      prev = DB.pontaj[i];
+      modificare = true;
+      rec.modCount = ((prev && prev.modCount) || 0) + 1;
       DB.pontaj[i] = rec;
-    } else DB.pontaj.push(rec);
+    } else { rec.modCount = 0; DB.pontaj.push(rec); }
   }
-  save(); closeModal(); renderPontaj(); toast('Pontaj salvat');
+  save(); closeModal(); renderPontaj();
+  if (modificare && !isAdmin()) pontajModToast(rec.angajat, rec.data, rec.modCount);
+  else toast(modificare ? 'Pontaj modificat' : 'Pontaj salvat');
+}
+// Mesaj jucăuș când operatorul corectează un pontaj deja existent
+function pontajModToast(ang, data, n) {
+  const msgs = [
+    `🙃 Hopa! Ai modificat pontajul lui ${ang} (${data}). N-ai fost atentă? 😉`,
+    `✏️ Iar ai schimbat ${ang} pe ${data}... a 2-a oară! Verifică bine acum 🙂`,
+    `😅 A ${n}-a oară pe ${ang} (${data})! Gata, de data asta chiar e corect? 🤞`
+  ];
+  const i = Math.min(Math.max(n,1), msgs.length) - 1;
+  toast(msgs[i]);
 }
 function delPontaj(idx) {
+  if (isReadOnly()) { toast('Doar vizualizare'); return; }
   if (!confirm('Ștergi această înregistrare?')) return;
   DB.pontaj.splice(idx,1); save(); renderPontaj(); toast('Șters');
 }
@@ -9818,6 +9836,7 @@ function renderPreturi() {
         ${isAdmin ? `<div class="tab ${preturiTab==='pending'?'active':''}" onclick="preturiTab='pending';renderPreturi()">⏳ Pending aprobare <span style="background:var(--warning);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${countSortariPending()}</span></div>` : ''}
         <div class="tab ${preturiTab==='aprobate'?'active':''}" onclick="preturiTab='aprobate';renderPreturi()">🆕 Din sortări ${isAdmin?'':`<span style="background:var(--accent);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${countProduseAprobate()}</span>`}</div>
         <div class="tab ${preturiTab==='catalog'?'active':''}" onclick="preturiTab='catalog';renderPreturi()">📋 Din catalog</div>
+        ${!isAdmin ? `<div class="tab ${preturiTab==='mele'?'active':''}" onclick="preturiTab='mele';renderPreturi()">📤 Propunerile mele ${countPropuneriMele()>0?`<span style="background:var(--warning);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${countPropuneriMele()}</span>`:''}</div>` : ''}
         <div class="tab ${preturiTab==='discount'?'active':''}" onclick="preturiTab='discount';renderPreturi()">🏷 Discount ${nrDiscActive>0?`<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${nrDiscActive}</span>`:''}</div>
         ${isAdmin ? `<div class="tab ${preturiTab==='propuneri'?'active':''}" onclick="preturiTab='propuneri';renderPreturi()">🔔 Propuneri raft ${countPropuneriPret()>0?`<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${countPropuneriPret()}</span>`:''}</div>` : ''}
         ${isAdmin ? `<div class="tab ${preturiTab==='respinse'?'active':''}" onclick="preturiTab='respinse';renderPreturi()">✗ Respinse</div>` : ''}
@@ -9829,6 +9848,7 @@ function renderPreturi() {
   if (preturiTab === 'pending') renderPreturiPending(body);
   else if (preturiTab === 'aprobate') renderPreturiAprobate(body, isAdmin);
   else if (preturiTab === 'catalog') renderPreturiCatalog(body, isAdmin);
+  else if (preturiTab === 'mele') renderPropunerileMele(body);
   else if (preturiTab === 'discount') renderPreturiDiscount(body);
   else if (preturiTab === 'propuneri') renderPropuneriPret(body);
   else if (preturiTab === 'respinse') renderPreturiRespinse(body);
@@ -10387,6 +10407,76 @@ function renderPropuneriPret(body) {
     </table></div>`}
   `;
 }
+// Câte propuneri în așteptare are utilizatorul curent (pentru badge pe tab)
+function countPropuneriMele() {
+  const me = DB.session.user; let n = 0;
+  (DB.nomenclator||[]).forEach(p => (p.propuneriPret||[]).forEach(pr => {
+    if (pr.cine === me && pr.status === 'propus') n++;
+  }));
+  return n;
+}
+
+// Tab operator (Ana): toate propunerile MELE, grupate pe status (în așteptare / aprobate / respinse)
+function renderPropunerileMele(body) {
+  const me = DB.session.user;
+  const pend = [], aprob = [], resp = [];
+  (DB.nomenclator||[]).forEach(p => (p.propuneriPret||[]).forEach(pr => {
+    if (pr.cine !== me) return;
+    const row = { p, pr, key: pr.magazin||'GLOBAL' };
+    if (pr.status === 'propus') pend.push(row);
+    else if (pr.status === 'aprobat') aprob.push(row);
+    else resp.push(row);
+  }));
+  const byDec = (a,b) => (b.pr.dataDecizie||b.pr.data||'').localeCompare(a.pr.dataDecizie||a.pr.data||'');
+  aprob.sort(byDec); resp.sort(byDec);
+  pend.sort((a,b) => (b.pr.data||'').localeCompare(a.pr.data||''));
+  const locLbl = k => k==='GLOBAL' ? '🌐 Global' : (mag(k)||k).split(' ')[0];
+
+  function tbl(rows, kind) {
+    return `<div class="table-wrap"><table>
+      <thead><tr><th>Produs</th><th>Loc</th><th class="num">Preț propus</th>${kind==='pending'?'<th>Trimis</th>':'<th>Decis</th>'}${kind==='resp'?'<th>Motiv Adrian</th><th></th>':''}</tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td><strong>${escapeHtml(r.p.denumire||r.p.id)}</strong></td>
+        <td><small>${locLbl(r.key)}</small></td>
+        <td class="num"><strong>${fmt(r.pr.val)}</strong></td>
+        ${kind==='pending'
+          ? `<td><small>${(r.pr.data||'').slice(0,16).replace('T',' ')}</small></td>`
+          : `<td><small>${(r.pr.dataDecizie||'').slice(0,10)}</small></td>`}
+        ${kind==='resp'
+          ? `<td><small style="color:#b91c1c">${escapeHtml(r.pr.motiv||'—')}</small></td>
+             <td><button class="btn btn-sm btn-ghost" onclick="rePropune('${r.p.id}','${r.key}')" title="Propune din nou acest preț">↻ Re-propune</button></td>`
+          : ''}
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  }
+
+  body.innerHTML = `
+    <div style="background:#eef6f0;border-left:3px solid var(--accent);border-radius:6px;padding:8px 10px;margin-bottom:12px;font-size:12px;color:#1f5b3d">
+      📤 Aici vezi toate prețurile pe care le-ai propus și ce a decis Adrian. Cele respinse rămân înregistrate — dacă piața îți dă dreptate, le poți <strong>re-propune</strong>.
+    </div>
+    <h4 style="font-size:14px;margin:8px 0">⏳ În așteptare (${pend.length})</h4>
+    ${pend.length===0 ? '<p style="color:var(--text-muted);font-size:13px">Nimic în așteptare.</p>' : tbl(pend,'pending')}
+    <h4 style="font-size:14px;margin:18px 0 8px">✓ Aprobate (${aprob.length})</h4>
+    ${aprob.length===0 ? '<p style="color:var(--text-muted);font-size:13px">Încă niciuna aprobată.</p>' : tbl(aprob,'ok')}
+    <h4 style="font-size:14px;margin:18px 0 8px">✗ Respinse (${resp.length})</h4>
+    ${resp.length===0 ? '<p style="color:var(--text-muted);font-size:13px">Niciuna respinsă.</p>' : tbl(resp,'resp')}
+  `;
+}
+
+// Re-propune un preț respins (operatorul insistă, după ce piața i-a dat dreptate)
+function rePropune(produsId, key) {
+  const p = DB.nomenclator.find(x => x.id === produsId); if (!p) return;
+  const props = (p.propuneriPret||[]).filter(pr => (pr.magazin||'GLOBAL') === key);
+  const last = props.length ? props[props.length-1] : null;
+  const sugestie = last ? last.val : '';
+  const v = prompt('Re-propune preț pentru ' + (p.denumire||produsId) + ' (' + (key==='GLOBAL'?'Global':key) + '):', sugestie);
+  if (v === null) return;
+  const num = parseFloat(v);
+  if (isNaN(num) || num <= 0) { toast('Preț invalid'); return; }
+  const res = setPretRaftCu(produsId, key, num);
+  if (res === 'proposed') { toast('📤 Re-propus spre aprobare lui Adrian'); renderPreturi(); }
+}
+
 function exportPreturiPaydesk() {
   const rows = [];
   (DB.nomenclator||[]).forEach(p => {
