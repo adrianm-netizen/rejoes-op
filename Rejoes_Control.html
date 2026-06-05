@@ -1151,7 +1151,7 @@ function renderRaportare() {
             <td class="num" style="color:${Math.abs(r.diferenta)<1?'var(--success)':Math.abs(r.diferenta)<20?'var(--warning)':'var(--danger)'}">${fmt(r.diferenta)}</td>
             <td class="num">${r.bonuri||0}</td>
             <td><span class="badge ${r.alerta==='OK'?'badge-ok':r.alerta==='CRITIC'?'badge-danger':'badge-warn'}">${r.alerta||'OK'}</span></td>
-            <td>${!readOnly ? `<button class="btn btn-sm btn-ghost" onclick="delRap(${idx})">×</button>` : '<small style="color:var(--text-muted)">read-only</small>'}</td>
+            <td>${isAdmin() ? `<button class="btn btn-sm btn-ghost" onclick="delRap(${idx})">×</button>` : '<small style="color:var(--text-muted)" title="Ștergerea doar de admin">—</small>'}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>`}
@@ -1218,7 +1218,7 @@ function saveRap() {
   }
   save(); resetRap(); renderRaportare(); toast('Raportare salvată');
 }
-function delRap(idx) { if (!confirm('Ștergi?')) return; DB.raportari.splice(idx,1); save(); renderRaportare(); }
+function delRap(idx) { if (!isAdmin()) { toast('Ștergerea raportărilor o face doar adminul'); return; } if (!confirm('Ștergi?')) return; DB.raportari.splice(idx,1); save(); renderRaportare(); }
 
 // ---------- DIFERENȚE ----------
 function renderDiferente() {
@@ -7115,7 +7115,7 @@ function renderTasks() {
             <td>${t.termen?`<span class="badge ${overdue?'badge-danger':dueSoon?'badge-warn':'badge-neutral'}">${t.termen}${overdue?' ⚠':''}</span>`:'—'}</td>
             <td>${t.reminder?`<span class="badge ${remActive?'badge-danger':'badge-info'}">${remActive?'🔔 ':''}${t.reminder.replace('T',' ').slice(0,16)}</span>`:'—'}</td>
             <td><span class="badge ${t.prioritate==='Înaltă'?'badge-danger':t.prioritate==='Medie'?'badge-warn':'badge-info'}">${t.prioritate||'Normală'}</span></td>
-            <td><button class="btn btn-sm btn-ghost" onclick="editTask(${idx})">✎</button><button class="btn btn-sm btn-ghost" onclick="delTask(${idx})">×</button></td>
+            <td><button class="btn btn-sm btn-ghost" onclick="editTask(${idx})">✎</button>${isAdmin() ? `<button class="btn btn-sm btn-ghost" onclick="delTask(${idx})">×</button>` : ''}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>`}
@@ -7176,7 +7176,7 @@ function toggleTask(idx) {
   DB.tasks[idx].doneLa = DB.tasks[idx].done ? nowISO() : '';
   save(); renderTasks();
 }
-function delTask(idx) { if (!confirm('Ștergi taskul?')) return; DB.tasks.splice(idx,1); save(); renderTasks(); }
+function delTask(idx) { if (!isAdmin()) { toast('Ștergerea taskurilor o face doar adminul'); return; } if (!confirm('Ștergi taskul?')) return; DB.tasks.splice(idx,1); save(); renderTasks(); }
 function exportTasks(){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(DB.tasks), 'Tasks'); XLSX.writeFile(wb, `Tasks_${todayISO()}.xlsx`); }
 
 // ---------- BRIEFING ----------
@@ -9818,6 +9818,7 @@ function renderPreturi() {
         ${isAdmin ? `<div class="tab ${preturiTab==='pending'?'active':''}" onclick="preturiTab='pending';renderPreturi()">⏳ Pending aprobare <span style="background:var(--warning);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${countSortariPending()}</span></div>` : ''}
         <div class="tab ${preturiTab==='aprobate'?'active':''}" onclick="preturiTab='aprobate';renderPreturi()">✓ Prețuri aprobate ${isAdmin?'':`<span style="background:var(--accent);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${countProduseAprobate()}</span>`}</div>
         <div class="tab ${preturiTab==='discount'?'active':''}" onclick="preturiTab='discount';renderPreturi()">🏷 Discount ${nrDiscActive>0?`<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${nrDiscActive}</span>`:''}</div>
+        ${isAdmin ? `<div class="tab ${preturiTab==='propuneri'?'active':''}" onclick="preturiTab='propuneri';renderPreturi()">🔔 Propuneri raft ${countPropuneriPret()>0?`<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${countPropuneriPret()}</span>`:''}</div>` : ''}
         ${isAdmin ? `<div class="tab ${preturiTab==='respinse'?'active':''}" onclick="preturiTab='respinse';renderPreturi()">✗ Respinse</div>` : ''}
       </div>
       <div id="preturiBody"></div>
@@ -9827,7 +9828,15 @@ function renderPreturi() {
   if (preturiTab === 'pending') renderPreturiPending(body);
   else if (preturiTab === 'aprobate') renderPreturiAprobate(body, isAdmin);
   else if (preturiTab === 'discount') renderPreturiDiscount(body);
+  else if (preturiTab === 'propuneri') renderPropuneriPret(body);
   else if (preturiTab === 'respinse') renderPreturiRespinse(body);
+}
+
+// Numără propunerile de preț raft în așteptare (status 'propus')
+function countPropuneriPret() {
+  let n = 0;
+  (DB.nomenclator||[]).forEach(p => (p.propuneriPret||[]).forEach(pr => { if (pr.status === 'propus') n++; }));
+  return n;
 }
 
 function renderPreturiDiscount(body) {
@@ -10191,6 +10200,16 @@ function setPretRaftCu(produsId, magazin, newVal, forceConfirm) {
   if (!p.preturiMagazine) p.preturiMagazine = {};
   if (!p.istoricPreturi) p.istoricPreturi = [];
   const key = magazin || 'GLOBAL';
+  // ── FLUX APROBARE: operatorul (Ana) PROPUNE, nu setează direct ──
+  if (!isAdmin()) {
+    if (newVal === '' || newVal === null || isNaN(newVal) || newVal <= 0) { toast('Pune un preț valid'); return false; }
+    if (!p.propuneriPret) p.propuneriPret = [];
+    const exist = p.propuneriPret.find(pr => (pr.magazin||'GLOBAL') === key && pr.status === 'propus');
+    const prop = { magazin: key, val: newVal, cine: DB.session.user, data: nowISO(), status: 'propus', pretCurent: (p.preturiMagazine[key]!==undefined?p.preturiMagazine[key]:null) };
+    if (exist) { exist.val = newVal; exist.data = nowISO(); } else { p.propuneriPret.push(prop); }
+    save();
+    return 'proposed';
+  }
   const oldVal = p.preturiMagazine[key];
   if (newVal === '' || newVal === null || isNaN(newVal) || newVal <= 0) {
     // Remove price
@@ -10217,7 +10236,9 @@ function setPretRaft(produsId) {
   const inp = document.getElementById('raft_'+produsId);
   if (!inp) return;
   const v = parseFloat(inp.value);
-  if (setPretRaftCu(produsId, 'GLOBAL', v)) {
+  const res = setPretRaftCu(produsId, 'GLOBAL', v);
+  if (res === 'proposed') { toast('📤 Preț trimis spre aprobare lui Adrian'); renderPreturi(); }
+  else if (res) {
     const p = DB.nomenclator.find(x => x.id === produsId);
     toast('✓ Preț raft salvat pentru ' + (p?p.denumire:''));
     renderPreturi();
@@ -10228,12 +10249,92 @@ function setPretRaftMag(produsId, magazin) {
   const inp = document.getElementById('raft_'+produsId+'_'+magazin);
   if (!inp) return;
   const v = parseFloat(inp.value);
-  if (setPretRaftCu(produsId, magazin, v)) {
+  const res = setPretRaftCu(produsId, magazin, v);
+  if (res === 'proposed') { toast('📤 Preț trimis spre aprobare lui Adrian'); renderPreturi(); }
+  else if (res) {
     toast('✓ Preț salvat pentru ' + magazin);
     renderPreturi();
   }
 }
 
+function aprobaPropunere(produsId, key) {
+  if (!isAdmin()) { toast('Doar adminul aprobă prețuri'); return; }
+  const p = DB.nomenclator.find(x => x.id === produsId); if (!p) return;
+  const pr = (p.propuneriPret||[]).find(x => (x.magazin||'GLOBAL') === key && x.status === 'propus'); if (!pr) return;
+  pr.status = 'aprobat'; pr.dataDecizie = nowISO(); pr.decisDe = DB.session.user;
+  if (!p.preturiMagazine) p.preturiMagazine = {};
+  if (!p.istoricPreturi) p.istoricPreturi = [];
+  const oldVal = p.preturiMagazine[key];
+  p.preturiMagazine[key] = pr.val;
+  p.istoricPreturi.push({ data: nowISO(), magazin: key, vechi: oldVal, nou: pr.val, cine: pr.cine, actiune: 'propus de '+pr.cine+', aprobat de '+DB.session.user });
+  save(); toast('✓ Preț aprobat și activat'); renderPreturi();
+}
+function respingePropunere(produsId, key) {
+  if (!isAdmin()) { toast('Doar adminul decide'); return; }
+  const p = DB.nomenclator.find(x => x.id === produsId); if (!p) return;
+  const pr = (p.propuneriPret||[]).find(x => (x.magazin||'GLOBAL') === key && x.status === 'propus'); if (!pr) return;
+  const motiv = prompt('Motiv respingere (opțional) — rămâne în istoric:', '') || '';
+  pr.status = 'respins'; pr.dataDecizie = nowISO(); pr.decisDe = DB.session.user; pr.motiv = motiv;
+  save(); toast('Propunere respinsă (păstrată în istoric)'); renderPreturi();
+}
+function renderPropuneriPret(body) {
+  const pending = [], istoric = [];
+  (DB.nomenclator||[]).forEach(p => (p.propuneriPret||[]).forEach(pr => {
+    const row = { p, pr, key: pr.magazin||'GLOBAL' };
+    if (pr.status === 'propus') pending.push(row); else istoric.push(row);
+  }));
+  istoric.sort((a,b) => (b.pr.dataDecizie||b.pr.data||'').localeCompare(a.pr.dataDecizie||a.pr.data||''));
+  body.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <p style="font-size:12px;color:var(--text-muted);margin:0;max-width:640px">Prețuri de raft propuse de Ana. Aprobă (devine preț oficial) sau respinge (rămâne în istoric ca neaprobată — pentru a-i recunoaște meritul dacă piața îi dă dreptate).</p>
+      <button class="btn btn-sm" onclick="exportPreturiPaydesk()">📥 Export prețuri aprobate (Paydesk)</button>
+    </div>
+    <h4 style="font-size:14px;margin:8px 0">⏳ În așteptare (${pending.length})</h4>
+    ${pending.length===0 ? '<p style="color:var(--text-muted);font-size:13px">Nicio propunere în așteptare.</p>' :
+    `<div class="table-wrap"><table>
+      <thead><tr><th>Produs</th><th>Loc</th><th class="num">Preț curent</th><th class="num">Preț propus</th><th>Cine</th><th>Când</th><th></th></tr></thead>
+      <tbody>${pending.map(r => `<tr>
+        <td><strong>${escapeHtml(r.p.denumire||r.p.id)}</strong></td>
+        <td><small>${r.key==='GLOBAL'?'🌐 Global':mag(r.key)}</small></td>
+        <td class="num">${r.pr.pretCurent!=null?fmt(r.pr.pretCurent):'—'}</td>
+        <td class="num"><strong style="color:var(--accent-hover)">${fmt(r.pr.val)}</strong></td>
+        <td><small>${escapeHtml(r.pr.cine||'')}</small></td>
+        <td><small>${(r.pr.data||'').slice(0,16).replace('T',' ')}</small></td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm btn-primary" style="background:#0a7d3b;border-color:#0a7d3b" onclick="aprobaPropunere('${r.p.id}','${r.key}')">✓ Aprobă</button>
+          <button class="btn btn-sm btn-ghost" onclick="respingePropunere('${r.p.id}','${r.key}')">✗ Respinge</button>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>`}
+    <h4 style="font-size:14px;margin:18px 0 8px">📜 Istoric decizii (${istoric.length})</h4>
+    ${istoric.length===0 ? '<p style="color:var(--text-muted);font-size:13px">Niciun istoric încă.</p>' :
+    `<div class="table-wrap"><table>
+      <thead><tr><th>Produs</th><th>Loc</th><th class="num">Preț propus</th><th>Status</th><th>Decis</th><th>Motiv</th></tr></thead>
+      <tbody>${istoric.slice(0,100).map(r => `<tr>
+        <td><small>${escapeHtml(r.p.denumire||r.p.id)}</small></td>
+        <td><small>${r.key==='GLOBAL'?'Global':mag(r.key).split(' ')[0]}</small></td>
+        <td class="num">${fmt(r.pr.val)}</td>
+        <td><span class="badge ${r.pr.status==='aprobat'?'badge-ok':'badge-danger'}">${r.pr.status==='aprobat'?'✓ aprobat':'✗ respins'}</span></td>
+        <td><small>${(r.pr.dataDecizie||'').slice(0,10)} ${escapeHtml(r.pr.decisDe||'')}</small></td>
+        <td><small>${escapeHtml(r.pr.motiv||'')}</small></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`}
+  `;
+}
+function exportPreturiPaydesk() {
+  const rows = [];
+  (DB.nomenclator||[]).forEach(p => {
+    const pm = p.preturiMagazine||{};
+    Object.keys(pm).forEach(key => {
+      rows.push({ Cod: p.cod||p.id||'', Produs: p.denumire||'', Locatie: key==='GLOBAL'?'GLOBAL':key, 'Pret raft': pm[key] });
+    });
+  });
+  if (rows.length===0) { toast('Niciun preț de raft setat'); return; }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Preturi Paydesk');
+  XLSX.writeFile(wb, `Preturi_Paydesk_${todayISO()}.xlsx`);
+  toast('✓ Export prețuri descărcat — de introdus în Paydesk');
+}
 function showIstoricPreturi(produsId) {
   const p = DB.nomenclator.find(x => x.id === produsId);
   if (!p || !p.istoricPreturi || p.istoricPreturi.length === 0) {
@@ -10398,6 +10499,13 @@ function renderPreturiAprobate(body, isAdmin) {
           const zileRamase = Math.max(0, Math.ceil((new Date(d.dataEnd) - new Date()) / (1000*60*60*24)));
           return `<span title="${escapeHtml(d.motiv||'')} · ${magStr} · ${zileRamase} zile rămase" style="background:#fee;color:#b91c1c;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600;margin-left:6px;border:1px solid #fcc;display:inline-block">🏷 ${valStr}${magStr==='TOATE'?'':' · '+magStr}</span>`;
         }).join('');
+        const keyNow = preturiMagSelector || 'GLOBAL';
+        const props = (r.produs?.propuneriPret||[]).filter(pr => (pr.magazin||'GLOBAL')===keyNow);
+        const lastProp = props.length ? props[props.length-1] : null;
+        const propBadge = !lastProp ? '' :
+          lastProp.status==='propus' ? `<div style="font-size:10px;color:#b45309;margin-top:2px">⏳ propus ${fmt(lastProp.val)} — în așteptare</div>`
+          : lastProp.status==='aprobat' ? `<div style="font-size:10px;color:#0a7d3b;margin-top:2px">✓ ultima propunere aprobată</div>`
+          : `<div style="font-size:10px;color:#b91c1c;margin-top:2px">✗ respins${lastProp.motiv?': '+escapeHtml(lastProp.motiv):''}</div>`;
         return `<tr>
           <td><input type="checkbox" ${preturiBulkSelectie.has(r.produsId)?'checked':''} onchange="pretBulkToggle('${r.produsId}')"></td>
           <td><strong>${r.produs?r.produs.denumire:'?'}</strong>${r.produs?.gen?' <span style="color:var(--text-muted);font-size:11px">'+r.produs.gen+'</span>':''}${discBadges}<br><small style="color:var(--text-muted)">${r.produs?.categorie||''}</small></td>
@@ -10408,6 +10516,7 @@ function renderPreturiAprobate(body, isAdmin) {
             <input type="number" step="0.01" id="${selectorId}" value="${valDisplay}" placeholder="${pretGlobal?'global '+fmt(pretGlobal):'ex. '+fmt(r.pretMinAprobat*1.1,2)}" 
               style="width:110px;padding:5px 7px;border:1px solid ${usingGlobal?'#94a3b8':'var(--border)'};border-radius:5px;text-align:right;${usingGlobal?'background:#f8faf9;color:var(--text-muted);font-style:italic':''}">
             ${usingGlobal?'<div style="font-size:9px;color:var(--text-muted);margin-top:2px">via global</div>':''}
+            ${propBadge}
           </td>
           <td>
             <button class="btn btn-sm btn-primary" onclick="${setFn}">💾</button>
