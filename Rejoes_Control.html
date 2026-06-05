@@ -8909,17 +8909,29 @@ function renderMesaje() {
 
 let _msgViewListener = null;
 let _msgPollTimer = null;
-// Citire proaspătă a mesajelor (nu depinde de fluxul live, care poate fi blocat de extensii Chrome)
-function refreshMessagesOnce() {
+// Citire proaspătă a mesajelor prin HTTPS simplu (REST), NU prin SDK.
+// Motiv: dacă fluxul live Firebase e blocat (ex. extensie Chrome), atât listener-ul
+// cât și .once() din SDK servesc din cache-ul local blocat (rămân pe valoarea veche).
+// Un fetch REST direct ocolește complet cache-ul și aduce mereu starea reală de pe server.
+const MSG_REST_BASE = 'https://rejoes-op-default-rtdb.europe-west1.firebasedatabase.app/messages.json';
+async function refreshMessagesOnce() {
   if (!window.FB || !window.FB.db) return;
-  window.FB.db.ref('messages').once('value').then(snap => {
+  try {
+    let token = '';
+    try { if (window.FB.auth && window.FB.auth.currentUser) token = await window.FB.auth.currentUser.getIdToken(); } catch(e){}
+    const url = MSG_REST_BASE + (token ? ('?auth=' + encodeURIComponent(token)) : '');
+    const resp = await fetch(url, { cache: 'no-store' });
+    if (!resp.ok) { console.warn('refreshMessagesOnce REST status', resp.status); return; }
+    const data = await resp.json();
     const listEl = document.getElementById('msgList');
     if (!listEl) { if (_msgPollTimer) { clearInterval(_msgPollTimer); _msgPollTimer = null; } return; }
     const msgs = [];
-    snap.forEach(child => msgs.push({ id: child.key, ...child.val() }));
+    if (data && typeof data === 'object') {
+      Object.keys(data).forEach(k => { const v = data[k] || {}; msgs.push({ id: k, ...v }); });
+    }
     msgs.sort((a,b) => (a.ts||0) - (b.ts||0));
     renderMessages(msgs);
-  }).catch(e => console.warn('refreshMessagesOnce err', e));
+  } catch(e) { console.warn('refreshMessagesOnce REST err', e); }
 }
 function loadMessages() {
   if (!window.FB || !window.FB.db) {
@@ -8932,29 +8944,20 @@ function loadMessages() {
     _msgViewListener = null;
   }
   console.log('📥 Attaching messages listener...');
-  _msgViewListener = window.FB.db.ref('messages').on('value', (snap) => {
-    const listEl = document.getElementById('msgList');
-    if (!listEl) {
-      console.log('msgList no longer in DOM, skip render');
-      return;
-    }
-    const msgs = [];
-    snap.forEach(child => msgs.push({ id: child.key, ...child.val() }));
-    msgs.sort((a,b) => (a.ts||0) - (b.ts||0));
-    console.log('📥 Received update, total messages:', msgs.length);
-    renderMessages(msgs);
+  // Listener-ul live e folosit DOAR ca semnal „s-a schimbat ceva" → declanșează un pull REST proaspăt.
+  // NU mai afișăm snapshot-ul lui (poate fi din cache vechi când conexiunea live e blocată).
+  _msgViewListener = window.FB.db.ref('messages').on('value', () => {
+    refreshMessagesOnce();
   }, (err) => {
-    console.error('📥 Listener error:', err);
-    const listEl = document.getElementById('msgList');
-    if (listEl) listEl.innerHTML = `<div style="color:var(--danger);padding:20px;text-align:center">Eroare conexiune Firebase: ${err.message}<br><small>Verifică regulile Realtime Database (read/write)</small></div>`;
+    console.warn('📥 Listener live error (folosim REST):', err && err.message);
   });
-  // FALLBACK: poll cu .once la fiecare 4s, în caz că fluxul live e blocat (ex. extensie Chrome).
-  // .once merge mereu (cereri simple), deci mesajele apar oricum.
+  // SURSA PRINCIPALĂ: pull REST la fiecare 3s + imediat la deschidere. Merge mereu (HTTPS simplu),
+  // chiar dacă fluxul live e blocat de o extensie Chrome.
   if (_msgPollTimer) clearInterval(_msgPollTimer);
   _msgPollTimer = setInterval(() => {
     if (!document.getElementById('msgList')) { clearInterval(_msgPollTimer); _msgPollTimer = null; return; }
     refreshMessagesOnce();
-  }, 4000);
+  }, 3000);
   refreshMessagesOnce(); // imediat la deschidere
 }
 
