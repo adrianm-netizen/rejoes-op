@@ -8908,6 +8908,19 @@ function renderMesaje() {
 }
 
 let _msgViewListener = null;
+let _msgPollTimer = null;
+// Citire proaspătă a mesajelor (nu depinde de fluxul live, care poate fi blocat de extensii Chrome)
+function refreshMessagesOnce() {
+  if (!window.FB || !window.FB.db) return;
+  window.FB.db.ref('messages').once('value').then(snap => {
+    const listEl = document.getElementById('msgList');
+    if (!listEl) { if (_msgPollTimer) { clearInterval(_msgPollTimer); _msgPollTimer = null; } return; }
+    const msgs = [];
+    snap.forEach(child => msgs.push({ id: child.key, ...child.val() }));
+    msgs.sort((a,b) => (a.ts||0) - (b.ts||0));
+    renderMessages(msgs);
+  }).catch(e => console.warn('refreshMessagesOnce err', e));
+}
 function loadMessages() {
   if (!window.FB || !window.FB.db) {
     console.error('loadMessages: Firebase not ready');
@@ -8935,6 +8948,14 @@ function loadMessages() {
     const listEl = document.getElementById('msgList');
     if (listEl) listEl.innerHTML = `<div style="color:var(--danger);padding:20px;text-align:center">Eroare conexiune Firebase: ${err.message}<br><small>Verifică regulile Realtime Database (read/write)</small></div>`;
   });
+  // FALLBACK: poll cu .once la fiecare 4s, în caz că fluxul live e blocat (ex. extensie Chrome).
+  // .once merge mereu (cereri simple), deci mesajele apar oricum.
+  if (_msgPollTimer) clearInterval(_msgPollTimer);
+  _msgPollTimer = setInterval(() => {
+    if (!document.getElementById('msgList')) { clearInterval(_msgPollTimer); _msgPollTimer = null; return; }
+    refreshMessagesOnce();
+  }, 4000);
+  refreshMessagesOnce(); // imediat la deschidere
 }
 
 function renderMessages(msgs) {
@@ -8995,6 +9016,7 @@ function sendMessage() {
     inp.focus();
     newRef.then(() => {
       console.log('✓ Message saved to Firebase:', newRef.key);
+      refreshMessagesOnce(); // afișează imediat, fără să aștepte fluxul live
     }).catch(err => {
       console.error('✗ Firebase push failed:', err);
       toast('⚠ Eroare la trimitere: ' + (err && err.message ? err.message : 'unknown') + ' — F12 pentru detalii');
