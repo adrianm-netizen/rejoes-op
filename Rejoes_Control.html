@@ -11,6 +11,13 @@
 <link rel="apple-touch-icon" href="appicon_192.png">
 <link rel="icon" type="image/png" sizes="192x192" href="appicon_192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="appicon_512.png">
+<script>
+/* Service worker minimal — necesar ca Chrome să instaleze WebAPK (iconiță fără fundal alb).
+   NU cache-uiește nimic (pass-through), ca să nu servească versiuni vechi ale aplicației. */
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
 <!-- Firebase compat SDK (merge cu file:// — fără module restrictions) -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>

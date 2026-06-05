@@ -1,27 +1,18 @@
+// Service worker minimal pentru Rejoes Op. Management
+// Scop: face site-ul "installable" ca WebAPK, ca iconița de pe ecran să folosească
+// logo-ul S Colect fără fundalul alb impus de Android la scurtăturile simple.
+// IMPORTANT: NU cache-uiește nimic — fiecare cerere merge direct la rețea (pass-through),
+// ca să nu rămână niciodată blocată o versiune veche a aplicației.
 
-self.addEventListener('install', e => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(clients.claim()));
-
-// Show notification
-self.addEventListener('push', e => {
-  const data = e.data ? e.data.json() : {};
-  e.waitUntil(self.registration.showNotification(data.title || 'Rejoes', {
-    body: data.body || '',
-    icon: '/rejoes-op/icon-192.png',
-    badge: '/rejoes-op/icon-192.png',
-    vibrate: [200, 100, 200],
-    tag: 'rejoes-reminder',
-    requireInteraction: true,
-    actions: [
-      { action: 'open', title: '📊 Deschide aplicația' },
-      { action: 'dismiss', title: 'Închide' }
-    ]
-  }));
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
 });
 
-self.addEventListener('notificationclick', e => {
-  e.notification.close();
-  if (e.action === 'open' || !e.action) {
-    e.waitUntil(clients.openWindow('/rejoes-op/'));
-  }
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('fetch', (event) => {
+  // pass-through: ia mereu varianta din rețea, fără cache
+  event.respondWith(fetch(event.request));
 });
