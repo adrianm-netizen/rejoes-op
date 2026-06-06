@@ -6476,7 +6476,7 @@ function exportEdenredLunar() {
   const dataStart = 7;
 
   // Collect angajati eligibili
-  const angajati = DB.angajati.filter(a => a.serieCard && a.cnp);
+  const angajati = DB.angajati.filter(a => a.serieCard && a.cnp && !aPlecatInaintea(a, an, luna));
   const pontajLuna = DB.pontaj.filter(p => isLunaSelectata(p.data, an, luna));
 
   let countCuValoare = 0, countFaraValoare = 0;
@@ -6549,13 +6549,19 @@ function setValoareTichet(idx, val) {
   toast('Valoare salvată pentru ' + DB.angajati[idx].nume);
 }
 
+// true dacă angajatul a plecat ÎNAINTE de luna selectată → nu mai apare la tichete din acea lună
+function aPlecatInaintea(a, an, luna){
+  if(!a || !a.dataPlecarii) return false;
+  const primaZi = `${an}-${String(luna).padStart(2,'0')}-01`;
+  return a.dataPlecarii < primaZi;
+}
 function renderEdenredPreview() {
   const lunaSel = document.getElementById('edLuna');
   const anSel = document.getElementById('edAn');
   if (!lunaSel || !anSel) return;
   const luna = parseInt(lunaSel.value);
   const an = parseInt(anSel.value);
-  const angajati = DB.angajati.filter(a => a.serieCard && a.cnp);
+  const angajati = DB.angajati.filter(a => a.serieCard && a.cnp && !aPlecatInaintea(a, an, luna));
   const pontajLuna = DB.pontaj.filter(p => isLunaSelectata(p.data, an, luna));
   const rows = angajati.map(a => {
     const zile = pontajLuna.filter(p => p.angajat === a.nume && p.tipZi && p.tipZi.includes('Lucrat')).length;
