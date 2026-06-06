@@ -455,8 +455,38 @@ const SEED = {
     achizitii: [],          // Etapa 10D+E — [{sursa, dataImport, perioadaStart, perioadaEnd, facturi:[{IssueDate, Date, Number, SupplierName, Counterparty, Type, Total, TaxAmount, AmountExclTax, BasedOn, status:'neachitata'|'achitata_firma'|'achitata_privat'|'anulata', scadenta:ISO|null, dataAchitare:ISO|null, observatii:'', autoMarcat:bool}], totalSum, totalVAT, totalExclTax}]
     receiptFiles: [],       // [{sursa, dataImport, perioadaStart, perioadaEnd, bonuriN, itemiN, magazine:[...]}] — metadata. Raw items merg în IndexedDB
     financial: []           // Etapa 10C — [{sursa, dataImport, perioada:'YYYY-MM', dataStart, dataEnd, magazine:[{nume, sales, cogs, grossProfit, opExpenses, opProfit, categorii:{Rents, Salaries, Utilities, ...}}], totalLuna:{...}}]
-  }
+  },
+  // Etapa 13 — Dosare deschidere magazine nou (procedură + acte). Trackerul se sincronizează (operational, fără date personale).
+  dosare: [],               // [{id, locatie, adresa, oras, responsabil, tipProprietar:'PF'|'PJ', proprietar, dataContract, dataTinta, pasi:[{nr,categorie,pas,responsabil,status,dataStart,termen,dataFinalizare,obs}], log:[{data,text,autor}], stare, createdAt}]
+  contractDrafts: []        // LOCAL-only (NU în cloud — conține CNP/CI/IBAN proprietar). [{id, tip:'PF'|'PJ', data:{...campuri}, salvatLa}]
 };
+
+// Cei 22 pași standard ai unui dosar de deschidere magazin (din procedura Rejoes / fișierul de status)
+const DOSAR_STEPS = [
+  {nr:1,  categorie:'LEGAL',         pas:'Act adițional / contract complet semnat (cu identificarea spațiului)'},
+  {nr:2,  categorie:'LEGAL',         pas:'Documentele de la proprietar primite (Anexa 2)'},
+  {nr:3,  categorie:'LEGAL',         pas:'Punct de lucru înregistrat la ONRC'},
+  {nr:4,  categorie:'LEGAL',         pas:'Utilități trecute pe firmă (energie, apă, salubritate, internet)'},
+  {nr:5,  categorie:'AUTORIZAȚII',   pas:'Acord / Autorizație de funcționare (Primărie)'},
+  {nr:6,  categorie:'AUTORIZAȚII',   pas:'ISU (autorizație sau negație)'},
+  {nr:7,  categorie:'AUTORIZAȚII',   pas:'DSP notificat + certificate dezinfecție la dosar'},
+  {nr:8,  categorie:'AUTORIZAȚII',   pas:'Contract de salubritate încheiat'},
+  {nr:9,  categorie:'AUTORIZAȚII',   pas:'Aviz firmă / reclamă pe fațadă (Primărie)'},
+  {nr:10, categorie:'TEHNIC',        pas:'Casă de marcat comandată (Manuel SRL)'},
+  {nr:11, categorie:'TEHNIC',        pas:'NUI obținut (ANAF) + fiscalizare + înregistrare'},
+  {nr:12, categorie:'TEHNIC',        pas:'Terminal POS (Banca Transilvania)'},
+  {nr:13, categorie:'TEHNIC',        pas:'PC + monitor (CIT sau echivalent)'},
+  {nr:14, categorie:'TEHNIC',        pas:'Internet Orange activ și testat'},
+  {nr:15, categorie:'TEHNIC',        pas:'e:Corg / Paydesk: gestiune creată și testată'},
+  {nr:16, categorie:'AMENAJARE',     pas:'Mobilier, iluminat, cabine de probă'},
+  {nr:17, categorie:'AMENAJARE',     pas:'Firmă luminoasă montată'},
+  {nr:18, categorie:'AMENAJARE',     pas:'Sistem de securitate / alarmă'},
+  {nr:19, categorie:'PERSONAL',      pas:'Vânzător angajat (CIM în REGES) + medicina muncii + SSM/PSI'},
+  {nr:20, categorie:'MARFĂ',         pas:'Recepționată (cu certificate dezinfecție) + prețuri în e:Corg'},
+  {nr:21, categorie:'PRE-DESCHIDERE',pas:'Registru unic de control, program afișat, ANPC, stingător, plan evacuare'},
+  {nr:22, categorie:'DESCHIDERE',    pas:'Promovare locală + deschidere efectivă'}
+];
+const DOSAR_STATUSES = ['De făcut','În lucru','Gata'];
 
 const STORAGE_KEY = "rejoes_op_v2";
 let DB = load();
@@ -516,6 +546,7 @@ const VIEWS_ALL = [
   {id:'briefing', label:'Briefing', icon:'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8', roles:['admin','owner']},
   {id:'profit', label:'Profit', icon:'M3 3v18h18 M7 14l4-4 4 4 5-5', roles:['admin','owner']},
   {id:'raportzilnic', label:'📋 Raport zilnic', icon:'M9 17v-6h6v6M3 7l9-4 9 4M5 7v14h14V7', roles:['admin','owner']},
+  {id:'dosare', label:'📁 Dosare magazine', icon:'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z', roles:['admin','operator']},
   {id:'pontaj', label:'Pontaj', icon:'M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', roles:['admin','owner','operator','contabil-sef']},
   {id:'raportare', label:'Raportare zilnică', icon:'M9 17v-6h6v6M3 7l9-4 9 4M5 7v14h14V7', roles:['admin','owner','operator','contabil-sef']},
   {id:'tasks', label:'Tasks', icon:'M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z', roles:['admin','owner','operator','manager-depozit']},
@@ -576,7 +607,7 @@ function renderNav() {
 function go(view) {
   currentView = view;
   renderNav();
-  const titles = {analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
+  const titles = {analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
     diferente:'Diferențe casă', inventar:'Inventar', alerte:'Alerte automate',
     import:'Import / Export date', setari:'Setări'};
   document.getElementById('pageTitle').textContent = titles[view];
@@ -589,7 +620,7 @@ function go(view) {
     renderNav();
     return go(currentView);
   }
-  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
+  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
     diferente:renderDiferente, inventar:renderInventar, alerte:renderAlerte, import:renderImport, setari:renderSetari})[view]();
 }
 
@@ -5321,7 +5352,7 @@ function getEcorgVanzariPerioada(from, to) {
 
 // ---------- BACKUP ----------
 // Lista colecțiilor care intră în backup (exclude session, _backups)
-const BACKUP_KEYS = ['users','angajati','magazine','pontaj','raportari','diferente','inventar','alerte','tasks','nomenclator','sortari','facturiIntrare','comenzi','retururi','transferuri','casari','retururiClienti','discounturi','mesaje','edenredImport','praguri'];
+const BACKUP_KEYS = ['users','angajati','magazine','pontaj','raportari','diferente','inventar','alerte','tasks','nomenclator','sortari','facturiIntrare','comenzi','retururi','transferuri','casari','retururiClienti','discounturi','mesaje','edenredImport','praguri','dosare','contractDrafts'];
 
 function createBackup(label) {
   const snapshot = { ts: nowISO(), label: label || ('auto-'+todayISO()), data: {} };
@@ -7203,6 +7234,575 @@ function toggleTask(idx) {
 }
 function delTask(idx) { if (!isAdmin()) { toast('Ștergerea taskurilor o face doar adminul'); return; } if (!confirm('Ștergi taskul?')) return; DB.tasks.splice(idx,1); save(); renderTasks(); }
 function exportTasks(){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(DB.tasks), 'Tasks'); XLSX.writeFile(wb, `Tasks_${todayISO()}.xlsx`); }
+
+// ============================================================
+// ========== DOSARE DESCHIDERE MAGAZIN (Etapa 13) ============
+// ============================================================
+let dosareView = 'hub';     // 'hub' | 'detail'
+let dosarSel = null;        // id dosar selectat
+let _lastContract = null;   // {type, fname, html} ultimul contract generat
+
+function _dosarProgres(d){ const p=d.pasi||[]; const gata=p.filter(x=>x.status==='Gata').length; return {gata, total:p.length||DOSAR_STEPS.length}; }
+
+function renderDosare(){
+  if (dosareView==='detail' && dosarSel && DB.dosare.find(d=>d.id===dosarSel)) return renderDosarDetail();
+  const dosare = [...(DB.dosare||[])].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  document.getElementById('content').innerHTML = `
+    <div class="card" style="background:linear-gradient(135deg,rgba(80,200,120,.10),rgba(80,160,255,.08));border:1px solid rgba(120,200,150,.25)">
+      <h3 style="margin:0 0 6px">📁 Magazin nou? Hai să-l deschidem cu zâmbetul pe buze 😎</h3>
+      <p style="margin:0 0 4px;color:var(--text-muted);font-size:13.5px">
+        Aici ai tot ce-ți trebuie ca să deschizi un magazin nou de la zero, pas cu pas, fără bătăi de cap.
+        Faci contractul dintr-un formular (completezi doar ce e de completat, restul îl știe aplicația), apoi bifezi pe rând ce ai rezolvat. Simplu ca bună-ziua.
+      </p>
+      <p style="margin:0;color:var(--text-muted);font-size:12.5px">💡 Sfat de la Adi: citește o dată „Ghidul" de mai jos cu o cafea în mână și gata — după aia mergi singură ca pe roți.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px">
+        <button class="btn btn-primary" onclick="openContractTypePicker()">📄 Contract nou</button>
+        <button class="btn" onclick="newDosar()">➕ Dosar magazin nou</button>
+        <button class="btn btn-ghost" onclick="openGhidAna()">📖 Ghidul de la Adi (citește-mă întâi)</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-head">
+        <h3>📂 Dosarele tale (${dosare.length})</h3>
+        <div class="toolbar"><button class="btn btn-primary btn-sm" onclick="newDosar()">➕ Dosar nou</button></div>
+      </div>
+      ${dosare.length===0 ? `<div class="empty"><h4>Niciun dosar încă</h4><p>Când primești un magazin nou de rezolvat, apasă „Dosar nou" și pornim. 🚀</p></div>` :
+      `<div style="display:flex;flex-direction:column;gap:10px">${dosare.map(d=>{
+        const pr=_dosarProgres(d); const pct=Math.round(pr.gata/pr.total*100);
+        const gata = pr.gata===pr.total;
+        return `<div class="card" style="margin:0;cursor:pointer;border:1px solid var(--border)" onclick="openDosar('${d.id}')">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <div>
+              <strong style="font-size:15px">${escapeHtml(d.locatie||'Magazin nou')}</strong>
+              ${d.oras?`<span class="badge badge-info" style="margin-left:6px">${escapeHtml(d.oras)}</span>`:''}
+              ${gata?`<span class="badge" style="margin-left:6px;background:#1b7a3d;color:#fff">✅ Gata!</span>`:`<span class="badge badge-warn" style="margin-left:6px">${escapeHtml(d.stare||'În derulare')}</span>`}
+              <div style="color:var(--text-muted);font-size:12.5px;margin-top:3px">${escapeHtml(d.adresa||'fără adresă încă')} ${d.responsabil?'· 👤 '+escapeHtml(d.responsabil):''}</div>
+            </div>
+            <div style="text-align:right;min-width:130px">
+              <div style="font-size:12px;color:var(--text-muted)">${pr.gata} din ${pr.total} pași</div>
+              <div style="background:rgba(255,255,255,.10);border-radius:20px;height:9px;width:130px;margin-top:4px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;background:${gata?'#1b7a3d':'linear-gradient(90deg,#4aa3ff,#50c878)'};border-radius:20px"></div>
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${pct}%</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}</div>`}
+    </div>
+  `;
+}
+
+function openDosar(id){ dosarSel=id; dosareView='detail'; renderDosare(); }
+function backToDosare(){ dosareView='hub'; dosarSel=null; renderDosare(); }
+
+function renderDosarDetail(){
+  const d = DB.dosare.find(x=>x.id===dosarSel);
+  if (!d){ backToDosare(); return; }
+  const pr=_dosarProgres(d); const pct=Math.round(pr.gata/pr.total*100); const gata=pr.gata===pr.total;
+  const stColor = s => s==='Gata' ? 'background:#1b7a3d;color:#fff' : s==='În lucru' ? 'background:#caa018;color:#1a1a1a' : 'background:rgba(255,255,255,.12);color:var(--text-muted)';
+  const cats = [...new Set(DOSAR_STEPS.map(s=>s.categorie))];
+  let rowsHtml='';
+  cats.forEach(cat=>{
+    rowsHtml += `<tr style="background:rgba(255,255,255,.04)"><td colspan="6" style="font-weight:700;font-size:11.5px;letter-spacing:.5px;color:var(--text-muted)">${cat}</td></tr>`;
+    (d.pasi||[]).filter(p=>p.categorie===cat).forEach(p=>{
+      rowsHtml += `<tr>
+        <td style="font-size:12.5px"><strong>${p.nr}.</strong> ${escapeHtml(p.pas)}</td>
+        <td><select onchange="updDosarPas('${d.id}',${p.nr},'status',this.value)" style="${stColor(p.status)};border:none;border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer">${DOSAR_STATUSES.map(s=>`<option ${s===p.status?'selected':''}>${s}</option>`).join('')}</select></td>
+        <td><input type="text" value="${escapeHtml(p.responsabil||'')}" placeholder="cine" onchange="updDosarPas('${d.id}',${p.nr},'responsabil',this.value)" style="width:90px"></td>
+        <td><input type="date" value="${p.termen||''}" onchange="updDosarPas('${d.id}',${p.nr},'termen',this.value)"></td>
+        <td><input type="date" value="${p.dataFinalizare||''}" onchange="updDosarPas('${d.id}',${p.nr},'dataFinalizare',this.value)"></td>
+        <td><input type="text" value="${escapeHtml(p.obs||'')}" placeholder="notițe" onchange="updDosarPas('${d.id}',${p.nr},'obs',this.value)" style="width:140px"></td>
+      </tr>`;
+    });
+  });
+  const log = (d.log||[]).slice().reverse();
+  document.getElementById('content').innerHTML = `
+    <div class="card">
+      <button class="btn btn-sm btn-ghost" onclick="backToDosare()">← Toate dosarele</button>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-top:8px">
+        <div>
+          <h3 style="margin:0">${escapeHtml(d.locatie||'Magazin nou')} ${d.oras?`<span class="badge badge-info">${escapeHtml(d.oras)}</span>`:''}</h3>
+          <div style="color:var(--text-muted);font-size:13px;margin-top:4px">${escapeHtml(d.adresa||'—')}</div>
+          <div style="color:var(--text-muted);font-size:12.5px;margin-top:2px">
+            👤 ${escapeHtml(d.responsabil||'—')} · 🏠 proprietar ${d.tipProprietar||'PF'}${d.proprietar?' ('+escapeHtml(d.proprietar)+')':''}
+            ${d.dataContract?' · 📝 contract '+d.dataContract:''}${d.dataTinta?' · 🎯 țintă '+d.dataTinta:''}
+          </div>
+        </div>
+        <div style="text-align:right;min-width:150px">
+          <div style="font-size:22px;font-weight:800;color:${gata?'#2fbf63':'#4aa3ff'}">${pct}%</div>
+          <div style="font-size:12px;color:var(--text-muted)">${pr.gata} din ${pr.total} pași gata</div>
+          ${gata?`<div style="margin-top:4px;font-size:13px">🎉 Bravo, dosar închis!</div>`:''}
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+        <button class="btn btn-primary btn-sm" onclick="openContractFromDosar('${d.id}')">📄 Generează contract</button>
+        <button class="btn btn-sm" onclick="editDosar('${d.id}')">✎ Editează detalii</button>
+        <button class="btn btn-sm" onclick="exportDosarStatus('${d.id}')">📥 Export status (Excel)</button>
+        <button class="btn btn-ghost btn-sm" onclick="openGhidAna()">📖 Ghid</button>
+        ${isAdmin()?`<button class="btn btn-ghost btn-sm" onclick="delDosar('${d.id}')" style="margin-left:auto">🗑 Șterge dosar</button>`:''}
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 4px">✅ Pașii dosarului</h3>
+      <p style="color:var(--text-muted);font-size:12.5px;margin:0 0 10px">Schimbă statusul fiecărui pas pe măsură ce avansezi. Când pui „Gata", se trece automat data de azi. Nu trebuie să le faci în ordine — fă ce poți, când poți. 🙂</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Pas</th><th>Status</th><th>Cine</th><th>Termen</th><th>Finalizat</th><th>Notițe</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 4px">🗒️ Jurnal — ce-ai făcut azi</h3>
+      <p style="color:var(--text-muted);font-size:12.5px;margin:0 0 10px">Scrie pe scurt ce-ai rezolvat sau unde te-ai blocat. E mini-jurnalul tău — te ajută să-ți amintești și pe Adi să vadă unde ești.</p>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input type="text" id="dosarLogInput" placeholder="ex: am sunat la proprietară, trimite CF-ul luni" style="flex:1" onkeydown="if(event.key==='Enter')addDosarLog('${d.id}')">
+        <button class="btn btn-primary btn-sm" onclick="addDosarLog('${d.id}')">Adaugă</button>
+      </div>
+      ${log.length===0?`<p style="color:var(--text-muted);font-size:13px">Încă nimic scris. Prima notă e cea mai grea — dă-i drumul! ✍️</p>`:
+      `<div style="display:flex;flex-direction:column;gap:8px">${log.map((l,i)=>`<div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;border-bottom:1px solid var(--border);padding-bottom:7px">
+        <span class="badge badge-neutral" style="white-space:nowrap">${l.data}</span>
+        <span style="flex:1">${escapeHtml(l.text)}${l.autor?` <span style="color:var(--text-muted)">— ${escapeHtml(l.autor)}</span>`:''}</span>
+        <button class="btn btn-sm btn-ghost" onclick="delDosarLog('${d.id}',${log.length-1-i})">×</button>
+      </div>`).join('')}</div>`}
+    </div>
+  `;
+}
+
+function updDosarPas(id, nr, field, val){
+  const d=DB.dosare.find(x=>x.id===id); if(!d) return;
+  const p=(d.pasi||[]).find(x=>x.nr===nr); if(!p) return;
+  p[field]=val;
+  if(field==='status'){
+    if(val==='Gata' && !p.dataFinalizare) p.dataFinalizare=todayISO();
+    if(val!=='Gata') { /* păstrăm data finalizării dacă a fost pusă manual */ }
+    if(val==='În lucru' && !p.dataStart) p.dataStart=todayISO();
+  }
+  // actualizează starea generală a dosarului
+  const pr=_dosarProgres(d); d.stare = pr.gata===pr.total ? 'Finalizat' : (pr.gata>0?'În derulare':'De pornit');
+  save(); renderDosarDetail();
+}
+function addDosarLog(id){
+  const d=DB.dosare.find(x=>x.id===id); if(!d) return;
+  const inp=document.getElementById('dosarLogInput'); const t=(inp.value||'').trim(); if(!t) return;
+  if(!d.log) d.log=[];
+  d.log.push({data:todayISO(), text:t, autor:(DB.users?.[DB.session.user]?.nume)||DB.session.user||''});
+  save(); renderDosarDetail();
+}
+function delDosarLog(id, idx){
+  const d=DB.dosare.find(x=>x.id===id); if(!d||!d.log) return;
+  d.log.splice(idx,1); save(); renderDosarDetail();
+}
+
+function dosarForm(d){
+  const isEdit=!!d;
+  const c=d||{locatie:'',adresa:'',oras:'',responsabil:(DB.users?.[DB.session.user]?.nume)||'Ana',tipProprietar:'PF',proprietar:'',dataContract:'',dataTinta:''};
+  return `
+    <h3>${isEdit?'✎ Editează dosarul':'➕ Dosar magazin nou'}</h3>
+    <p style="color:var(--text-muted);font-size:12.5px;margin-top:-4px">Completează ce știi acum — restul îl pui pe parcurs. Nimic nu e bătut în cuie.</p>
+    <div class="form-row">
+      <div class="form-field" style="flex:2"><label>Cum îi spunem magazinului *</label><input type="text" id="df_loc" value="${escapeHtml(c.locatie)}" placeholder="ex: Lugoj — Centru"></div>
+      <div class="form-field"><label>Oraș</label><input type="text" id="df_oras" value="${escapeHtml(c.oras)}" placeholder="ex: Lugoj"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:2"><label>Adresa spațiului</label><input type="text" id="df_adr" value="${escapeHtml(c.adresa)}" placeholder="strada, nr."></div>
+      <div class="form-field"><label>Cine se ocupă</label><input type="text" id="df_resp" value="${escapeHtml(c.responsabil)}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Proprietarul e...</label><select id="df_tip">${['PF','PJ'].map(t=>`<option value="${t}" ${t===c.tipProprietar?'selected':''}>${t==='PF'?'Persoană fizică (PF)':'Firmă (PJ)'}</option>`).join('')}</select></div>
+      <div class="form-field" style="flex:2"><label>Numele proprietarului</label><input type="text" id="df_prop" value="${escapeHtml(c.proprietar)}" placeholder="ex: Micota Marioara"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Data contract (dacă există)</label><input type="date" id="df_dc" value="${c.dataContract||''}"></div>
+      <div class="form-field"><label>🎯 Țintă deschidere</label><input type="date" id="df_dt" value="${c.dataTinta||''}"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn" onclick="closeModal()">Anulează</button>
+      <button class="btn btn-primary" onclick="saveDosar('${isEdit?d.id:''}')">${isEdit?'Salvează':'Creează dosarul 🚀'}</button>
+    </div>`;
+}
+function newDosar(){ openModal(dosarForm(null)); }
+function editDosar(id){ openModal(dosarForm(DB.dosare.find(d=>d.id===id))); }
+function saveDosar(id){
+  const loc=document.getElementById('df_loc').value.trim();
+  if(!loc){ toast('Dă-i un nume magazinului 🙂'); return; }
+  const data={
+    locatie:loc,
+    oras:document.getElementById('df_oras').value.trim(),
+    adresa:document.getElementById('df_adr').value.trim(),
+    responsabil:document.getElementById('df_resp').value.trim(),
+    tipProprietar:document.getElementById('df_tip').value,
+    proprietar:document.getElementById('df_prop').value.trim(),
+    dataContract:document.getElementById('df_dc').value,
+    dataTinta:document.getElementById('df_dt').value
+  };
+  if(id){
+    const d=DB.dosare.find(x=>x.id===id); Object.assign(d,data);
+  } else {
+    DB.dosare.push({
+      id:'DOS-'+Date.now(), ...data,
+      pasi: JSON.parse(JSON.stringify(DOSAR_STEPS)).map(s=>({...s,responsabil:'',status:'De făcut',dataStart:'',termen:'',dataFinalizare:'',obs:''})),
+      log:[], stare:'De pornit', createdAt:nowISO()
+    });
+  }
+  save(); closeModal(); renderDosare(); toast(id?'Salvat ✓':'Dosar creat! Hai la treabă 🚀');
+}
+function delDosar(id){
+  if(!isAdmin()){ toast('Ștergerea o face doar Adi'); return; }
+  if(!confirm('Ștergi tot dosarul? Nu se mai poate recupera.')) return;
+  DB.dosare=DB.dosare.filter(d=>d.id!==id); save(); backToDosare(); toast('Dosar șters');
+}
+function exportDosarStatus(id){
+  const d=DB.dosare.find(x=>x.id===id); if(!d) return;
+  const aoa=[
+    ['REJOES — URMĂRIRE DOSAR DESCHIDERE MAGAZIN'],
+    ['Magazin / Locație:', d.locatie||'', '', 'Oraș:', d.oras||''],
+    ['Adresă:', d.adresa||''],
+    ['Responsabil dosar:', d.responsabil||'', '', 'Proprietar:', (d.tipProprietar||'')+' '+(d.proprietar||'')],
+    ['Data contract:', d.dataContract||'', '', 'Țintă deschidere:', d.dataTinta||''],
+    ['Progres:', _dosarProgres(d).gata+' / '+_dosarProgres(d).total+' pași', '', 'Stare:', d.stare||''],
+    [],
+    ['Nr','Categorie','Pas / Document','Responsabil','Status','Termen','Data finalizare','Observații']
+  ];
+  (d.pasi||[]).forEach(p=>aoa.push([p.nr,p.categorie,p.pas,p.responsabil||'',p.status||'',p.termen||'',p.dataFinalizare||'',p.obs||'']));
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:5},{wch:14},{wch:52},{wch:14},{wch:11},{wch:12},{wch:14},{wch:30}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Status dosar');
+  XLSX.writeFile(wb, `Dosar_${(d.locatie||'magazin').replace(/[^\w]+/g,'_')}_${todayISO()}.xlsx`);
+}
+
+// ---------- GHIDUL DE LA ADI ----------
+function openGhidAna(){
+  openModal(`
+  <div style="max-height:72vh;overflow:auto;padding-right:6px">
+    <h3 style="margin-top:0">📖 Ghidul de la Adi — deschidem un magazin, relax 😎</h3>
+    <p style="font-size:13.5px">Ana, citește asta o dată, calm, cu o cafea. Nu e nimic complicat — sunt doar niște hârtii puse în ordine. Eu ți-am aranjat totul aici ca să nu trebuiască să mă suni la fiecare pas. Dacă te blochezi, îmi scrii exact unde și rezolvăm în 2 minute. Gata, începem.</p>
+
+    <h4 style="margin-bottom:4px">🧩 Pe scurt, ce ai de făcut</h4>
+    <p style="font-size:13.5px;margin-top:0">Trei lucruri, atât: <b>(1)</b> faci contractul cu proprietarul, <b>(2)</b> aduni de la el niște acte, <b>(3)</b> bifezi pe rând pașii din dosar până se face verde tot. Când e tot verde — ai deschis un magazin. 🎉</p>
+
+    <h4 style="margin-bottom:4px">📄 1. Contractul (butonul „Contract nou")</h4>
+    <p style="font-size:13.5px;margin-top:0">Apeși pe „Contract nou", alegi cine e proprietarul:</p>
+    <ul style="font-size:13.5px">
+      <li><b>Persoană fizică (PF)</b> — un om obișnuit care îți închiriază spațiul. Aici firma noastră trebuie să-i rețină un impozit din chirie și să-l plătească la stat în locul lui (apare scris în contract, nu te speria, e normal).</li>
+      <li><b>Firmă (PJ)</b> — proprietarul e o societate. Atunci el ne dă <b>factură</b> pentru chirie și nu mai reținem niciun impozit.</li>
+    </ul>
+    <p style="font-size:13.5px">Completezi <b>doar căsuțele cerute</b> (nume, adresă spațiu, suprafață, chirie etc.) — restul clauzelor sunt deja scrise și nu le atingem. Apeși „Generează", apoi:</p>
+    <ul style="font-size:13.5px">
+      <li>📥 <b>Descarcă Word</b> — dacă vrei să-l mai ajustezi.</li>
+      <li>🖨️ <b>Printează / PDF</b> — îl salvezi ca PDF (frumos de trimis pe WhatsApp).</li>
+    </ul>
+    <p style="font-size:13.5px;background:rgba(80,160,255,.10);border-radius:8px;padding:10px"><b>Traseul semnăturii (important):</b> contractul îl trimiți <b>întâi mie (Adi)</b> pe WhatsApp. Eu îl dau la <b>Olga</b> să-l semneze. După ce e semnat de noi, ajunge la proprietar pentru semnătura lui. Tu nu semnezi nimic — tu doar îl pregătești și mi-l trimiți. Ușor, nu? 😉</p>
+
+    <h4 style="margin-bottom:4px">🏠 De unde iau datele pentru contract</h4>
+    <p style="font-size:13.5px;margin-top:0">Aproape toate (adresă, suprafață, număr cadastral, carte funciară) sunt în <b>extrasul de Carte Funciară</b> — primul act pe care îl ceri de la proprietar. Deci: întâi ceri CF-ul, apoi completezi contractul. Logică, vezi? 🙂</p>
+
+    <h4 style="margin-bottom:4px">📋 2. Actele de cerut de la proprietar</h4>
+    <p style="font-size:13.5px;margin-top:0">Trimite-i lista asta proprietarului și spune-i că le vrei în vreo 5 zile. Pentru fiecare îți zic la ce folosește:</p>
+    <ol style="font-size:13px">
+      <li><b>Extras de Carte Funciară recent</b> (ultimele ~30 zile) — actul vedetă. Arată cine e proprietarul și descrie spațiul. Din el completezi contractul.</li>
+      <li><b>Copie act de proprietate</b> (vânzare-cumpărare / moștenire) — dovedește că e chiar al lui.</li>
+      <li><b>Copie CI proprietar</b> — să se potrivească datele din contract. Verifică să nu fie expirat.</li>
+      <li><b>Schița / planul spațiului</b> (cu mp) — o cere Primăria și ISU. La sub 200 mp poate nu trebuie, dar cere-o oricum.</li>
+      <li><b>Certificat de performanță energetică</b> — proprietarul e obligat să-l dea la închiriere.</li>
+      <li><b>Acord scris pentru 3 lucruri</b>: (a) să înregistrăm punctul de lucru la adresă, (b) să punem firma luminoasă „Rejoes" pe fațadă, (c) să facem amenajări. Toate într-o singură hârtie semnată de el.</li>
+      <li><b>Datele utilităților + ultimele facturi</b> (curent, apă, gaz) — ca să le trecem pe firma noastră.</li>
+      <li><b>Certificat fiscal de la Primărie</b> (că imobilul n-are datorii) — opțional, dar bine de avut.</li>
+      <li><b>Dacă e în bloc sau centru istoric</b>: acordul asociației / regimul de fațadă. Întreabă din start — schimbă pașii pentru firma luminoasă.</li>
+      <li><b>Proces-verbal de predare-primire</b> (cu poze) la primirea cheilor — ne protejează pe amândoi. Fă multe poze clare.</li>
+    </ol>
+
+    <h4 style="margin-bottom:4px">✅ 3. Dosarul (urmărirea pașilor)</h4>
+    <p style="font-size:13.5px;margin-top:0">Pentru fiecare magazin nou, faci un „Dosar". Înăuntru ai <b>22 de pași</b> grupați frumos (Legal, Autorizații, Tehnic, Amenajare, Personal, Marfă, Deschidere). La fiecare alegi: <b>De făcut</b> → <b>În lucru</b> → <b>Gata</b>. Pui și un termen dacă vrei, și o notiță. Bara de progres se umple singură. Nu trebuie făcute în ordine — fă ce se poate, când se poate.</p>
+    <p style="font-size:13.5px">În <b>Jurnal</b> scrii pe scurt, zilnic, ce-ai făcut („am sunat la proprietară", „am depus la ONRC"). Așa nu uiți nimic și eu văd unde ești fără să te întreb.</p>
+
+    <h4 style="margin-bottom:4px">🧭 Ordinea logică (dacă vrei un fir)</h4>
+    <ol style="font-size:13px">
+      <li>Ceri actele de la proprietar (mai ales CF-ul).</li>
+      <li>Completezi și generezi contractul → mi-l trimiți mie → Olga semnează → proprietarul semnează.</li>
+      <li>Cu contractul semnat, mergi la <b>ONRC</b> pentru punctul de lucru.</li>
+      <li>Treci utilitățile pe firmă + depui cererile de autorizare (Primărie, ISU, DSP, salubritate, firmă).</li>
+      <li>Partea tehnică (casă de marcat, POS, PC, internet, e:Corg), apoi amenajarea și marfa.</li>
+      <li>Ultimele verificări → deschidem! 🎉</li>
+    </ol>
+
+    <p style="font-size:13.5px;background:rgba(80,200,120,.10);border-radius:8px;padding:10px;margin-top:14px">Atât, Ana. Pare mult scris, dar e doar o listă pe care o bifezi. Mergi în ritmul tău, nu te stresa — orice nelămurire, un mesaj și sunt acolo. Te descurci minunat. 💪 — Adi</p>
+
+    <div style="text-align:right;margin-top:12px"><button class="btn btn-primary" onclick="closeModal()">Am înțeles, să-i dăm drumul! 🚀</button></div>
+  </div>`);
+}
+
+// ---------- GENERATOR CONTRACT (PF / PJ) ----------
+function openContractTypePicker(prefill){
+  window._contractPrefill = prefill||null;
+  openModal(`
+    <h3 style="margin-top:0">📄 Contract nou — cine e proprietarul?</h3>
+    <p style="color:var(--text-muted);font-size:13px">Alege și-ți deschid formularul potrivit. Diferența: la firmă (PJ) se lucrează cu factură, la persoană fizică (PF) reținem noi impozitul.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-primary" style="flex:1;min-width:180px;padding:18px" onclick="openContractForm('PF')">👤 Persoană fizică<br><small style="font-weight:400;opacity:.8">un om îți închiriază spațiul</small></button>
+      <button class="btn btn-primary" style="flex:1;min-width:180px;padding:18px" onclick="openContractForm('PJ')">🏢 Firmă (PJ)<br><small style="font-weight:400;opacity:.8">proprietarul e o societate, dă factură</small></button>
+    </div>
+    <div style="text-align:right;margin-top:14px"><button class="btn" onclick="closeModal()">Anulează</button></div>`);
+}
+function openContractFromDosar(id){
+  const d=DB.dosare.find(x=>x.id===id); if(!d) return;
+  openContractTypePicker({spLocalitate:d.oras||'', spStrada:d.adresa||'', tip:d.tipProprietar||'PF', proprietar:d.proprietar||''});
+  // dacă dosarul are deja tipul, sărim direct la formular
+  if(d.tipProprietar){ openContractForm(d.tipProprietar); }
+}
+
+function _ci(id,val,ph,extra){ return `<input type="text" id="${id}" value="${escapeHtml(val||'')}" placeholder="${ph||''}" ${extra||''}>`; }
+function openContractForm(tip){
+  const pf = window._contractPrefill||{};
+  const landlord = tip==='PF' ? `
+    <h4 style="margin:14px 0 4px">👤 Proprietarul (persoană fizică)</h4>
+    <div class="form-row">
+      <div class="form-field" style="flex:2"><label>Nume și prenume *</label>${_ci('cf_pfNume',pf.proprietar,'ex: Micota Marioara')}</div>
+      <div class="form-field"><label>CNP</label>${_ci('cf_pfCNP','','13 cifre')}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:2"><label>Domiciliu (localitate, stradă, nr.)</label>${_ci('cf_pfDom','','')}</div>
+      <div class="form-field"><label>Județ</label>${_ci('cf_pfJudet','','')}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>CI seria</label>${_ci('cf_pfCISerie','','')}</div>
+      <div class="form-field"><label>CI nr.</label>${_ci('cf_pfCINr','','')}</div>
+      <div class="form-field" style="flex:2"><label>Eliberat de (SPCLEP)</label>${_ci('cf_pfSPCLEP','','')}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:2"><label>IBAN</label>${_ci('cf_pfIBAN','','')}</div>
+      <div class="form-field"><label>Banca</label>${_ci('cf_pfBanca','','')}</div>
+    </div>` : `
+    <h4 style="margin:14px 0 4px">🏢 Proprietarul (firmă — PJ)</h4>
+    <div class="form-row">
+      <div class="form-field" style="flex:2"><label>Denumire societate *</label>${_ci('cf_pjDenumire','','ex: EXEMPLU IMOBILIARE S.R.L.')}</div>
+      <div class="form-field"><label>CUI</label>${_ci('cf_pjCUI','','')}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:2"><label>Sediu social</label>${_ci('cf_pjSediu','','')}</div>
+      <div class="form-field"><label>Nr. Reg. Com.</label>${_ci('cf_pjRegCom','','J__/__/__')}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Reprezentant legal</label>${_ci('cf_pjReprez','','nume')}</div>
+      <div class="form-field"><label>În calitate de</label>${_ci('cf_pjFunctie','administrator','')}</div>
+      <div class="form-field"><label>Plătitor de TVA?</label><select id="cf_pjTVA"><option value="nu">Nu</option><option value="da">Da</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:2"><label>IBAN</label>${_ci('cf_pjIBAN','','')}</div>
+      <div class="form-field"><label>Banca</label>${_ci('cf_pjBanca','','')}</div>
+    </div>`;
+  openModal(`
+  <div style="max-height:74vh;overflow:auto;padding-right:6px">
+    <h3 style="margin-top:0">📄 Contract de închiriere — proprietar ${tip==='PF'?'persoană fizică':'firmă (PJ)'}</h3>
+    <p style="color:var(--text-muted);font-size:12.5px;margin-top:-4px">Completează doar ce știi. Ce lași gol apare în contract ca [____] și completezi de mână mai târziu. Zero stres. ✍️</p>
+
+    <h4 style="margin:10px 0 4px">📝 Date contract</h4>
+    <div class="form-row">
+      <div class="form-field"><label>Nr. contract</label>${_ci('cf_nr','','')}</div>
+      <div class="form-field"><label>Data</label><input type="date" id="cf_data" value="${todayISO()}"></div>
+    </div>
+
+    ${landlord}
+
+    <h4 style="margin:14px 0 4px">🏪 Spațiul închiriat</h4>
+    <div class="form-row">
+      <div class="form-field"><label>Localitate</label>${_ci('cf_spLoc',pf.spLocalitate,'')}</div>
+      <div class="form-field" style="flex:2"><label>Strada și numărul</label>${_ci('cf_spStrada',pf.spStrada,'')}</div>
+      <div class="form-field"><label>Parter/etaj</label>${_ci('cf_spEtaj','parter','')}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Județ</label>${_ci('cf_spJudet','','')}</div>
+      <div class="form-field"><label>Suprafață (mp)</label>${_ci('cf_spMp','','')}</div>
+      <div class="form-field"><label>Nr. cadastral</label>${_ci('cf_spCad','','')}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Carte Funciară nr.</label>${_ci('cf_spCF','','')}</div>
+      <div class="form-field"><label>U.A.T.</label>${_ci('cf_spUAT','','')}</div>
+    </div>
+
+    <h4 style="margin:14px 0 4px">📅 Durată & chirie</h4>
+    <div class="form-row">
+      <div class="form-field"><label>Durata</label><select id="cf_durTip"><option value="nedeterminată">Nedeterminată</option><option value="determinată">Determinată (ani)</option></select></div>
+      <div class="form-field"><label>...câți ani (dacă determinată)</label>${_ci('cf_durAni','','')}</div>
+      <div class="form-field"><label>Data predării spațiului</label><input type="date" id="cf_dataPred" value=""></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Chiria lunară</label>${_ci('cf_chirie','','ex: 500')}</div>
+      <div class="form-field"><label>Moneda</label><select id="cf_moneda"><option value="EUR (plătibil în lei)">EUR (plătibil în lei)</option><option value="lei">lei</option></select></div>
+      <div class="form-field"><label>Luni cu chirie 0 (amenajare)</label>${_ci('cf_grace','30','')}</div>
+    </div>
+
+    <h4 style="margin:14px 0 4px">🛡️ Garanție & clauze</h4>
+    <div class="form-row">
+      <div class="form-field"><label>Garanție (nr. chirii)</label>${_ci('cf_garN','2','')}</div>
+      <div class="form-field" style="flex:2"><label>Forma garanției</label>${_ci('cf_garForma','bilet la ordin','')}</div>
+      <div class="form-field"><label>Termen restituire (zile)</label>${_ci('cf_garTermen','15','')}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Protecție investiție — luni fără denunțare (opțional)</label>${_ci('cf_protectie','','ex: 12')}</div>
+      <div class="form-field" style="flex:2"><label>Instanța competentă</label>${_ci('cf_instanta','','Judecătoria/Tribunalul ___')}</div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn" onclick="closeModal()">Anulează</button>
+      <button class="btn btn-primary" onclick="generateContract('${tip}')">✨ Generează contractul</button>
+    </div>
+  </div>`);
+}
+
+function _gv(id){ const e=document.getElementById(id); return e?String(e.value).trim():''; }
+function _slot(val, ph){ return val ? '<b>'+escapeHtml(val)+'</b>' : '<span style="color:#c0392b">[ '+ph+' ]</span>'; }
+
+function generateContract(tip){
+  const d={ tip,
+    nr:_gv('cf_nr'), data:_gv('cf_data'),
+    spLoc:_gv('cf_spLoc'), spStrada:_gv('cf_spStrada'), spEtaj:_gv('cf_spEtaj'), spJudet:_gv('cf_spJudet'),
+    spMp:_gv('cf_spMp'), spCad:_gv('cf_spCad'), spCF:_gv('cf_spCF'), spUAT:_gv('cf_spUAT'),
+    durTip:_gv('cf_durTip'), durAni:_gv('cf_durAni'), dataPred:_gv('cf_dataPred'),
+    chirie:_gv('cf_chirie'), moneda:_gv('cf_moneda'), grace:_gv('cf_grace')||'30',
+    garN:_gv('cf_garN')||'2', garForma:_gv('cf_garForma')||'bilet la ordin', garTermen:_gv('cf_garTermen')||'15',
+    protectie:_gv('cf_protectie'), instanta:_gv('cf_instanta')
+  };
+  if(tip==='PF'){
+    Object.assign(d,{pfNume:_gv('cf_pfNume'),pfCNP:_gv('cf_pfCNP'),pfDom:_gv('cf_pfDom'),pfJudet:_gv('cf_pfJudet'),pfCISerie:_gv('cf_pfCISerie'),pfCINr:_gv('cf_pfCINr'),pfSPCLEP:_gv('cf_pfSPCLEP'),pfIBAN:_gv('cf_pfIBAN'),pfBanca:_gv('cf_pfBanca')});
+  } else {
+    Object.assign(d,{pjDenumire:_gv('cf_pjDenumire'),pjCUI:_gv('cf_pjCUI'),pjSediu:_gv('cf_pjSediu'),pjRegCom:_gv('cf_pjRegCom'),pjReprez:_gv('cf_pjReprez'),pjFunctie:_gv('cf_pjFunctie')||'administrator',pjTVA:_gv('cf_pjTVA'),pjIBAN:_gv('cf_pjIBAN'),pjBanca:_gv('cf_pjBanca')});
+  }
+  // salvăm draft LOCAL (nu în cloud — conține date personale)
+  if(!DB.contractDrafts) DB.contractDrafts=[];
+  DB.contractDrafts.push({id:'CTR-'+Date.now(), tip, data:d, salvatLa:nowISO()});
+  if(DB.contractDrafts.length>30) DB.contractDrafts=DB.contractDrafts.slice(-30);
+  save();
+  const html=buildContractHtml(d);
+  const fname=`Contract_inchiriere_${tip}_${(d.spLoc||'spatiu').replace(/[^\w]+/g,'_')}_${todayISO()}`;
+  _lastContract={tip, fname, html};
+  openModal(`
+    <h3 style="margin-top:0">✅ Gata, contractul e pregătit!</h3>
+    <p style="font-size:13.5px;color:var(--text-muted)">Verifică-l mai jos. Câmpurile pe care le-ai lăsat goale apar <span style="color:#c0392b">[ roșu ]</span> — le completezi de mână în Word sau pe hârtie. Apoi îl trimiți lui Adi pe WhatsApp pentru semnătura Olgăi. 😉</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px">
+      <button class="btn btn-primary" onclick="downloadContractWord()">📥 Descarcă Word (.doc)</button>
+      <button class="btn" onclick="printContract()">🖨️ Printează / salvează PDF</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Închide</button>
+    </div>
+    <div style="max-height:52vh;overflow:auto;background:#fff;color:#111;border-radius:8px;padding:18px 22px">${html}</div>
+  `);
+}
+
+function buildContractHtml(d){
+  const S=_slot;
+  const locator = d.tip==='PF' ? `
+    <p><b>1. Locator (Proprietar):</b> ${S(d.pfNume,'nume și prenume')}, persoană fizică, domiciliat(ă) în ${S(d.pfDom,'localitate, stradă, nr.')}, jud. ${S(d.pfJudet,'___')}, CNP ${S(d.pfCNP,'___')}, CI seria ${S(d.pfCISerie,'__')} nr. ${S(d.pfCINr,'______')}, eliberată de SPCLEP ${S(d.pfSPCLEP,'___')}, IBAN ${S(d.pfIBAN,'___')} (banca ${S(d.pfBanca,'___')}), denumit(ă) în continuare „Locator".</p>` : `
+    <p><b>1. Locator (Proprietar):</b> ${S(d.pjDenumire,'denumire societate')}, persoană juridică, cu sediul în ${S(d.pjSediu,'sediu social')}, CUI ${S(d.pjCUI,'___')}, înregistrată la Registrul Comerțului sub nr. ${S(d.pjRegCom,'J__/__/__')}, reprezentată legal prin ${S(d.pjReprez,'nume')}, în calitate de ${S(d.pjFunctie,'administrator')}, IBAN ${S(d.pjIBAN,'___')} (banca ${S(d.pjBanca,'___')}), denumită în continuare „Locator".</p>`;
+  // Art. 3.2 — plata
+  const art32 = d.tip==='PF' ? `
+    <p>3.2. Plata se efectuează în lei (RON) prin transfer bancar în contul Locatorului; dacă chiria este stabilită în EUR, conversia se face la cursul oficial BNR din ziua plății. Întrucât Locatorul este persoană fizică, plata se realizează în baza prezentului contract, fără emiterea unei facturi.</p>` : `
+    <p>3.2. Plata se efectuează în lei (RON) prin transfer bancar în contul Locatorului, în termen de [5] zile lucrătoare de la primirea facturii; dacă chiria este stabilită în EUR, conversia se face la cursul oficial BNR din ziua facturării. Locatorul, fiind persoană juridică, emite lunar factură fiscală pentru chirie${d.pjTVA==='da'?', cu TVA conform legii (Locatorul fiind plătitor de TVA)':' (Locatorul declară că nu este plătitor de TVA; dacă devine plătitor, va factura cu TVA conform legii)'}.</p>`;
+  // Art. 4 — regim fiscal
+  const art4 = d.tip==='PF' ? `
+    <h4>ART. 4 — REGIMUL FISCAL AL CHIRIEI</h4>
+    <p>4.1. Locatorul fiind persoană fizică, chiria reprezintă venit din cedarea folosinței bunurilor. Conform Codului fiscal, Locatarul (persoană juridică) are obligația de a calcula, reține la sursă și vira la bugetul de stat impozitul pe venitul din chirii datorat de Locator.</p>
+    <p>4.2. Chiria prevăzută la art. 3.1 este venit brut; Locatarul plătește Locatorului chiria netă, rezultată după reținerea impozitului.</p>
+    <p>4.3. Părțile colaborează pentru îndeplinirea oricăror obligații declarative aplicabile (de ex. CASS, dacă este cazul).</p>` : `
+    <h4>ART. 4 — REGIMUL FISCAL AL CHIRIEI</h4>
+    <p>4.1. Locatorul fiind persoană juridică, chiria se facturează de către Locator și constituie venit impozabil al acestuia. Locatarul NU reține impozit la sursă; fiecare parte își îndeplinește propriile obligații fiscale conform legii.</p>
+    <p>4.2. Plata chiriei se face pe baza facturii fiscale emise de Locator, în cuantumul și la termenul prevăzute la art. 3.${d.pjTVA==='da'?' Factura include TVA conform legii.':''}</p>`;
+
+  return `
+  <div style="font-family:Georgia,'Times New Roman',serif;line-height:1.5;font-size:13.5px;color:#111">
+    <h2 style="text-align:center;margin:0">CONTRACT DE ÎNCHIRIERE SPAȚIU COMERCIAL</h2>
+    <p style="text-align:center;margin:2px 0 14px;font-style:italic;color:#444">Model standard Rejoes — proprietar ${d.tip==='PF'?'persoană fizică':'persoană juridică (PJ)'}</p>
+    <p style="text-align:center"><b>Nr. ${S(d.nr,'___')} / data ${S(d.data,'___')}</b></p>
+
+    <h4>I. PĂRȚILE CONTRACTANTE</h4>
+    ${locator}
+    <p><b>2. Locatar:</b> S-COLECT REC S.R.L., cu sediul social conform ultimului certificat constatator, CUI RO 38513453, înregistrată la Registrul Comerțului sub nr. J2017004459354, reprezentată legal prin Olga Baraban, denumită în continuare „Locatar".</p>
+    <p>Părțile, denumite împreună „Părțile", convin de comun acord, cu respectarea dispozițiilor Codului civil privind locațiunea, încheierea prezentului contract:</p>
+
+    <h4>ART. 1 — OBIECTUL CONTRACTULUI</h4>
+    <p>1.1. Obiectul contractului îl constituie închirierea spațiului comercial situat în ${S(d.spLoc,'localitate')}, ${S(d.spStrada,'strada și numărul')}, ${S(d.spEtaj,'parter/etaj')}, jud. ${S(d.spJudet,'___')}, având o suprafață utilă de ${S(d.spMp,'___')} mp, identificat prin numărul cadastral ${S(d.spCad,'___')}, înscris în Cartea Funciară nr. ${S(d.spCF,'___')} a U.A.T. ${S(d.spUAT,'___')}.</p>
+    <p>1.2. Spațiul va fi utilizat exclusiv pentru activitatea comercială legală a Locatarului, sub brandul „REJOES" — comercializarea de articole vestimentare, încălțăminte, accesorii și produse conexe.</p>
+    <p>1.3. Predarea-primirea spațiului se realizează pe baza unui proces-verbal (Anexa 1), care cuprinde starea tehnică a spațiului, indecșii și seriile contoarelor și fotografii, și care face parte integrantă din contract.</p>
+
+    <h4>ART. 2 — DURATA CONTRACTULUI</h4>
+    <p>2.1. Contractul se încheie pe durată ${d.durTip==='determinată'?('determinată de '+S(d.durAni,'___')+' ani, cu reînnoire automată'):'<b>nedeterminată</b>'}.</p>
+    <p>2.2. Contractul intră în vigoare și spațiul se predă la data de ${S(d.dataPred,'___')}.</p>
+    <p>2.3. Primele ${S(d.grace,'30')} de zile de la predare sunt cu chirie 0, pentru a permite Locatarului amenajarea spațiului și obținerea autorizațiilor.</p>
+
+    <h4>ART. 3 — CHIRIA ȘI MODALITATEA DE PLATĂ</h4>
+    <p>3.1. Chiria lunară este de ${S(d.chirie,'suma')} ${S(d.moneda,'lei / EUR')} și reprezintă venit BRUT (a se vedea art. 4 — regimul fiscal).</p>
+    ${art32}
+    <p>3.3. Chiria se achită lunar, până cel târziu la data de 15 a fiecărei luni, pentru luna în curs.</p>
+    <p>3.4. Pentru întârziere se pot percepe penalități de 0,1% pe zi din suma restantă, fără a putea depăși valoarea debitului principal.</p>
+    <p>3.5. Înaintea oricărei rezilieri pentru neplată, Locatorul transmite o notificare scrisă de punere în întârziere. Rezilierea de drept operează numai dacă întârzierea depășește 45 de zile calendaristice, iar debitul nu este achitat în 5 zile lucrătoare de la notificare.</p>
+    <p>3.6. Locatorul nu poate suspenda utilitățile, restricționa accesul în spațiu sau evacua Locatarul fără hotărâre judecătorească definitivă ori acordul scris al Locatarului.</p>
+
+    ${art4}
+
+    <h4>ART. 5 — GARANȚIA</h4>
+    <p>5.1. Pentru garantarea obligațiilor, Locatarul constituie o garanție echivalentă cu ${S(d.garN,'2')} chirii lunare, sub forma ${S(d.garForma,'bilet la ordin')}. Garanția se restituie/anulează în termen de ${S(d.garTermen,'15')} zile de la predarea spațiului, dacă nu există obligații restante sau prejudicii.</p>
+    <p>5.2. Garanția poate fi executată exclusiv pentru chirii ori utilități restante sau pentru prejudicii reale și dovedite, după transmiterea unei notificări scrise detaliate, și nu poate fi utilizată pentru prejudicii nedovedite sau estimative.</p>
+
+    <h4>ART. 6 — UTILITĂȚI ȘI CHELTUIELI</h4>
+    <p>6.1. Chiria nu include utilitățile. Locatarul suportă separat energia electrică, apa-canal, gazul (dacă e cazul), salubritatea, internetul și alte servicii aferente folosinței spațiului.</p>
+    <p>6.2. Locatarul are dreptul și obligația de a încheia contractele de utilități pe numele său; Locatorul pune la dispoziție documentele necesare (a se vedea art. 8).</p>
+    <p>6.3. Locatorul garantează existența și funcționarea legală a branșamentelor la data predării.</p>
+
+    <h4>ART. 7 — OBLIGAȚIILE LOCATARULUI</h4>
+    <p>Locatarul se obligă: să folosească spațiul cu diligența unui bun profesionist; să achite la termen chiria și utilitățile; să păstreze spațiul în stare corespunzătoare; să nu aducă modificări structurale fără acordul scris al Locatorului; să respecte normele legale aplicabile activității; să efectueze amenajări interioare doar cu notificarea prealabilă a Locatorului; iar la încetare să predea spațiul conform procesului-verbal inițial, ținând cont exclusiv de uzura normală.</p>
+
+    <h4>ART. 8 — OBLIGAȚIILE LOCATORULUI ȘI PUNEREA LA DISPOZIȚIE A DOCUMENTELOR</h4>
+    <p>8.1. Locatorul se obligă să pună la dispoziția Locatarului, în termen de [5] zile lucrătoare de la semnare, toate documentele necesare pentru: înregistrarea punctului de lucru la Registrul Comerțului; obținerea avizelor și autorizațiilor; contractarea utilităților pe numele Locatarului; fiscalizarea și punerea în funcțiune a casei de marcat. Lista detaliată constituie Anexa 2.</p>
+    <p>8.2. Părțile recunosc că activitatea comercială nu poate fi desfășurată legal fără finalizarea procedurilor de mai sus.</p>
+    <p>8.3. În situația în care deschiderea întârzie din cauza nepredării complete și la timp a documentelor de către Locator, data de la care chiria devine exigibilă se consideră momentul în care Locatarul are posibilitatea legală de a desfășura activitate comercială și de a realiza încasări.</p>
+
+    <h4>ART. 9 — ÎNCETAREA ȘI REZILIEREA</h4>
+    <p>9.1. Oricare dintre Părți poate denunța unilateral contractul, fără justificare, cu notificare scrisă transmisă cu minimum 90 de zile calendaristice înainte.</p>
+    <p>9.2. ${d.protectie?('Locatorul nu poate denunța contractul fără justificare în primele <b>'+escapeHtml(d.protectie)+'</b> luni de la deschidere, având în vedere investiția Locatarului în amenajarea spațiului și în firma exterioară.'):'<i>[Clauză opțională — protecția investiției: Locatorul nu poate denunța fără justificare în primele [___] luni de la deschidere.]</i>'}</p>
+    <p>9.3. Locatarul poate înceta contractul fără preaviz dacă: spațiul nu mai poate fi utilizat conform destinației; există vicii ascunse majore; utilitățile esențiale sunt indisponibile peste 15 zile din motive neimputabile lui; ori Locatorul împiedică în mod semnificativ folosința normală a spațiului.</p>
+    <p>9.4. Locatorul poate solicita despăgubiri exclusiv pentru prejudicii reale, directe și dovedite rezultate din încălcarea de către Locatar a obligațiilor contractuale.</p>
+
+    <h4>ART. 10 — FORȚA MAJORĂ</h4>
+    <p>10.1. Forța majoră exonerează de răspundere partea afectată, conform legii. Partea care o invocă notifică cealaltă parte în maximum 5 zile de la apariția evenimentului.</p>
+
+    <h4>ART. 11 — SOLUȚIONAREA LITIGIILOR</h4>
+    <p>11.1. Litigiile se soluționează pe cale amiabilă; în caz contrar, competența revine instanței de la locul situării spațiului, respectiv ${S(d.instanta,'Judecătoria/Tribunalul ___')}.</p>
+
+    <h4>ART. 12 — DISPOZIȚII FINALE</h4>
+    <p>12.1. Orice modificare se face exclusiv prin act adițional semnat de ambele Părți.</p>
+    <p>12.2. Prezentul contract reprezintă voința integrală a Părților și înlocuiește orice înțelegere anterioară.</p>
+    <p>12.3. Redactat în două exemplare originale, câte unul pentru fiecare Parte. Anexele 1 și 2 fac parte integrantă din contract.</p>
+    <p style="font-size:12.5px;color:#444">Anexa 1 — Proces-verbal de predare-primire a spațiului (cu fotografii). Anexa 2 — Lista documentelor puse la dispoziție de Locator.</p>
+
+    <table style="width:100%;margin-top:26px;border-collapse:collapse">
+      <tr>
+        <td style="width:50%;vertical-align:top;padding:6px">
+          <b>LOCATOR</b><br>${d.tip==='PF'?S(d.pfNume,'nume proprietar'):S(d.pjDenumire,'denumire societate')}<br><br>Semnătură: ___________________
+        </td>
+        <td style="width:50%;vertical-align:top;padding:6px">
+          <b>LOCATAR — S-COLECT REC S.R.L.</b><br>prin reprezentant Olga Baraban<br><br>Semnătură și ștampilă: _____________
+        </td>
+      </tr>
+    </table>
+  </div>`;
+}
+
+function downloadContractWord(){
+  if(!_lastContract) return;
+  const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Contract</title></head><body>'+_lastContract.html+'</body></html>';
+  const blob=new Blob(['﻿'+html],{type:'application/msword'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=_lastContract.fname+'.doc'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+  toast('Descărcat — gata de trimis 📲');
+}
+function printContract(){
+  if(!_lastContract) return;
+  const w=window.open('','_blank');
+  if(!w){ toast('Permite ferestrele pop-up ca să printezi'); return; }
+  w.document.write('<html><head><meta charset="utf-8"><title>'+_lastContract.fname+'</title><style>@page{margin:2cm}body{font-family:Georgia,serif}h4{margin:14px 0 4px}</style></head><body>'+_lastContract.html+'<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);}<\/scr'+'ipt></body></html>');
+  w.document.close();
+}
 
 // ---------- BRIEFING ----------
 let briefingMode = 'ieri';
@@ -10780,9 +11380,10 @@ const CLOUD_COLLECTIONS = [
   //   Trade-off: Olga nu vede Profit/Balanță pe telefon, dar Adrian nu mai pierde date.
   'cheltuieliMagazin','cheltuieliAngajati','cheltuieliFixe',  // Etapa 10 Faza A
   'furnizoriAutoExclude',  // Etapa 10E — reguli auto-marcare furnizori (mic, safe)
-  'balantaCashBank','balantaCashBankUpdate'  // Etapa 10E — cash în bancă (1 număr + 1 timestamp, safe)
+  'balantaCashBank','balantaCashBankUpdate',  // Etapa 10E — cash în bancă (1 număr + 1 timestamp, safe)
+  'dosare'  // Etapa 13 — trackerul dosarelor de deschidere magazin (operational, fără date personale)
 ];
-// NU includem: angajati (CNP/IBAN sensibile), users (PIN-uri), setari, session, _backups (sunt locale per device), ecorgImports (vezi nota mai sus)
+// NU includem: angajati (CNP/IBAN sensibile), users (PIN-uri), setari, session, _backups (sunt locale per device), ecorgImports (vezi nota mai sus), contractDrafts (CNP/CI/IBAN proprietar — local-only)
 
 // ========== Etapa 11B — Backup cloud pentru date LOCAL-only (Financial/Achiziții/Extrase) ==========
 // Stocate ca JSON-string (cheile Financial conțin "/" → nu pot fi chei Firebase native).
