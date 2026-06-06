@@ -5368,7 +5368,7 @@ function createBackup(label) {
     DB._backups.unshift(snapshot);
   }
   // Keep last 14 snapshots
-  if (DB._backups.length > 14) DB._backups.length = 14;
+  if (DB._backups.length > 6) DB._backups.length = 6; // plafon redus (era 14) — evită umplerea localStorage pe device-uri mici
   save();
   return snapshot;
 }
@@ -11575,7 +11575,35 @@ let _importInProgress = false; // flag — când e true, live sync NU aplică up
 let _lastLocalChange = 0;      // timestamp ultimei modificări locale
 const _origSave = save;
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+  // 🛡 Salvare rezistentă la „memorie plină" (QuotaExceededError).
+  // Cauza tipică: DB._backups (snapshot-uri) s-au acumulat și umplu localStorage,
+  // iar setItem aruncă eroare → pontajul NU se salvează și modalul rămâne deschis.
+  // Fix: când e plin, tăiem backup-urile vechi și reîncercăm; nu pierdem niciodată datele curente.
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+  } catch (e) {
+    const isQuota = e && (e.name === 'QuotaExceededError' || e.code === 22 || /quota/i.test(e.message||''));
+    if (!isQuota) throw e;
+    console.warn('[save] localStorage plin — curăț backup-urile vechi și reîncerc...');
+    try {
+      // Pasul 1: păstrează doar cele mai noi 3 snapshot-uri
+      if (Array.isArray(DB._backups) && DB._backups.length > 3) DB._backups.length = 3;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+      console.warn('[save] OK după ce am redus _backups la 3.');
+    } catch (e2) {
+      try {
+        // Pasul 2: dacă tot e plin, renunță complet la backup-urile locale (rămân cele din cloud)
+        DB._backups = [];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+        console.warn('[save] OK după ce am golit _backups.');
+        try { toast('💾 Am eliberat spațiu (backup-uri vechi) ca să pot salva.'); } catch(_){}
+      } catch (e3) {
+        try { toast('⚠️ Memorie plină — nu pot salva. Spune-i lui Adi.'); } catch(_){}
+        console.error('[save] Eșec salvare chiar și după curățare:', e3);
+        return; // ieșim curat, fără a bloca aplicația
+      }
+    }
+  }
   if (_applyingFromCloud) return; // datele vin din cloud, nu re-push
   _lastLocalChange = Date.now(); // marchează că s-a întâmplat o modificare locală
   if (_autoSyncEnabled && window.FB) scheduleAutoPush();
