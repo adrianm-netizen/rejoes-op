@@ -8332,6 +8332,7 @@ function rhGenAct(kind){
       <p><b>Art. 2. Descrierea faptei (abaterea disciplinară):</b> ${S(g('ra_fapta'),'descrierea faptei')}, constatată/săvârșită la data de ${S(g('ra_data'),'data')}.</p>
       <p><b>Art. 3. Prevederile încălcate:</b> ${S(g('ra_prevederi'),'prevederile din ROI/CIM/lege')}.</p>
       <p><b>Art. 4. Motivele înlăturării apărărilor salariatului:</b> ${S(g('ra_motive'),'motivele')}.</p>
+      ${g('ra_motivare')?`<p><b>Motivarea deciziei:</b> ${escapeHtml(g('ra_motivare'))}</p>`:''}
       <p><b>Art. 5. Temeiul de drept:</b> art. 247–252 din Codul muncii și art. 66–72 din Regulamentul Intern.</p>
       <p><b>Art. 6.</b> Prezenta decizie poate fi contestată în termen de 30 de zile calendaristice de la data comunicării, la instanța judecătorească competentă în materia conflictelor de muncă (tribunalul).</p>
       <p><b>Art. 7.</b> Decizia se comunică salariatului în termen de cel mult 5 zile calendaristice de la emitere și produce efecte de la data comunicării. Sancțiunea se radiază de drept în 12 luni dacă nu intervine o nouă sancțiune (art. 73 ROI).</p>`;
