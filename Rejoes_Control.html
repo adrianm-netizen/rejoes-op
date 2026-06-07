@@ -774,16 +774,39 @@ async function renderAnalize() {
 }
 
 // ========== Raport zilnic pe magazine (read-only, pentru Olga) ==========
+let rzMode = '7';     // '7' | '30' | 'luna' | 'lunaTrecuta' | 'custom'
+let rzFrom = '', rzTo = '';
+function rzRange(){
+  const t=new Date(); t.setHours(0,0,0,0); const iso=d=>d.toISOString().slice(0,10);
+  if(rzMode==='custom') return [rzFrom||'0000-01-01', rzTo||'9999-12-31'];
+  if(rzMode==='luna'){ const f=new Date(t.getFullYear(),t.getMonth(),1); return [iso(f), iso(t)]; }
+  if(rzMode==='lunaTrecuta'){ const f=new Date(t.getFullYear(),t.getMonth()-1,1); const l=new Date(t.getFullYear(),t.getMonth(),0); return [iso(f), iso(l)]; }
+  const n = rzMode==='30'?29:6; const f=new Date(t); f.setDate(f.getDate()-n); return [iso(f), iso(t)];
+}
+function setRzMode(m){ rzMode=m; renderRaportZilnic(); }
+function setRzCustom(){ const a=document.getElementById('rzFrom'), b=document.getElementById('rzTo'); rzFrom=a?a.value:''; rzTo=b?b.value:''; rzMode='custom'; renderRaportZilnic(); }
 function renderRaportZilnic() {
   const rap = (DB.raportari||[]);
   const byDate = {};
   rap.forEach(r => { if(r.data){ (byDate[r.data]=byDate[r.data]||[]).push(r); } });
-  const dates = Object.keys(byDate).sort().reverse().slice(0,30);
+  const [rzF, rzT] = rzRange();
+  const dates = Object.keys(byDate).filter(d=>d>=rzF && d<=rzT).sort().reverse().slice(0,120);
+  const perTotV = dates.reduce((s,d)=>s+byDate[d].reduce((x,r)=>x+(+r.vanzari||0),0),0);
+  const perTotB = dates.reduce((s,d)=>s+byDate[d].reduce((x,r)=>x+(+r.bonuri||0),0),0);
   const fmtDiff = v => `<span style="color:${Math.abs(v)<1?'#0a7d3b':Math.abs(v)<20?'#b45309':'#dc2626'}">${fmt(v)}</span>`;
   document.getElementById('content').innerHTML = `
     <div style="max-width:920px;margin:0 auto">
-      <p style="color:var(--text-muted);font-size:13px;margin:0 0 12px">Raport zilnic pe magazine — doar vizualizare · ultimele ${dates.length} zile cu date</p>
-      ${dates.length===0 ? '<div class="card"><p style="color:var(--text-muted);font-size:13px">Nu există încă raportări introduse de Ana.</p></div>' : dates.map(d => {
+      <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <span style="font-size:13px;color:var(--text-muted)">Perioada:</span>
+        <select class="btn" onchange="setRzMode(this.value)">
+          ${[['7','Ultimele 7 zile'],['30','Ultimele 30 zile'],['luna','Luna curentă'],['lunaTrecuta','Luna trecută'],['custom','Interval ales…']].map(o=>`<option value="${o[0]}" ${rzMode===o[0]?'selected':''}>${o[1]}</option>`).join('')}
+        </select>
+        ${rzMode==='custom'?`<input type="date" id="rzFrom" value="${rzFrom}" class="btn"> – <input type="date" id="rzTo" value="${rzTo}" class="btn"> <button class="btn btn-sm" onclick="setRzCustom()">Aplică</button>`:''}
+        <span style="flex:1"></span>
+        ${dates.length?`<span style="font-size:12.5px;color:var(--text-muted)">${dates.length} zile · <strong style="color:#0a7d3b">${fmt(perTotV)} lei</strong> · ${perTotB} bonuri</span>`:''}
+      </div>
+      <p style="color:var(--text-muted);font-size:12px;margin:0 0 12px">Raport zilnic pe magazine — doar vizualizare.</p>
+      ${dates.length===0 ? '<div class="card"><p style="color:var(--text-muted);font-size:13px">Nu există raportări în perioada aleasă.</p></div>' : dates.map(d => {
         const rows = byDate[d].slice().sort((a,b)=>String(a.magazin||'').localeCompare(String(b.magazin||'')));
         const totV = rows.reduce((s,r)=>s+(+r.vanzari||0),0);
         const totB = rows.reduce((s,r)=>s+(+r.bonuri||0),0);
