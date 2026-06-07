@@ -463,8 +463,13 @@ const SEED = {
   contractDrafts: [],       // LOCAL-only (NU în cloud — conține CNP/CI/IBAN proprietar). [{id, tip:'PF'|'PJ', data:{...campuri}, salvatLa}]
   // Etapa 14 — RH / Resurse umane (dosarul de personal al fiecărui angajat). Tracker operational, se sincronizează (fără date personale noi — CNP-urile sunt deja în angajati, local).
   rhDosare: [],             // [{id, angajatId, angajatNume, docuri:[{cheie,eticheta,status,data,obs}], medicinaMuncii:{data,expira}, ssm:{data}, concediuZile, concediuFolosite, log:[{data,text,autor}], stare, createdAt}]
-  rhActe: []                // LOCAL-only (date personale) — drafts acte generate [{id, tip, angajat, data:{...}, salvatLa}]
+  rhActe: [],               // LOCAL-only (date personale) — drafts acte generate [{id, tip, angajat, data:{...}, salvatLa}]
+  // Etapa 15 — Cash vs Bancă: control că tot cash-ul încasat ajunge depus la bancă (cont 003). Sumare mici, se sincronizează.
+  cashIncasari: { months:{}, importedAt:null, sursa:'' },   // {months:{'YYYY-MM':{cash,card}}}
+  depuneriCont003: { months:{}, updatedAt:null }             // {months:{'YYYY-MM': suma}}
 };
+const CONT003_MATCH = '0576117403';   // contul de depuneri numerar (RO42…403)
+const CASH_NEDEPUS_PRAG = 45000;      // prag alertă sold cumulativ nedepus (lei)
 
 // Documentele standard din dosarul de personal al unui angajat (checklist)
 const RH_DOC_STEPS = [
@@ -569,6 +574,7 @@ const VIEWS_ALL = [
   {id:'raportzilnic', label:'📋 Raport zilnic', icon:'M9 17v-6h6v6M3 7l9-4 9 4M5 7v14h14V7', roles:['admin','owner']},
   {id:'dosare', label:'📁 Dosare magazine', icon:'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z', roles:['admin','operator']},
   {id:'rh', label:'📋 RH / Personal', icon:'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', roles:['admin','operator']},
+  {id:'cashbanca', label:'💵 Cash vs Bancă', icon:'M3 6h18v12H3z M3 10h18 M7 15h2', roles:['admin','operator']},
   {id:'pontaj', label:'Pontaj', icon:'M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', roles:['admin','owner','operator','contabil-sef']},
   {id:'raportare', label:'Raportare zilnică', icon:'M9 17v-6h6v6M3 7l9-4 9 4M5 7v14h14V7', roles:['admin','owner','operator','contabil-sef']},
   {id:'tasks', label:'Tasks', icon:'M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z', roles:['admin','owner','operator','manager-depozit']},
@@ -629,7 +635,7 @@ function renderNav() {
 function go(view) {
   currentView = view;
   renderNav();
-  const titles = {analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
+  const titles = {analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', cashbanca:'💵 Cash încasat vs Depuneri bancă', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
     diferente:'Diferențe casă', inventar:'Inventar', alerte:'Alerte automate',
     import:'Import / Export date', setari:'Setări'};
   document.getElementById('pageTitle').textContent = titles[view];
@@ -642,7 +648,7 @@ function go(view) {
     renderNav();
     return go(currentView);
   }
-  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
+  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, cashbanca:renderCashBanca, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
     diferente:renderDiferente, inventar:renderInventar, alerte:renderAlerte, import:renderImport, setari:renderSetari})[view]();
 }
 
@@ -5374,7 +5380,7 @@ function getEcorgVanzariPerioada(from, to) {
 
 // ---------- BACKUP ----------
 // Lista colecțiilor care intră în backup (exclude session, _backups)
-const BACKUP_KEYS = ['users','angajati','magazine','pontaj','raportari','diferente','inventar','alerte','tasks','nomenclator','sortari','facturiIntrare','comenzi','retururi','transferuri','casari','retururiClienti','discounturi','mesaje','edenredImport','praguri','dosare','contractDrafts','rhDosare','rhActe'];
+const BACKUP_KEYS = ['users','angajati','magazine','pontaj','raportari','diferente','inventar','alerte','tasks','nomenclator','sortari','facturiIntrare','comenzi','retururi','transferuri','casari','retururiClienti','discounturi','mesaje','edenredImport','praguri','dosare','contractDrafts','rhDosare','rhActe','cashIncasari','depuneriCont003'];
 
 function createBackup(label) {
   const snapshot = { ts: nowISO(), label: label || ('auto-'+todayISO()), data: {} };
@@ -8485,6 +8491,113 @@ function openRhGhid(){
     </ul>
 
     <p style="font-size:13.5px;background:rgba(80,200,120,.10);border-radius:8px;padding:10px;margin-top:14px">Atât pentru început, Ana. Orice nelămurire la un act sau la o situație cu un coleg — un mesaj și rezolvăm împreună. Mă bazez pe tine. 💪 — Adi</p>
+    <div style="text-align:right;margin-top:12px"><button class="btn btn-primary" onclick="closeModal()">Am înțeles 🚀</button></div>
+  </div>`);
+}
+
+// ============================================================
+// ============ CASH vs BANCĂ (Etapa 15) ======================
+// ============================================================
+function _cashNum(x){ const n=parseFloat(String(x==null?'':x).replace(/\s/g,'').replace(/,/g,'')); return isNaN(n)?0:n; }
+const _LUNI_NUM = ['', 'Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'];
+function _monLabel(m){ const p=(m||'').split('-'); return p.length===2?(_LUNI_NUM[+p[1]]+' '+p[0]):m; }
+
+function renderCashBanca(){
+  const cm=(DB.cashIncasari&&DB.cashIncasari.months)||{};
+  const dm=(DB.depuneriCont003&&DB.depuneriCont003.months)||{};
+  const months=[...new Set([...Object.keys(cm),...Object.keys(dm)])].sort();
+  let cum=0; const rows=months.map(m=>{ const cash=(cm[m]&&cm[m].cash)||0; const dep=dm[m]||0; const dif=cash-dep; cum+=dif; return {m,cash,dep,dif,cum}; });
+  const last=rows.length?rows[rows.length-1]:null;
+  const alerta=last&&last.cum>CASH_NEDEPUS_PRAG;
+  const totCash=rows.reduce((s,r)=>s+r.cash,0), totDep=rows.reduce((s,r)=>s+r.dep,0);
+  document.getElementById('content').innerHTML = `
+    <div class="card" style="background:linear-gradient(135deg,rgba(80,200,120,.10),rgba(80,160,255,.07));border:1px solid rgba(120,200,150,.25)">
+      <h3 style="margin:0 0 6px">💵 Cash încasat vs Depuneri la bancă</h3>
+      <p style="margin:0 0 4px;color:var(--text-muted);font-size:13.5px">Controlul prin care vedem că <b>tot cash-ul încasat în magazine ajunge depus la bancă</b> (cont 003). Importezi cash-ul din e:Corg, depunerile vin singure din extrase, iar aplicația îți arată soldul de cash încă nedepus.</p>
+      <p style="margin:0;color:var(--text-muted);font-size:12.5px">💡 Cash = total bon − card. Depuneri = toate intrările pe contul de numerar (RO42…403). Indicatorul cheie = <b>soldul cumulativ nedepus</b>.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px">
+        <label class="btn btn-primary" style="cursor:pointer">📤 Importă cash (e:Corg)<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importCashCard(event)"></label>
+        ${isAdmin()?`<button class="btn" onclick="updateDepuneriCont003()">↻ Actualizează depunerile din extrase</button>`:''}
+        <button class="btn btn-ghost" onclick="openCashGhid()">📖 Cum funcționează</button>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-top:8px">
+        ${DB.cashIncasari&&DB.cashIncasari.importedAt?`Cash importat: ${escapeHtml(DB.cashIncasari.sursa||'')} (${DB.cashIncasari.importedAt})`:'Cash neimportat încă.'}
+        ${DB.depuneriCont003&&DB.depuneriCont003.updatedAt?` · Depuneri actualizate: ${DB.depuneriCont003.updatedAt}`:' · Depuneri necalculate.'}
+      </div>
+    </div>
+
+    ${last?`<div class="card" style="${alerta?'border:2px solid #c0392b;background:rgba(192,57,43,.06)':'border:1px solid rgba(80,200,120,.3);background:rgba(80,200,120,.05)'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:12px;color:var(--text-muted)">Sold cash nedepus (cumulat, la ${_monLabel(last.m)})</div>
+          <div style="font-size:28px;font-weight:800;color:${alerta?'#c0392b':'#1b7a3d'}">${fmt(last.cum)} lei</div>
+        </div>
+        <div style="font-size:13px;text-align:right">
+          ${alerta?`<div style="color:#c0392b;font-weight:700">⚠️ Peste pragul de ${fmt(CASH_NEDEPUS_PRAG)} lei!</div><div style="color:var(--text-muted);font-size:12px">Verifică dacă există cash neîncasat la bancă.</div>`:`<div style="color:#1b7a3d;font-weight:700">✅ Sub pragul de ${fmt(CASH_NEDEPUS_PRAG)} lei</div><div style="color:var(--text-muted);font-size:12px">Cash-ul ajunge depus în ritm normal.</div>`}
+        </div>
+      </div>
+    </div>`:''}
+
+    <div class="card">
+      <div class="section-head"><h3>📅 Pe luni</h3></div>
+      ${rows.length===0?`<div class="empty"><h4>Încă nu sunt date</h4><p>Apasă „Importă cash" (fișierul e:Corg cu cash & card pe zi) și, ca admin, „Actualizează depunerile". 🙂</p></div>`:
+      `<div class="table-wrap"><table>
+        <thead><tr><th>Luna</th><th style="text-align:right">Cash încasat</th><th style="text-align:right">Depus cont 003</th><th style="text-align:right">Diferență lună</th><th style="text-align:right">Cumulativ nedepus</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr style="${r.cum>CASH_NEDEPUS_PRAG?'background:rgba(192,57,43,.08)':''}">
+          <td>${_monLabel(r.m)}</td>
+          <td style="text-align:right">${fmt(r.cash)}</td>
+          <td style="text-align:right">${fmt(r.dep)}</td>
+          <td style="text-align:right;color:${r.dif>0?'#b06000':'#1b7a3d'}">${r.dif>0?'+':''}${fmt(r.dif)}</td>
+          <td style="text-align:right;font-weight:700;color:${r.cum>CASH_NEDEPUS_PRAG?'#c0392b':'inherit'}">${fmt(r.cum)}${r.cum>CASH_NEDEPUS_PRAG?' ⚠':''}</td>
+        </tr>`).join('')}
+        <tr style="border-top:2px solid var(--border);font-weight:700"><td>TOTAL</td><td style="text-align:right">${fmt(totCash)}</td><td style="text-align:right">${fmt(totDep)}</td><td style="text-align:right">${fmt(totCash-totDep)}</td><td></td></tr>
+        </tbody>
+      </table></div>
+      <p style="font-size:11.5px;color:var(--text-muted);margin-top:8px">Cash-ul unei perioade se depune în zilele următoare (în mai multe tranșe), de aceea diferența pe o lună poate fi pozitivă sau negativă — contează tendința soldului cumulativ. Un cumulativ care tot crește = cash care nu ajunge la bancă.</p>`}
+    </div>`;
+}
+
+async function importCashCard(event){
+  const f=event.target.files&&event.target.files[0]; if(!f) return;
+  try{
+    toast('Citesc fișierul...');
+    const data=await f.arrayBuffer();
+    const wb=XLSX.read(data,{type:'array'});
+    const ws=wb.Sheets['Cash vs Bancar']||wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    const months={}; const dre=/^(\d{2})\.(\d{2})\.(\d{4})$/;
+    rows.forEach(r=>{ const c0=String(r[0]==null?'':r[0]).trim(); const m=c0.match(dre); if(m){ const mon=m[3]+'-'+m[2]; const cash=_cashNum(r[2]); const card=_cashNum(r[3]); if(!months[mon])months[mon]={cash:0,card:0}; months[mon].cash+=cash; months[mon].card+=card; } });
+    if(Object.keys(months).length===0){ toast('Nu am găsit rânduri pe zi (format neașteptat). Folosește exportul „cash vs card" din e:Corg.'); return; }
+    DB.cashIncasari={months, importedAt:nowISO(), sursa:f.name};
+    save(); renderCashBanca(); toast('✓ Cash importat: '+Object.keys(months).length+' luni');
+  }catch(e){ console.error(e); toast('Eroare la citirea fișierului'); }
+  finally{ event.target.value=''; }
+}
+
+async function updateDepuneriCont003(){
+  try{
+    toast('Calculez depunerile din extrase...');
+    const tx=await idbBankGetAll();
+    const months={};
+    (tx||[]).forEach(t=>{ if(String(t.acc||'').includes(CONT003_MATCH) && (t.credit||0)>0 && t.data){ const mon=t.data.slice(0,7); months[mon]=(months[mon]||0)+t.credit; } });
+    DB.depuneriCont003={months, updatedAt:nowISO()};
+    save(); renderCashBanca();
+    const n=Object.keys(months).length;
+    toast(n?('✓ Depuneri actualizate: '+n+' luni'):'Nicio tranzacție pe cont 003 — importă întâi extrasele (Setări → 📥 e:Corg → Extrase bancare).');
+  }catch(e){ console.error(e); toast('Eroare la calculul depunerilor'); }
+}
+
+function openCashGhid(){
+  openModal(`<div style="max-height:72vh;overflow:auto;padding-right:6px">
+    <h3 style="margin-top:0">📖 Cash vs Bancă — cum funcționează</h3>
+    <p style="font-size:13.5px">E un control simplu: ne asigurăm că <b>toți banii cash încasați în magazine ajung depuși la bancă</b>. Dacă soldul nedepus crește mereu, înseamnă că undeva rămâne cash — și verificăm.</p>
+    <h4 style="margin-bottom:4px">1. Importă cash-ul (lunar)</h4>
+    <p style="font-size:13.5px;margin-top:0">Din e:Corg exporți raportul cu <b>cash și card pe zi</b> (fișierul „cash vs card"). Apeși „Importă cash" și alegi fișierul. Aplicația calculează singură cash-ul pe fiecare lună (cash = total − card).</p>
+    <h4 style="margin-bottom:4px">2. Depunerile vin singure</h4>
+    <p style="font-size:13.5px;margin-top:0">Depunerile de numerar sunt deja în aplicație (din extrasele bancare). Adrian apasă o dată „Actualizează depunerile" și se iau toate intrările de pe contul de numerar (RO42…403). Tu (Ana) le vezi gata calculate.</p>
+    <h4 style="margin-bottom:4px">3. Citește tabelul</h4>
+    <p style="font-size:13.5px;margin-top:0">Pe fiecare lună vezi: cât cash s-a încasat, cât s-a depus, diferența, și <b>soldul cumulativ nedepus</b>. Cardul de sus îți arată soldul curent: <b>verde</b> dacă e sub ${fmt(CASH_NEDEPUS_PRAG)} lei (normal), <b>roșu</b> dacă trece pragul (de verificat).</p>
+    <p style="font-size:13px;background:rgba(80,200,120,.10);border-radius:8px;padding:10px;margin-top:12px">E normal ca într-o lună să fie + sau − (cash-ul de la final de lună se depune luna următoare). Important e ca soldul cumulativ să nu tot crească. Orice nelămurire — un mesaj și ne uităm împreună. — Adi</p>
     <div style="text-align:right;margin-top:12px"><button class="btn btn-primary" onclick="closeModal()">Am înțeles 🚀</button></div>
   </div>`);
 }
@@ -12067,7 +12180,8 @@ const CLOUD_COLLECTIONS = [
   'furnizoriAutoExclude',  // Etapa 10E — reguli auto-marcare furnizori (mic, safe)
   'balantaCashBank','balantaCashBankUpdate',  // Etapa 10E — cash în bancă (1 număr + 1 timestamp, safe)
   'dosare',  // Etapa 13 — trackerul dosarelor de deschidere magazin (operational, fără date personale)
-  'rhDosare'  // Etapa 14 — dosarul de personal (tracker documente, operational)
+  'rhDosare',  // Etapa 14 — dosarul de personal (tracker documente, operational)
+  'cashIncasari','depuneriCont003'  // Etapa 15 — sumare cash/depuneri (mici, safe)
 ];
 // NU includem: angajati (CNP/IBAN sensibile), users (PIN-uri), setari, session, _backups (sunt locale per device), ecorgImports (vezi nota mai sus), contractDrafts (CNP/CI/IBAN proprietar — local-only)
 
