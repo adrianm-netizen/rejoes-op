@@ -7964,9 +7964,15 @@ function renderRHDosar(){
           <div style="font-size:12px;color:var(--text-muted)">${pr.gata}/${pr.total} documente</div>
         </div>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
-        <button class="btn btn-primary btn-sm" onclick="rhGo('acte')">📄 Generează un act</button>
-        <button class="btn btn-sm" onclick="rhGo('angajare')">🧑‍💼 Generează CIM</button>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:14px;margin-bottom:4px">📄 Generează un document pentru ${escapeHtml(a.nume)} (se pre-completează automat):</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="rhGo('angajare')">🧑‍💼 CIM</button>
+        <button class="btn btn-sm" onclick="rhEvalForm('${a.nume.replace(/'/g,"\\'")}')">🧮 Evaluare</button>
+        <button class="btn btn-sm" onclick="rhActForm('adeverinta','${a.nume.replace(/'/g,"\\'")}')">📃 Adeverință</button>
+        <button class="btn btn-sm" onclick="rhActForm('actaditional','${a.nume.replace(/'/g,"\\'")}')">📝 Act adițional</button>
+        <button class="btn btn-sm" onclick="rhActForm('sanctiune','${a.nume.replace(/'/g,"\\'")}')">⚖️ Sancțiune</button>
+        <button class="btn btn-sm" onclick="rhActForm('incetare','${a.nume.replace(/'/g,"\\'")}')">📕 Încetare</button>
+        <button class="btn btn-ghost btn-sm" onclick="rhGo('acte')">… toate actele</button>
         <button class="btn btn-ghost btn-sm" onclick="openRhGhid()">📖 Ghid</button>
       </div>
     </div>
@@ -8040,25 +8046,83 @@ function addRhLog(id){
 function delRhLog(id, idx){ const d=DB.rhDosare.find(x=>x.id===id); if(!d||!d.log) return; d.log.splice(idx,1); save(); renderRHDosar(); }
 
 // ---------- GENERATOR „ALTE ACTE" ----------
+// Catalog abateri disciplinare (formulări gata scrise — din matricea de sancțiuni)
+const RH_ABATERI = [
+  {c:'Relația cu clienții', it:[
+    ['Comportament neadecvat cu client','Salariatul a manifestat un comportament neprofesionist în relația cu clientul, constând în ridicarea tonului, utilizarea unui limbaj neadecvat și nerespectarea obligației de a menține o conduită civilizată.'],
+    ['Escaladarea conflictului','Salariatul a contribuit la escaladarea unui conflict cu un client, în loc să aplice măsuri de calmare și să informeze superiorul ierarhic.'],
+    ['Refuz de deservire client (nejustificat)','Salariatul a refuzat în mod nejustificat să deservească un client, fără a exista motive obiective sau instrucțiuni în acest sens.'],
+    ['Limbaj ofensator','Salariatul a utilizat expresii jignitoare și limbaj inadecvat în relația cu clientul, afectând imaginea angajatorului.']]},
+  {c:'Disciplină și program', it:[
+    ['Întârziere repetată','Salariatul a înregistrat întârzieri repetate la programul de lucru, fără justificare și fără notificarea prealabilă a angajatorului.'],
+    ['Absențe nemotivate','Salariatul a absentat nemotivat de la locul de muncă în data/perioada ___, fără informarea sau aprobarea angajatorului.'],
+    ['Părăsirea postului','Salariatul a părăsit locul de muncă în timpul programului, fără acordul superiorului ierarhic.']]},
+  {c:'Sarcini și autoritate', it:[
+    ['Refuz de executare sarcini','Salariatul a refuzat în mod nejustificat să execute o sarcină de serviciu dispusă de superiorul ierarhic.'],
+    ['Executare necorespunzătoare','Salariatul nu a îndeplinit sarcinile de serviciu la standardele stabilite, afectând desfășurarea activității.'],
+    ['Nerespectarea instrucțiunilor','Salariatul nu a respectat instrucțiunile primite, deși acestea erau clare și legale.']]},
+  {c:'Comportament la locul de muncă', it:[
+    ['Atitudine agresivă','Salariatul a manifestat un comportament agresiv, constând în ridicarea tonului, utilizarea unui limbaj intimidant și crearea unei stări tensionate.'],
+    ['Conflict cu colegii','Salariatul a generat și întreținut un conflict cu colegii, afectând climatul de muncă.'],
+    ['Limbaj neadecvat','Salariatul a utilizat un limbaj vulgar și necorespunzător în cadrul colectivului.']]},
+  {c:'Loialitate și imagine', it:[
+    ['Afectarea imaginii firmei','Salariatul a avut un comportament care a adus atingere imaginii și reputației angajatorului.'],
+    ['Declarații negative publice','Salariatul a făcut declarații publice negative privind angajatorul, fără autorizare.'],
+    ['Activitate concurentă','Salariatul a desfășurat activități concurente fără acordul angajatorului.']]},
+  {c:'Confidențialitate', it:[
+    ['Divulgare informații','Salariatul a divulgat informații confidențiale către terți, fără autorizare.'],
+    ['Utilizare în interes personal','Salariatul a utilizat informații interne în scop personal sau în beneficiul unui terț.']]},
+  {c:'Resurse și bunuri', it:[
+    ['Utilizare necorespunzătoare','Salariatul a utilizat bunurile angajatorului în interes personal, fără aprobare.'],
+    ['Neglijență','Salariatul a dat dovadă de neglijență în utilizarea echipamentelor, cauzând deteriorarea acestora.'],
+    ['Lipsă gestiune','S-a constatat o lipsă în gestiune imputabilă salariatului, în valoare de ___ lei.']]},
+  {c:'Abateri grave', it:[
+    ['Furt / însușire bunuri','Salariatul a sustras bunuri aparținând angajatorului sau terților.'],
+    ['Fals / declarații neadevărate','Salariatul a furnizat informații false în cadrul activității profesionale.'],
+    ['Refuz cercetare disciplinară','Salariatul a refuzat să participe la cercetarea disciplinară, deși a fost convocat legal.']]}
+];
+// Modele de motivare (pentru decizie) — fără scor, doar logica
+const RH_MOTIVARI = [
+  ['General (universal)','Din analiza probelor administrate în cadrul cercetării disciplinare rezultă că salariatul a săvârșit abaterea descrisă mai sus. Această conduită reprezintă o încălcare a obligațiilor de serviciu prevăzute în Regulamentul Intern și a obligației generale de a îndeplini atribuțiile cu bună-credință și profesionalism. La stabilirea sancțiunii s-au avut în vedere gravitatea faptei, împrejurările în care a fost săvârșită, consecințele produse și comportamentul anterior al salariatului.'],
+  ['Conflict cu client','Conduita salariatului contravine obligațiilor de comportament profesional și afectează direct imaginea și credibilitatea angajatorului în relația cu clienții. Deși salariatul a putut invoca provocarea clientului, avea obligația să gestioneze situația profesionist și să solicite intervenția superiorului ierarhic. Apărările au fost analizate, iar la stabilirea sancțiunii s-au avut în vedere gravitatea faptei, impactul asupra relațiilor comerciale și comportamentul anterior.'],
+  ['Refuz de muncă','Refuzul nejustificat de a executa o sarcină legală, aflată în atribuțiile funcției, reprezintă o încălcare gravă a disciplinei muncii și afectează autoritatea angajatorului și buna desfășurare a activității. Apărările salariatului au fost înlăturate întrucât nu s-a dovedit existența unui motiv obiectiv de refuz.'],
+  ['Comportament agresiv','Manifestările agresive (ton ridicat, limbaj intimidant, stare de tensiune) sunt incompatibile cu normele de conduită și afectează grav relațiile de muncă. La stabilirea sancțiunii s-au avut în vedere gravitatea faptei și riscul repetării.'],
+  ['Furt / gestiune','Fapta constatată afectează în mod esențial încrederea necesară derulării raportului de muncă. Având în vedere gravitatea excepțională a faptei, sancțiunea aplicată este apreciată ca proporțională.'],
+  ['Absențe nemotivate','Absentarea nemotivată a afectat desfășurarea activității și a generat disfuncționalități operaționale. Având în vedere caracterul repetat al abaterii și lipsa justificării, sancțiunea aplicată este proporțională.']
+];
+
 function renderRHActe(){
-  const acte=[
-    {k:'adeverinta', t:'📃 Adeverință de salariat', d:'pentru bancă, medic, școală etc.'},
-    {k:'incetare', t:'📕 Decizie de încetare CIM', d:'demisie, acordul părților, perioadă de probă...'},
-    {k:'actaditional', t:'📝 Act adițional la CIM', d:'modificare salariu, funcție, program...'},
-    {k:'adeverintaVechime', t:'📜 Adeverință de vechime', d:'la plecarea din firmă'}
+  const grupuri=[
+    {titlu:'📄 Acte uzuale', items:[
+      {k:'adeverinta', h:'rhActForm', t:'📃 Adeverință de salariat', d:'pentru bancă, medic, școală etc.'},
+      {k:'adeverintaVechime', h:'rhActForm', t:'📜 Adeverință de vechime', d:'la plecarea din firmă'},
+      {k:'actaditional', h:'rhActForm', t:'📝 Act adițional la CIM', d:'modificare salariu, funcție, program...'},
+      {k:'incetare', h:'rhActForm', t:'📕 Decizie de încetare CIM', d:'demisie, acordul părților, perioadă de probă...'}
+    ]},
+    {titlu:'📊 Evaluare', items:[
+      {k:'evaluare', h:'rhEvalForm', t:'🧮 Fișă de evaluare profesională', d:'17 criterii, calcul automat, calificativ + reminder pt. următoarea'}
+    ]},
+    {titlu:'⚖️ Disciplinar (în ordinea procedurii legale)', items:[
+      {k:'sesizare', h:'rhActForm', t:'1️⃣ Referat de sesizare', d:'înregistrezi o plângere/abatere semnalată'},
+      {k:'convocare', h:'rhActForm', t:'2️⃣ Convocare la cercetare disciplinară', d:'art. 251 — obligatorie înainte de orice sancțiune'},
+      {k:'cercetare', h:'rhActForm', t:'3️⃣ Proces-verbal de cercetare disciplinară', d:'constatările comisiei + nota salariatului'},
+      {k:'sanctiune', h:'rhActForm', t:'4️⃣ Decizie de sancționare', d:'avertisment / reducere salariu / retrogradare / desfacere (art. 247–252)'}
+    ]}
   ];
   document.getElementById('content').innerHTML = `
     <div class="card">
       <button class="btn btn-sm btn-ghost" onclick="rhBack()">← RH</button>
       <h3 style="margin:6px 0 4px">📄 Generează un act</h3>
       <p style="color:var(--text-muted);font-size:13px;margin:0 0 12px">Alege actul, completezi câmpurile cerute (ce lași gol apare marcat), apoi descarci Word sau PDF. Pentru CIM nou folosește „Angajare nouă".</p>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        ${acte.map(x=>`<button class="btn" style="justify-content:flex-start;text-align:left;padding:14px" onclick="rhActForm('${x.k}')"><div><div style="font-weight:600">${x.t}</div><small style="color:var(--text-muted);font-weight:400">${x.d}</small></div></button>`).join('')}
-      </div>
+      <p style="color:var(--text-muted);font-size:12px;background:rgba(80,160,255,.08);border-radius:8px;padding:9px 11px;margin:0 0 14px">⚖️ La partea disciplinară respectă <b>ordinea</b>: întâi sesizarea, apoi convocarea, apoi cercetarea (obligatorie!), abia la final decizia. Fără cercetare prealabilă, sancțiunea e nulă de drept (art. 251). Orice caz mai serios — dă-mi un semn mie (Adi) înainte.</p>
+      ${grupuri.map(g=>`<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:var(--text-muted);letter-spacing:.4px;margin-bottom:6px">${g.titlu}</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${g.items.map(x=>`<button class="btn" style="justify-content:flex-start;text-align:left;padding:14px" onclick="${x.h}('${x.k}')"><div><div style="font-weight:600">${x.t}</div><small style="color:var(--text-muted);font-weight:400">${x.d}</small></div></button>`).join('')}
+        </div></div>`).join('')}
     </div>`;
 }
 function _rhAngOptions(sel){ return '<option value="">— alege angajatul —</option>'+DB.angajati.map(a=>`<option ${a.nume===sel?'selected':''}>${escapeHtml(a.nume)}</option>`).join(''); }
-function rhActForm(kind){
+function rhActForm(kind, presetNume){
   let body='';
   if(kind==='adeverinta' || kind==='adeverintaVechime'){
     body=`
@@ -8096,15 +8160,83 @@ function rhActForm(kind){
       <div class="form-row"><div class="form-field" style="flex:3"><label>Ce se modifică</label><input id="ra_modific" placeholder="ex: salariul de bază lunar brut"></div></div>
       <div class="form-row"><div class="form-field" style="flex:2"><label>Vechea valoare</label><input id="ra_vechi" placeholder="ex: 3.300 lei"></div>
         <div class="form-field" style="flex:2"><label>Noua valoare</label><input id="ra_nou" placeholder="ex: 3.700 lei"></div></div>`;
+  } else if(kind==='sesizare'){
+    body=`
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Salariatul vizat</label><select id="ra_ang" onchange="rhFillAng()">${_rhAngOptions()}</select></div>
+        <div class="form-field"><label>Nr. / data referat</label><input id="ra_nr"></div></div>
+      <div class="form-row"><div class="form-field"><label>Funcția</label><input id="ra_functie"></div>
+        <div class="form-field" style="flex:2"><label>Sesizat de (nume/funcție)</label><input id="ra_de" placeholder="ex: Onofrei Anamaria, manager"></div>
+        <div class="form-field"><label>Data faptei</label><input type="date" id="ra_dataf"></div></div>
+      <div class="form-row"><div class="form-field" style="flex:3"><label>Descrierea faptei sesizate</label><textarea id="ra_fapta" rows="3" style="width:100%" placeholder="ce s-a întâmplat, pe scurt și concret"></textarea></div></div>`;
+  } else if(kind==='convocare'){
+    body=`
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Salariatul convocat</label><select id="ra_ang" onchange="rhFillAng()">${_rhAngOptions()}</select></div>
+        <div class="form-field"><label>Nr. / data</label><input id="ra_nr"></div></div>
+      <div class="form-row"><div class="form-field"><label>Funcția</label><input id="ra_functie"></div>
+        <div class="form-field"><label>Nr. CIM</label><input id="ra_cim"></div></div>
+      <div class="form-row"><div class="form-field" style="flex:3"><label>Fapta imputată</label><textarea id="ra_fapta" rows="2" style="width:100%"></textarea></div></div>
+      <div class="form-row"><div class="form-field"><label>Data cercetării</label><input type="date" id="ra_data"></div>
+        <div class="form-field"><label>Ora</label><input id="ra_ora" placeholder="ex: 10:00"></div>
+        <div class="form-field" style="flex:2"><label>Locul</label><input id="ra_loc" placeholder="ex: sediu / punctul de lucru..."></div></div>
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Persoana/comisia împuternicită</label><input id="ra_comisie" placeholder="nume/funcție"></div></div>`;
+  } else if(kind==='cercetare'){
+    body=`
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Salariatul cercetat</label><select id="ra_ang" onchange="rhFillAng()">${_rhAngOptions()}</select></div>
+        <div class="form-field"><label>Nr. / data PV</label><input id="ra_nr"></div></div>
+      <div class="form-row"><div class="form-field"><label>Funcția</label><input id="ra_functie"></div>
+        <div class="form-field"><label>Data cercetării</label><input type="date" id="ra_data"></div>
+        <div class="form-field" style="flex:2"><label>Comisia / persoana</label><input id="ra_comisie"></div></div>
+      <div class="form-row"><div class="form-field" style="flex:3"><label>Fapta cercetată</label><textarea id="ra_fapta" rows="2" style="width:100%"></textarea></div></div>
+      <div class="form-row"><div class="form-field" style="flex:3"><label>Susținerile/apărările salariatului</label><textarea id="ra_aparare" rows="2" style="width:100%" placeholder="ce a declarat salariatul (sau: nu s-a prezentat)"></textarea></div></div>
+      <div class="form-row"><div class="form-field" style="flex:3"><label>Constatări și concluzii</label><textarea id="ra_constatari" rows="3" style="width:100%"></textarea></div></div>
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Propunere sancțiune</label><input id="ra_propunere" placeholder="ex: avertisment scris"></div></div>`;
+  } else if(kind==='sanctiune'){
+    const abOpts='<option value="">— alege o formulare (opțional) —</option>'+RH_ABATERI.map(g=>`<optgroup label="${g.c}">`+g.it.map(x=>`<option value="${escapeHtml(x[1])}">${escapeHtml(x[0])}</option>`).join('')+'</optgroup>').join('');
+    const moOpts='<option value="">— alege un model (opțional) —</option>'+RH_MOTIVARI.map((m,i)=>`<option value="${i}">${escapeHtml(m[0])}</option>`).join('');
+    body=`
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Salariatul sancționat</label><select id="ra_ang" onchange="rhFillAng()">${_rhAngOptions()}</select></div>
+        <div class="form-field"><label>Nr. / data decizie</label><input id="ra_nr"></div></div>
+      <div class="form-row"><div class="form-field"><label>CNP</label><input id="ra_cnp"></div>
+        <div class="form-field"><label>Funcția</label><input id="ra_functie"></div>
+        <div class="form-field"><label>Nr. CIM</label><input id="ra_cim"></div></div>
+
+      <div style="background:rgba(80,160,255,.07);border:1px solid rgba(120,170,220,.25);border-radius:8px;padding:10px;margin:8px 0">
+        <div style="font-weight:600;font-size:12.5px;margin-bottom:6px">⚖️ Cât de gravă e fapta? (te ajută să alegi sancțiunea corectă)</div>
+        <div class="form-row">
+          <div class="form-field"><label>Gravitate</label><select id="sg_a" onchange="rhSanctScore()"><option value="1">Minoră</option><option value="2">Medie</option><option value="3">Gravă</option><option value="4">Foarte gravă</option></select></div>
+          <div class="form-field"><label>Repetitivitate</label><select id="sg_b" onchange="rhSanctScore()"><option value="0">Prima abatere</option><option value="2">Repetată (2–3)</option><option value="3">Sistematică</option></select></div>
+          <div class="form-field"><label>Impact</label><select id="sg_c" onchange="rhSanctScore()"><option value="0">Fără</option><option value="1">Intern</option><option value="2">Asupra clientului</option><option value="3">Major (bani/imagine)</option></select></div>
+          <div class="form-field"><label>Intenție</label><select id="sg_d" onchange="rhSanctScore()"><option value="0">Neatenție</option><option value="1">Neglijență</option><option value="2">Indirectă</option><option value="3">Directă</option></select></div>
+          <div class="form-field"><label>Istoric</label><select id="sg_e" onchange="rhSanctScore()"><option value="0">Fără abateri</option><option value="1">Avertisment anterior</option><option value="2">Sancțiuni repetate</option></select></div>
+        </div>
+        <div id="sgResult" style="font-size:13px;margin-top:4px"></div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Fast-track (concediere directă, dacă se dovedește): furt, violență, injurii grave repetate, sabotaj, divulgare informații sensibile, refuz clar și repetat de a munci. Scorul NU se scrie în decizie — doar logica.</div>
+      </div>
+
+      <div class="form-row"><div class="form-field" style="flex:3"><label>Sancțiunea aplicată</label><select id="ra_sanctiune">
+        <option value="avertisment scris">Avertisment scris (art. 248 alin. 1 lit. a)</option>
+        <option value="reducerea salariului de bază pe o durată de 1-3 luni cu 5-10%">Reducerea salariului 5-10% pe 1-3 luni (lit. c)</option>
+        <option value="retrogradarea din funcție, cu acordarea salariului corespunzător funcției în care s-a dispus retrogradarea, pentru o durată ce nu poate depăși 60 de zile">Retrogradare (max 60 zile) (lit. b)</option>
+        <option value="desfacerea disciplinară a contractului individual de muncă">Desfacerea disciplinară a CIM (lit. e)</option>
+      </select></div></div>
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Formulare faptă (catalog)</label><select id="ra_abatereSel" onchange="rhPickAbatere()">${abOpts}</select></div>
+        <div class="form-field"><label>Data faptei / luării la cunoștință</label><input type="date" id="ra_data"></div></div>
+      <div class="form-row"><div class="form-field" style="flex:3"><label>Descrierea faptei (abaterea)</label><textarea id="ra_fapta" rows="2" style="width:100%"></textarea></div></div>
+      <div class="form-row"><div class="form-field" style="flex:3"><label>Prevederi încălcate (ROI/CIM/lege)</label><input id="ra_prevederi" placeholder="ex: art. 67 ROI, fișa postului pct. ..."></div></div>
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Model motivare</label><select id="ra_motivareSel" onchange="rhPickMotivare()">${moOpts}</select></div>
+        <div class="form-field" style="flex:2"><label>Motivele înlăturării apărărilor</label><input id="ra_motive" placeholder="sau: salariatul nu s-a prezentat la cercetare"></div></div>
+      <div class="form-row"><div class="form-field" style="flex:3"><label>Motivarea deciziei</label><textarea id="ra_motivare" rows="3" style="width:100%" placeholder="alege un model mai sus sau scrie aici"></textarea></div></div>`;
   }
+  const titluri={adeverinta:'Adeverință de salariat', adeverintaVechime:'Adeverință de vechime', incetare:'Decizie de încetare CIM', actaditional:'Act adițional la CIM', sesizare:'Referat de sesizare', convocare:'Convocare la cercetare disciplinară', cercetare:'Proces-verbal de cercetare disciplinară', sanctiune:'Decizie de sancționare disciplinară'};
   openModal(`<div style="max-height:74vh;overflow:auto;padding-right:6px">
-    <h3 style="margin-top:0">${kind==='adeverinta'?'Adeverință de salariat':kind==='adeverintaVechime'?'Adeverință de vechime':kind==='incetare'?'Decizie de încetare CIM':'Act adițional la CIM'}</h3>
+    <h3 style="margin-top:0">${titluri[kind]||'Act'}</h3>
     <p style="color:var(--text-muted);font-size:12.5px;margin-top:-4px">Alege angajatul (se pre-completează din aplicație) și completează restul. Ce lași gol apare marcat în document.</p>
     ${body}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
       <button class="btn" onclick="closeModal()">Anulează</button>
       <button class="btn btn-primary" onclick="rhGenAct('${kind}')">✨ Generează</button>
     </div></div>`);
+  if(presetNume){ var s=document.getElementById('ra_ang'); if(s){ s.value=presetNume; rhFillAng(); } }
 }
 function rhFillAng(){
   const nume=document.getElementById('ra_ang').value;
@@ -8112,6 +8244,19 @@ function rhFillAng(){
   const set=(id,v)=>{ const el=document.getElementById(id); if(el&&v!=null) el.value=v; };
   set('ra_cnp', a.cnp||''); set('ra_functie', a.rol||''); set('ra_cim', a.nrContract||'');
 }
+function rhSanctScore(){
+  const v=id=>{const e=document.getElementById(id);return e?+e.value:0;};
+  const s=v('sg_a')+v('sg_b')+v('sg_c')+v('sg_d')+v('sg_e');
+  let rec,col;
+  if(s<=3){rec='🔹 Avertisment scris';col='#1b7a3d';}
+  else if(s<=6){rec='🔹 Avertisment + monitorizare';col='#2e7d32';}
+  else if(s<=9){rec='🔸 Reducere salariu / retrogradare';col='#caa018';}
+  else if(s<=12){rec='🔴 Reducere severă / ultim avertisment';col='#d35400';}
+  else {rec='🔥 Concediere disciplinară';col='#c0392b';}
+  const el=document.getElementById('sgResult'); if(el) el.innerHTML='Scor: <b>'+s+'</b> → recomandare: <b style="color:'+col+'">'+rec+'</b>';
+}
+function rhPickAbatere(){ const s=document.getElementById('ra_abatereSel'),t=document.getElementById('ra_fapta'); if(s&&t&&s.value) t.value=s.value; }
+function rhPickMotivare(){ const s=document.getElementById('ra_motivareSel'),t=document.getElementById('ra_motivare'); if(s&&t&&s.value!=='') t.value=RH_MOTIVARI[+s.value][1]; }
 function rhGenAct(kind){
   const g=_gv, S=_slot;
   const ang=g('ra_ang');
@@ -8149,6 +8294,47 @@ function rhGenAct(kind){
       <p><b>Art. 1.</b> Începând cu data de ${S(g('ra_data'),'data')}, se modifică <b>${S(g('ra_modific'),'elementul')}</b>, astfel: de la „${S(g('ra_vechi'),'vechea valoare')}" la „${S(g('ra_nou'),'noua valoare')}".</p>
       <p><b>Art. 2.</b> Celelalte clauze ale Contractului Individual de Muncă rămân neschimbate.</p>
       <p><b>Art. 3.</b> Prezentul act adițional s-a încheiat în două exemplare, câte unul pentru fiecare parte, și se înregistrează în REGES conform legii.</p>`;
+  } else if(kind==='sesizare'){
+    titlu='REFERAT DE SESIZARE'; fname='Referat_sesizare_'+ang.replace(/[^\w]+/g,'_');
+    inner=`<p style="text-align:right">Nr. ${S(g('ra_nr'),'___')} / ${todayISO()}</p>
+      <h2 style="text-align:center">REFERAT DE SESIZARE</h2>
+      <p>Subsemnatul/Subsemnata ${S(g('ra_de'),'nume, funcție')}, în temeiul art. 70 din Regulamentul Intern al ${RH_FIRMA.nume}, sesizez conducerea societății cu privire la o posibilă abatere disciplinară săvârșită de salariatul ${S(ang,'nume salariat')}, funcția ${S(g('ra_functie'),'funcția')}.</p>
+      <p><b>Fapta sesizată:</b> ${S(g('ra_fapta'),'descrierea faptei')}, săvârșită/constatată la data de ${S(g('ra_dataf'),'data faptei')}.</p>
+      <p>Solicit analiza situației și, dacă este cazul, declanșarea cercetării disciplinare prealabile, conform art. 251 din Codul muncii și art. 70 din Regulamentul Intern.</p>`;
+  } else if(kind==='convocare'){
+    titlu='CONVOCARE LA CERCETARE DISCIPLINARĂ'; fname='Convocare_cercetare_'+ang.replace(/[^\w]+/g,'_');
+    inner=`<p style="text-align:right">Nr. ${S(g('ra_nr'),'___')} / ${todayISO()}</p>
+      <h2 style="text-align:center">CONVOCARE</h2>
+      <p style="text-align:center">la cercetarea disciplinară prealabilă</p>
+      <p>Către: ${S(ang,'nume salariat')}, funcția ${S(g('ra_functie'),'funcția')}, CIM nr. ${S(g('ra_cim'),'___')}.</p>
+      <p>În temeiul art. 251 alin. (2) din Legea nr. 53/2003 — Codul muncii și al art. 70 din Regulamentul Intern, ${RH_FIRMA.nume}, prin ${RH_FIRMA.admin}, vă convoacă în vederea efectuării cercetării disciplinare prealabile cu privire la fapta: <b>${S(g('ra_fapta'),'fapta imputată')}</b>.</p>
+      <p>Cercetarea va avea loc la data de <b>${S(g('ra_data'),'data')}</b>, ora <b>${S(g('ra_ora'),'ora')}</b>, la <b>${S(g('ra_loc'),'locul')}</b>, în fața ${S(g('ra_comisie'),'persoanei/comisiei împuternicite')}.</p>
+      <p>În cadrul cercetării aveți dreptul să formulați și să susțineți toate apărările în favoarea dumneavoastră, să oferiți probele și motivațiile pe care le considerați necesare și să fiți asistat(ă), la cerere, de către un reprezentant. </p>
+      <p>Neprezentarea la convocare, fără un motiv obiectiv, dă dreptul angajatorului să dispună sancționarea fără efectuarea cercetării disciplinare prealabile (art. 251 alin. (3) Codul muncii).</p>`;
+  } else if(kind==='cercetare'){
+    titlu='PROCES-VERBAL DE CERCETARE DISCIPLINARĂ'; fname='PV_cercetare_'+ang.replace(/[^\w]+/g,'_');
+    inner=`<p style="text-align:right">Nr. ${S(g('ra_nr'),'___')} / ${todayISO()}</p>
+      <h2 style="text-align:center">PROCES-VERBAL</h2>
+      <p style="text-align:center">de cercetare disciplinară prealabilă</p>
+      <p>Încheiat astăzi, ${S(g('ra_data'),'data')}, de către ${S(g('ra_comisie'),'comisia/persoana împuternicită')}, în cadrul cercetării disciplinare prealabile a salariatului ${S(ang,'nume salariat')}, funcția ${S(g('ra_functie'),'funcția')}, din cadrul ${RH_FIRMA.nume}.</p>
+      <p><b>1. Fapta cercetată:</b> ${S(g('ra_fapta'),'descrierea faptei')}.</p>
+      <p><b>2. Susținerile și apărările salariatului:</b> ${S(g('ra_aparare'),'poziția salariatului')}.</p>
+      <p><b>3. Constatări și concluzii:</b> ${S(g('ra_constatari'),'constatările comisiei')}.</p>
+      <p><b>4. Propunere:</b> ${S(g('ra_propunere'),'propunerea de sancțiune sau de clasare')}.</p>
+      <p>Prezentul proces-verbal a fost întocmit în temeiul art. 251 din Codul muncii și al art. 70 din Regulamentul Intern și stă la baza deciziei angajatorului.</p>`;
+  } else if(kind==='sanctiune'){
+    titlu='DECIZIE DE SANCȚIONARE DISCIPLINARĂ'; fname='Decizie_sanctionare_'+ang.replace(/[^\w]+/g,'_');
+    inner=`<p style="text-align:right">Decizia nr. ${S(g('ra_nr'),'___')} / ${todayISO()}</p>
+      <h2 style="text-align:center">DECIZIE DE SANCȚIONARE</h2>
+      <p>${RH_FIRMA.admin}, în calitate de administrator al ${RH_FIRMA.nume} (C.I.F. ${RH_FIRMA.cif}, Nr. Reg. Com. ${RH_FIRMA.regcom}, sediu ${RH_FIRMA.sediu}), în temeiul art. 247–252 din Legea nr. 53/2003 — Codul muncii și al art. 66–72 din Regulamentul Intern,</p>
+      <p style="text-align:center"><b>DECIDE:</b></p>
+      <p><b>Art. 1.</b> Se aplică salariatului ${S(ang,'nume salariat')}, CNP ${S(g('ra_cnp'),'___')}, funcția ${S(g('ra_functie'),'funcția')}, CIM nr. ${S(g('ra_cim'),'___')}, sancțiunea disciplinară: <b>${S(g('ra_sanctiune'),'sancțiunea')}</b>.</p>
+      <p><b>Art. 2. Descrierea faptei (abaterea disciplinară):</b> ${S(g('ra_fapta'),'descrierea faptei')}, constatată/săvârșită la data de ${S(g('ra_data'),'data')}.</p>
+      <p><b>Art. 3. Prevederile încălcate:</b> ${S(g('ra_prevederi'),'prevederile din ROI/CIM/lege')}.</p>
+      <p><b>Art. 4. Motivele înlăturării apărărilor salariatului:</b> ${S(g('ra_motive'),'motivele')}.</p>
+      <p><b>Art. 5. Temeiul de drept:</b> art. 247–252 din Codul muncii și art. 66–72 din Regulamentul Intern.</p>
+      <p><b>Art. 6.</b> Prezenta decizie poate fi contestată în termen de 30 de zile calendaristice de la data comunicării, la instanța judecătorească competentă în materia conflictelor de muncă (tribunalul).</p>
+      <p><b>Art. 7.</b> Decizia se comunică salariatului în termen de cel mult 5 zile calendaristice de la emitere și produce efecte de la data comunicării. Sancțiunea se radiază de drept în 12 luni dacă nu intervine o nouă sancțiune (art. 73 ROI).</p>`;
   }
   // salvăm draft local
   if(!DB.rhActe) DB.rhActe=[];
@@ -8172,6 +8358,101 @@ function rhGenAct(kind){
 }
 function rhDownloadDoc(){ if(!_rhLastDoc) return; const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"></head><body>'+_rhLastDoc.html+'</body></html>'; const blob=new Blob(['﻿'+html],{type:'application/msword'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=_rhLastDoc.fname+'.doc'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500); toast('Descărcat 📄'); }
 function rhPrintDoc(){ if(!_rhLastDoc) return; const w=window.open('','_blank'); if(!w){ toast('Permite pop-up ca să printezi'); return; } w.document.write('<html><head><meta charset="utf-8"><title>'+_rhLastDoc.fname+'</title><style>@page{margin:2cm}body{font-family:Georgia,serif}</style></head><body>'+_rhLastDoc.html+'<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);}<\/scr'+'ipt></body></html>'); w.document.close(); }
+
+// ---------- FIȘĂ DE EVALUARE (cu punctaje) ----------
+const RH_EVAL_CRIT = [
+  ['a','Îndeplinirea responsabilităților postului'],['b','Calitatea activității desfășurate'],['c','Volumul activității'],
+  ['d','Rezultatele obținute'],['e','Nivelul cunoștințelor profesionale'],['f','Experiența și pregătirea profesională'],
+  ['g','Complexitatea și diversitatea activității'],['h','Productivitatea muncii'],['i','Participarea la programe de formare'],
+  ['j','Capacitatea de organizare'],['k','Capacitatea de comunicare și colaborare'],['l','Respectarea termenelor de lucru'],
+  ['m','Capacitatea de lucru în echipă'],['n','Operativitatea în desfășurarea activității'],['o','Respectarea ROI și a obligațiilor'],
+  ['p','Comportamentul profesional în relațiile de muncă'],['q','Indicatori specifici postului ocupat']
+];
+function rhEvalForm(presetNume){
+  const crite = RH_EVAL_CRIT.map(c=>`<div class="form-row" style="margin:0"><div class="form-field" style="flex:3"><label style="font-weight:400">${c[0]}) ${c[1]}</label></div><div class="form-field" style="flex:0"><input type="number" id="ev_${c[0]}" min="0" max="5" value="0" style="width:70px" oninput="rhEvalSum()"></div></div>`).join('');
+  openModal(`<div style="max-height:76vh;overflow:auto;padding-right:6px">
+    <h3 style="margin-top:0">🧮 Fișă de evaluare profesională</h3>
+    <p style="color:var(--text-muted);font-size:12.5px;margin-top:-4px">Notezi fiecare criteriu de la 0 la 5. Totalul și calificativul se calculează singure. La final poți pune un reminder pentru următoarea evaluare.</p>
+    <div class="form-row"><div class="form-field" style="flex:2"><label>Angajat</label><select id="ra_ang" onchange="rhFillAng()">${_rhAngOptions(presetNume)}</select></div>
+      <div class="form-field"><label>Funcția</label><input id="ra_functie"></div></div>
+    <div class="form-row"><div class="form-field"><label>Punct de lucru</label><input id="ev_loc"></div>
+      <div class="form-field"><label>Perioada: de la</label><input type="date" id="ev_de"></div>
+      <div class="form-field"><label>până la</label><input type="date" id="ev_pana"></div>
+      <div class="form-field"><label>Data evaluării</label><input type="date" id="ev_data" value="${todayISO()}"></div></div>
+    <div class="form-row"><div class="form-field"><label>Evaluator (nume)</label><input id="ev_evnume" value="${escapeHtml((DB.users?.[DB.session.user]?.nume)||'')}"></div>
+      <div class="form-field"><label>Funcția evaluatorului</label><input id="ev_evfunc" placeholder="ex: manager operațiuni"></div></div>
+    <div style="font-weight:600;font-size:13px;margin:12px 0 4px">Criterii (0–5 fiecare):</div>
+    ${crite}
+    <div class="form-row" style="margin-top:6px"><div class="form-field" style="flex:3"><label style="font-weight:600">Evaluare globală a evaluatorului (0–15)</label></div><div class="form-field" style="flex:0"><input type="number" id="ev_glob" min="0" max="15" value="0" style="width:70px" oninput="rhEvalSum()"></div></div>
+    <div id="evResult" style="font-size:14px;font-weight:600;margin:8px 0;padding:8px;background:rgba(80,160,255,.08);border-radius:8px"></div>
+    <div class="form-row"><div class="form-field" style="flex:3"><label>Observații / plan de îmbunătățire</label><textarea id="ev_obs" rows="2" style="width:100%"></textarea></div></div>
+    <div class="form-row"><div class="form-field" style="flex:3"><label>Comentariile salariatului (opțional)</label><textarea id="ev_coment" rows="2" style="width:100%"></textarea></div></div>
+    <div class="form-row" style="align-items:flex-end"><div class="form-field"><label>🔔 Reminder următoarea evaluare peste (zile)</label><input type="number" id="ev_remDays" placeholder="ex: 180" style="width:120px"></div>
+      <div class="form-field" style="flex:2"><small style="color:var(--text-muted)">Dacă completezi, aplicația îți dă alarmă la termen ca să faci evaluarea următoare.</small></div></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn" onclick="closeModal()">Anulează</button>
+      <button class="btn btn-primary" onclick="rhGenEval()">✨ Generează fișa</button>
+    </div></div>`);
+  if(presetNume){ var s=document.getElementById('ra_ang'); if(s){ s.value=presetNume; rhFillAng(); } }
+  rhEvalSum();
+}
+function rhEvalSum(){
+  const v=id=>{const e=document.getElementById(id); let n=e?+e.value:0; return isNaN(n)?0:n;};
+  let crit=0; RH_EVAL_CRIT.forEach(c=>crit+=Math.min(5,Math.max(0,v('ev_'+c[0]))));
+  const glob=Math.min(15,Math.max(0,v('ev_glob')));
+  const tot=crit+glob;
+  let calif,col; if(tot>=85){calif='Foarte bine';col='#1b7a3d';} else if(tot>=70){calif='Bine';col='#2e7d32';} else if(tot>=50){calif='Satisfăcător';col='#caa018';} else {calif='Nesatisfăcător';col='#c0392b';}
+  const el=document.getElementById('evResult'); if(el) el.innerHTML=`Criterii a–q: ${crit}/85 · Global: ${glob}/15 · <b>TOTAL: ${tot}/100</b> → calificativ: <b style="color:${col}">${calif}</b>`;
+  return {crit,glob,tot,calif};
+}
+function rhGenEval(){
+  const g=_gv, ang=g('ra_ang');
+  const r=rhEvalSum();
+  const rows=RH_EVAL_CRIT.map(c=>{const sc=_gv('ev_'+c[0])||'0'; return `<tr><td>${c[0]})</td><td>${c[1]}</td><td style="text-align:center">0–5</td><td style="text-align:center"><b>${sc}</b></td></tr>`;}).join('');
+  const inner=`<h2 style="text-align:center;margin:0 0 2px">FIȘĂ DE EVALUARE PROFESIONALĂ</h2>
+    <p style="text-align:center;font-style:italic;color:#444;font-size:11.5px">Întocmită în temeiul art. 74–79 din Regulamentul Intern și al art. 17 alin. (3) lit. e) din Legea nr. 53/2003</p>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:10px">
+      <tr><td style="padding:3px">Salariat: <b>${escapeHtml(ang||'____')}</b></td><td style="padding:3px">Funcția: <b>${escapeHtml(g('ra_functie'))}</b></td></tr>
+      <tr><td style="padding:3px">Punct de lucru: ${escapeHtml(g('ev_loc'))}</td><td style="padding:3px">Perioada: ${escapeHtml(g('ev_de'))} – ${escapeHtml(g('ev_pana'))}</td></tr>
+      <tr><td style="padding:3px">Data evaluării: ${escapeHtml(g('ev_data'))}</td><td style="padding:3px">Evaluator: ${escapeHtml(g('ev_evnume'))} (${escapeHtml(g('ev_evfunc'))})</td></tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;font-size:12px" border="1" cellpadding="4">
+      <thead><tr style="background:#eee"><th>Cod</th><th>Criteriu</th><th>Max</th><th>Acordat</th></tr></thead>
+      <tbody>${rows}
+        <tr style="background:#f6f6f6"><td></td><td><b>TOTAL criterii (a–q)</b></td><td style="text-align:center">85</td><td style="text-align:center"><b>${r.crit}</b></td></tr>
+        <tr><td>+</td><td>Evaluare globală a evaluatorului</td><td style="text-align:center">15</td><td style="text-align:center"><b>${r.glob}</b></td></tr>
+        <tr style="background:#eaf4ff"><td></td><td><b>PUNCTAJ TOTAL</b></td><td style="text-align:center">100</td><td style="text-align:center"><b>${r.tot}</b></td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:10px"><b>Calificativ general: ${r.calif}</b> (85–100 Foarte bine · 70–84 Bine · 50–69 Satisfăcător · sub 50 Nesatisfăcător).</p>
+    <p><b>Observații / plan de îmbunătățire:</b> ${escapeHtml(g('ev_obs'))||'—'}</p>
+    <p><b>Comentariile salariatului:</b> ${escapeHtml(g('ev_coment'))||'—'}</p>
+    <p style="font-size:11px;color:#555">Notă: salariatul confirmă prin semnătură doar luarea la cunoștință a rezultatului. Conform art. 79 ROI, neobținerea a minim 50 de puncte la două evaluări consecutive poate atrage concedierea pentru necorespundere profesională.</p>`;
+  const html=`<div style="font-family:Georgia,'Times New Roman',serif;line-height:1.5;font-size:13px;color:#111">${_rhHeader()}${inner}
+    <table style="width:100%;margin-top:24px"><tr>
+      <td style="width:50%">EVALUATOR<br>${escapeHtml(g('ev_evnume')||'____')}<br><br>Semnătură: ______</td>
+      <td style="width:50%">SALARIAT (luare la cunoștință)<br>${escapeHtml(ang||'____')}<br><br>Semnătură: ______</td>
+    </tr></table></div>`;
+  _rhLastDoc={fname:'Fisa_evaluare_'+(ang||'angajat').replace(/[^\w]+/g,'_')+'_'+todayISO(), html};
+  if(!DB.rhActe) DB.rhActe=[]; DB.rhActe.push({id:'RHA-'+Date.now(),tip:'evaluare',angajat:ang,salvatLa:nowISO()}); save();
+  // reminder pentru următoarea evaluare
+  const remDays=parseInt(g('ev_remDays'),10);
+  let remMsg='';
+  if(remDays>0){
+    const dt=new Date(); dt.setDate(dt.getDate()+remDays);
+    const ds=dt.toISOString().slice(0,10);
+    DB.tasks.push({id:'T-'+Date.now(), titlu:'🔔 Evaluare de făcut: '+ang, descriere:'Reminder automat — evaluarea periodică a salariatului.', responsabil:ang?'':'', locatie:'', termen:ds, prioritate:'Medie', reminder:ds+'T09:00', reminderShown:false, done:false, creatLa:nowISO(), doneLa:''});
+    save();
+    remMsg=' · 🔔 reminder setat pentru '+ds;
+  }
+  openModal(`<h3 style="margin-top:0">✅ Fișă de evaluare — ${r.tot}/100 (${r.calif})${remMsg}</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px">
+      <button class="btn btn-primary" onclick="rhDownloadDoc()">📥 Descarcă Word</button>
+      <button class="btn" onclick="rhPrintDoc()">🖨️ Printează / PDF</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Închide</button>
+    </div>
+    <div style="max-height:50vh;overflow:auto;background:#fff;color:#111;border-radius:8px;padding:16px 20px">${html}</div>`);
+}
 
 // ---------- GHID RH ----------
 function openRhGhid(){
