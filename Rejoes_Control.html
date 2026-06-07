@@ -1249,8 +1249,9 @@ async function bfOpen(){
 
 function _bfPlan(){
   const s=bfState; if(!s) return {pNew:[],rNew:[]};
+  const _mid=x=>String(x||'').trim().split(/\s+/)[0];
   const pKeys=new Set(DB.pontaj.map(p=>p.data+'|'+p.angajat));
-  const rKeys=new Set(DB.raportari.map(r=>r.data+'|'+r.magazin));
+  const rKeys=new Set(DB.raportari.map(r=>r.data+'|'+_mid(r.magazin)));  // normalizat pe id (Ana: 'MAG-001 Nume', back-fill: 'MAG-001')
   const byPA={}, dsAgg={};
   Object.keys(s.perDSA).forEach(k=>{
     const i=k.indexOf('|'), j=k.indexOf('|',i+1); const d=k.slice(0,i), stId=k.slice(i+1,j), raw=k.slice(j+1);
@@ -1338,8 +1339,39 @@ function bfApply(){
 }
 
 // ---------- RAPORTARE ----------
+let rapFMag='TOATE', rapPMode='tot', rapPFrom='', rapPTo='', rapSort='data_desc';
+function setRapP(){ const a=document.getElementById('rapPFrom'),b=document.getElementById('rapPTo'); rapPFrom=a?a.value:''; rapPTo=b?b.value:''; rapPMode='custom'; renderRaportare(); }
 function renderRaportare() {
   const readOnly = isReadOnly();
+  // —— filtrare + sortare raportări (analiză) ——
+  const _t=new Date(); _t.setHours(0,0,0,0); const _iso=d=>d.toISOString().slice(0,10); const _num=v=>+v||0;
+  let _from='0000-01-01', _to='9999-12-31';
+  if(rapPMode==='7'){const f=new Date(_t);f.setDate(f.getDate()-6);_from=_iso(f);_to=_iso(_t);}
+  else if(rapPMode==='30'){const f=new Date(_t);f.setDate(f.getDate()-29);_from=_iso(f);_to=_iso(_t);}
+  else if(rapPMode==='luna'){_from=_iso(new Date(_t.getFullYear(),_t.getMonth(),1));_to=_iso(_t);}
+  else if(rapPMode==='lunaTrecuta'){_from=_iso(new Date(_t.getFullYear(),_t.getMonth()-1,1));_to=_iso(new Date(_t.getFullYear(),_t.getMonth(),0));}
+  else if(rapPMode==='custom'){_from=rapPFrom||_from;_to=rapPTo||_to;}
+  const _magId=s=>String(s||'').trim().split(/\s+/)[0];
+  let rapList = DB.raportari.map((r,idx)=>({r,idx})).filter(o=>{ const r=o.r; if(!r.data||r.data<_from||r.data>_to) return false; if(rapFMag!=='TOATE' && _magId(r.magazin)!==rapFMag) return false; return true; });
+  const _sorters={ data_desc:(a,b)=>(b.r.data||'').localeCompare(a.r.data||''), data_asc:(a,b)=>(a.r.data||'').localeCompare(b.r.data||''), vanz_desc:(a,b)=>_num(b.r.vanzari)-_num(a.r.vanzari), vanz_asc:(a,b)=>_num(a.r.vanzari)-_num(b.r.vanzari), bon_desc:(a,b)=>_num(b.r.bonuri)-_num(a.r.bonuri), dif_desc:(a,b)=>Math.abs(_num(b.r.diferenta))-Math.abs(_num(a.r.diferenta)) };
+  rapList.sort(_sorters[rapSort]||_sorters.data_desc);
+  const rapTotV=rapList.reduce((s,o)=>s+_num(o.r.vanzari),0), rapTotB=rapList.reduce((s,o)=>s+_num(o.r.bonuri),0), rapTotD=rapList.reduce((s,o)=>s+_num(o.r.diferenta),0);
+  const rapPerMag={}; rapList.forEach(o=>{ const m=o.r.magazin; (rapPerMag[m]=rapPerMag[m]||{v:0,b:0,n:0}); rapPerMag[m].v+=_num(o.r.vanzari); rapPerMag[m].b+=_num(o.r.bonuri); rapPerMag[m].n++; });
+  const rapPerMagArr=Object.keys(rapPerMag).map(m=>({m,...rapPerMag[m]})).sort((a,b)=>b.v-a.v);
+  const rapPerCas={}; rapList.forEach(o=>{ const c=(o.r.casier||'—'); (rapPerCas[c]=rapPerCas[c]||{v:0,b:0,n:0}); rapPerCas[c].v+=_num(o.r.vanzari); rapPerCas[c].b+=_num(o.r.bonuri); rapPerCas[c].n++; });
+  const rapPerCasArr=Object.keys(rapPerCas).map(c=>({c,...rapPerCas[c]})).sort((a,b)=>b.v-a.v);
+  // comparație cu perioada anterioară (aceeași lungime)
+  let rapPrevV=0, rapPrevB=0, rapHasPrev=false;
+  if(rapPMode!=='tot' && _from>'0000-01-01' && _to<'9999-12-31'){
+    const dF=new Date(_from), dT=new Date(_to); const len=Math.round((dT-dF)/86400000)+1;
+    const pT=new Date(dF); pT.setDate(pT.getDate()-1); const pF=new Date(pT); pF.setDate(pF.getDate()-(len-1));
+    const pf=_iso(pF), pt=_iso(pT); rapHasPrev=true;
+    DB.raportari.forEach(r=>{ if(r.data>=pf&&r.data<=pt && (rapFMag==='TOATE'||_magId(r.magazin)===rapFMag)){ rapPrevV+=_num(r.vanzari); rapPrevB+=_num(r.bonuri); } });
+  }
+  const _delta=(cur,prev)=>{ if(!prev) return ''; const p=Math.round((cur-prev)/prev*1000)/10; return `<span style="color:${p>=0?'#0a7d3b':'#dc2626'};font-size:11px"> (${p>=0?'+':''}${p}%)</span>`; };
+  const rapZile=new Set(rapList.map(o=>o.r.data)).size;
+  const rapBonMed = rapTotB>0 ? rapTotV/rapTotB : 0;
+  const rapShown=rapList.slice(0,400);
   document.getElementById('content').innerHTML = `
     ${!readOnly ? `<div class="card">
       <div class="section-head"><h3>Adaugă raportare zilnică</h3></div>
@@ -1373,26 +1405,86 @@ function renderRaportare() {
     </div>` : ''}
 
     <div class="card">
-      <div class="section-head"><h3>Raportări (${DB.raportari.length})</h3>
-        <div class="toolbar"><button class="btn btn-sm" onclick="exportRap()">📥 Export</button></div>
+      <div class="section-head"><h3>📊 Raport analitic — încasări</h3>
+        <div class="toolbar">${isAdmin()?`<button class="btn btn-sm" onclick="curatRaportariDup()">🧹 Curăță duplicate</button>`:''}<button class="btn btn-sm" onclick="exportRap()">📥 Export</button></div>
       </div>
-      ${DB.raportari.length===0 ? `<div class="empty"><h4>Nicio raportare încă</h4></div>` :
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <select class="btn" onchange="rapPMode=this.value;renderRaportare()">
+          ${[['tot','Toată perioada'],['7','Ultimele 7 zile'],['30','Ultimele 30 zile'],['luna','Luna curentă'],['lunaTrecuta','Luna trecută'],['custom','Interval ales…']].map(o=>`<option value="${o[0]}" ${rapPMode===o[0]?'selected':''}>${o[1]}</option>`).join('')}
+        </select>
+        ${rapPMode==='custom'?`<input type="date" id="rapPFrom" value="${rapPFrom}" class="btn"> – <input type="date" id="rapPTo" value="${rapPTo}" class="btn"> <button class="btn btn-sm" onclick="setRapP()">Aplică</button>`:''}
+        <select class="btn" onchange="rapFMag=this.value;renderRaportare()">
+          <option value="TOATE" ${rapFMag==='TOATE'?'selected':''}>Toate magazinele</option>
+          ${DB.magazine.filter(m=>m.tip!=='Depozit').map(m=>`<option value="${m.id}" ${rapFMag===m.id?'selected':''}>${m.id} ${m.nume}</option>`).join('')}
+        </select>
+        <select class="btn" onchange="rapSort=this.value;renderRaportare()">
+          ${[['data_desc','Dată: noi → vechi'],['data_asc','Dată: vechi → noi'],['vanz_desc','Vânzări: mari → mici'],['vanz_asc','Vânzări: mici → mari'],['bon_desc','Bonuri: multe → puține'],['dif_desc','Diferență casă: mare']].map(o=>`<option value="${o[0]}" ${rapSort===o[0]?'selected':''}>${o[1]}</option>`).join('')}
+        </select>
+        <span style="flex:1"></span>
+        <span style="font-size:12px;color:var(--text-muted)">${rapList.length} raportări · ${rapZile} zile</span>
+      </div>
+    </div>
+
+    <div class="grid grid-5">
+      <div class="card"><div class="card-title">Vânzări (perioadă)</div><div class="card-value">${fmt(rapTotV,0)}${rapHasPrev?_delta(rapTotV,rapPrevV):''}</div></div>
+      <div class="card"><div class="card-title">Bonuri</div><div class="card-value">${rapTotB}${rapHasPrev?_delta(rapTotB,rapPrevB):''}</div></div>
+      <div class="card"><div class="card-title">Bon mediu</div><div class="card-value">${fmt(rapBonMed)} <span style="font-size:12px;color:var(--text-muted)">lei</span></div></div>
+      <div class="card"><div class="card-title">Diferență casă</div><div class="card-value ${Math.abs(rapTotD)<1?'success':Math.abs(rapTotD)<50?'warning':'danger'}">${fmt(rapTotD)}</div></div>
+      <div class="card"><div class="card-title">Vânzări / zi</div><div class="card-value">${fmt(rapZile?rapTotV/rapZile:0,0)} <span style="font-size:12px;color:var(--text-muted)">lei</span></div></div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
+      <div class="card">
+        <h3 style="font-size:14px;margin:0 0 8px">🏪 Pe magazin</h3>
+        ${rapPerMagArr.length===0?'<p style="color:var(--text-muted);font-size:13px">—</p>':
+        `<div class="table-wrap"><table><thead><tr><th>Magazin</th><th class="num">Vânzări</th><th class="num">%</th><th class="num">Bonuri</th><th class="num">Bon med.</th><th class="num">Zile</th></tr></thead>
+          <tbody>${rapPerMagArr.map(x=>`<tr><td>${mag(x.m)}</td><td class="num"><strong>${fmt(x.v,0)}</strong></td><td class="num">${rapTotV?Math.round(x.v/rapTotV*100):0}%</td><td class="num">${x.b}</td><td class="num">${fmt(x.b?x.v/x.b:0)}</td><td class="num">${x.n}</td></tr>`).join('')}</tbody></table></div>`}
+      </div>
+      <div class="card">
+        <h3 style="font-size:14px;margin:0 0 8px">👤 Pe casier</h3>
+        ${rapPerCasArr.length===0?'<p style="color:var(--text-muted);font-size:13px">—</p>':
+        `<div class="table-wrap"><table><thead><tr><th>Casier</th><th class="num">Vânzări</th><th class="num">%</th><th class="num">Bonuri</th><th class="num">Bon med.</th><th class="num">Zile</th></tr></thead>
+          <tbody>${rapPerCasArr.slice(0,20).map(x=>`<tr><td>${escapeHtml(x.c)}</td><td class="num"><strong>${fmt(x.v,0)}</strong></td><td class="num">${rapTotV?Math.round(x.v/rapTotV*100):0}%</td><td class="num">${x.b}</td><td class="num">${fmt(x.b?x.v/x.b:0)}</td><td class="num">${x.n}</td></tr>`).join('')}</tbody></table></div>`}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-head"><h3>Detaliu (${rapList.length}${rapList.length>400?', primele 400':''})</h3></div>
+      ${rapShown.length===0 ? `<div class="empty"><h4>Nicio raportare în perioada aleasă</h4></div>` :
       `<div class="table-wrap"><table>
         <thead><tr><th>Data</th><th>Magazin</th><th>Casier</th><th class="num">Vânzări</th><th class="num">POS</th><th class="num">Predat</th><th class="num">Dif.</th><th class="num">Bonuri</th><th>Alertă</th><th></th></tr></thead>
-        <tbody>${[...DB.raportari].reverse().map((r,i) => {
-          const idx = DB.raportari.length-1-i;
+        <tbody>${rapShown.map(o => { const r=o.r, idx=o.idx;
           return `<tr>
-            <td><strong>${r.data}</strong></td><td>${r.magazin}</td><td>${r.casier}</td>
+            <td><strong>${r.data}</strong></td><td>${mag(_magId(r.magazin))}</td><td>${escapeHtml(r.casier||'')}</td>
             <td class="num">${fmt(r.vanzari)}</td><td class="num">${fmt(r.pos)}</td><td class="num">${fmt(r.numerarPredat)}</td>
             <td class="num" style="color:${Math.abs(r.diferenta)<1?'var(--success)':Math.abs(r.diferenta)<20?'var(--warning)':'var(--danger)'}">${fmt(r.diferenta)}</td>
             <td class="num">${r.bonuri||0}</td>
             <td><span class="badge ${r.alerta==='OK'?'badge-ok':r.alerta==='CRITIC'?'badge-danger':'badge-warn'}">${r.alerta||'OK'}</span></td>
-            <td>${isAdmin() ? `<button class="btn btn-sm btn-ghost" onclick="delRap(${idx})">×</button>` : '<small style="color:var(--text-muted)" title="Ștergerea doar de admin">—</small>'}</td>
+            <td>${isAdmin() ? `<button class="btn btn-sm btn-ghost" onclick="delRap(${idx})">×</button>` : '<small style="color:var(--text-muted)">—</small>'}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>`}
     </div>
   `;
+}
+function curatRaportariDup(){
+  if(!isAdmin()){ toast('Doar adminul'); return; }
+  const _mid=x=>String(x||'').trim().split(/\s+/)[0];
+  const groups={};
+  DB.raportari.forEach((r,idx)=>{ const k=(r.data||'')+'|'+_mid(r.magazin); (groups[k]=groups[k]||[]).push(idx); });
+  const toRemove=new Set();
+  Object.values(groups).forEach(g=>{ if(g.length<2) return;
+    const recs=g.map(i=>({i,r:DB.raportari[i]}));
+    recs.sort((a,b)=>{ const aA=a.r.auto?1:0,bA=b.r.auto?1:0; if(aA!==bA) return aA-bA;
+      const aI=((+a.r.numerarPredat||0)||(+a.r.pos||0))>0?0:1, bI=((+b.r.numerarPredat||0)||(+b.r.pos||0))>0?0:1; if(aI!==bI) return aI-bI;
+      return (+b.r.vanzari||0)-(+a.r.vanzari||0); });
+    for(let k=1;k<recs.length;k++) toRemove.add(recs[k].i);
+  });
+  if(!toRemove.size){ toast('Nu există duplicate (aceeași zi + magazin) 🙂'); return; }
+  if(!confirm(`Am găsit ${toRemove.size} raportări duplicate (aceeași zi + magazin). Păstrez una per zi/magazin (prioritar cea reală, de la Ana) și le șterg pe restul? Se face backup întâi.`)) return;
+  try{ createBackup('pre-dedup-raportari-'+nowISO().replace(/[:T.]/g,'-').slice(0,19)); }catch(e){}
+  DB.raportari = DB.raportari.filter((r,idx)=>!toRemove.has(idx));
+  save(); renderRaportare(); toast(`✓ ${toRemove.size} duplicate șterse`);
 }
 function recalcRap() {
   const v = parseFloat(document.getElementById('rVanzari').value) || 0;
@@ -4257,7 +4349,7 @@ function renderEcorgTab(body) {
     <div class="card" style="margin-bottom:14px;border-left:4px solid var(--warning)">
       <div class="section-head">
         <h3 style="font-size:14px;margin:0">💰 Detailed Financial Results — cheltuieli REALE (${fr.length} luni · Sales ${fmt(frTotalSales)} RON · OpEx ${fmt(frTotalOpEx)} RON · Profit ${fmt(frTotalProfit)} RON)</h3>
-        ${fr.length > 0 ? `<button class="btn btn-sm btn-ghost" onclick="stergeToateFinancial()" title="Șterge toate">🗑 Șterge tot</button>` : ''}
+        <div class="toolbar">${fr.length > 0 ? `<button class="btn btn-sm" style="background:#b45309;border-color:#b45309;color:#fff" onclick="corecteazaFinancialDublat()" title="Scoate coloana Total dublată">🔧 Corectează dublarea</button><button class="btn btn-sm btn-ghost" onclick="stergeToateFinancial()" title="Șterge toate">🗑 Șterge tot</button>` : ''}</div>
       </div>
       ${fr.length === 0 ? '<p style="color:var(--text-muted);font-size:13px;margin-top:10px">Niciun raport financiar importat. Exportă lunar din e:Corg → Profitability → Detailed Financial Results / period. Apoi încarcă fișierele aici (poți selecta toate 13 deodată).</p>' :
       `<div class="table-wrap" style="margin-top:10px"><table>
@@ -4732,7 +4824,8 @@ function parseFinancialResult(aoa, fileName) {
       // Magazinele sunt coloanele non-empty după col 0
       for (let c = 1; c < row.length; c++) {
         const name = String(row[c]||'').trim();
-        if (name && name !== 'Sales title') {
+        // EXCLUDE coloana „Total" (e suma magazinelor; altfel se dublează totalLuna)
+        if (name && name !== 'Sales title' && name.toLowerCase() !== 'total') {
           magazinCols.push({ col: c, nume: name });
         }
       }
@@ -4809,6 +4902,28 @@ function parseFinancialResult(aoa, fileName) {
       totalLuna
     }
   };
+}
+
+// Corecție pe loc: scoate coloana „Total" dublată din datele Financial deja importate (Etapa 15-fix)
+function corecteazaFinancialDublat(){
+  if(!isAdmin()){ toast('Doar adminul'); return; }
+  const fin=(DB.ecorgImports&&DB.ecorgImports.financial)||[];
+  if(!fin.length){ toast('Nu există date Financial importate.'); return; }
+  let hadTotal=0, nFixed=0;
+  fin.forEach(f=>{
+    if(!Array.isArray(f.magazine)) return;
+    const before=f.magazine.length;
+    f.magazine=f.magazine.filter(m=>String(m.nume||'').trim().toLowerCase()!=='total');
+    if(f.magazine.length<before){ hadTotal++;
+      const cats=Object.keys(f.totalLuna||{});
+      const tl={}; cats.forEach(c=>{ tl[c]=f.magazine.reduce((s,m)=>s+((m.valori&&m.valori[c])||0),0); }); f.totalLuna=tl; nFixed++;
+    }
+  });
+  if(!hadTotal){ toast('Datele Financial par deja corecte (fără coloană „Total").'); return; }
+  if(!confirm(`Corectez ${nFixed} luni Financial: scot coloana „Total" dublată. Vânzările și profitul revin la valoarea reală (≈ jumătate). Se face backup întâi. Continui?`)) return;
+  try{ createBackup('pre-fix-financial-'+nowISO().replace(/[:T.]/g,'-').slice(0,19)); }catch(e){}
+  save(); try{ cloudPushEcorgData(); }catch(e){}
+  toast(`✓ Corectat ${nFixed} luni Financial. Cifrele sunt acum reale.`); try{ renderSetari(); }catch(e){}
 }
 
 // Helper: cheltuieli REALE din e:Corg pentru o perioadă (sumează luni acoperite)
