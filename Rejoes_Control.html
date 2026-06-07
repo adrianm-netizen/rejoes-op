@@ -8505,7 +8505,12 @@ function _monLabel(m){ const p=(m||'').split('-'); return p.length===2?(_LUNI_NU
 function renderCashBanca(){
   const cm=(DB.cashIncasari&&DB.cashIncasari.months)||{};
   const dm=(DB.depuneriCont003&&DB.depuneriCont003.months)||{};
-  const months=[...new Set([...Object.keys(cm),...Object.keys(dm)])].sort();
+  // Cumulativul pornește de la prima lună cu date de cash — depunerile dinainte sunt pentru cash încasat în perioada anterioară (e:Corg nu o acoperă), le excludem din reconciliere.
+  const cashKeys=Object.keys(cm).filter(k=>((cm[k]&&cm[k].cash)||0)>0).sort();
+  const minCash=cashKeys.length?cashKeys[0]:null;
+  let allMonths=[...new Set([...Object.keys(cm),...Object.keys(dm)])].sort();
+  const depAnterioare=minCash?allMonths.filter(m=>m<minCash).reduce((s,m)=>s+(dm[m]||0),0):0;
+  const months=minCash?allMonths.filter(m=>m>=minCash):allMonths;
   let cum=0; const rows=months.map(m=>{ const cash=(cm[m]&&cm[m].cash)||0; const dep=dm[m]||0; const dif=cash-dep; cum+=dif; return {m,cash,dep,dif,cum}; });
   const last=rows.length?rows[rows.length-1]:null;
   const alerta=last&&last.cum>CASH_NEDEPUS_PRAG;
@@ -8553,7 +8558,8 @@ function renderCashBanca(){
         <tr style="border-top:2px solid var(--border);font-weight:700"><td>TOTAL</td><td style="text-align:right">${fmt(totCash)}</td><td style="text-align:right">${fmt(totDep)}</td><td style="text-align:right">${fmt(totCash-totDep)}</td><td></td></tr>
         </tbody>
       </table></div>
-      <p style="font-size:11.5px;color:var(--text-muted);margin-top:8px">Cash-ul unei perioade se depune în zilele următoare (în mai multe tranșe), de aceea diferența pe o lună poate fi pozitivă sau negativă — contează tendința soldului cumulativ. Un cumulativ care tot crește = cash care nu ajunge la bancă.</p>`}
+      <p style="font-size:11.5px;color:var(--text-muted);margin-top:8px">Cash-ul unei perioade se depune în zilele următoare (în mai multe tranșe), de aceea diferența pe o lună poate fi pozitivă sau negativă — contează tendința soldului cumulativ. Un cumulativ care tot crește = cash care nu ajunge la bancă. Cumulativul pornește de la prima lună cu date de cash (${minCash?_monLabel(minCash):'—'}).</p>
+      ${depAnterioare>0?`<p style="font-size:11.5px;color:var(--text-muted);margin-top:2px">ℹ️ Depuneri înainte de perioada cash-ului (pentru încasări mai vechi, neacoperite de e:Corg): <b>${fmt(depAnterioare)} lei</b> — informativ, excluse din reconciliere.</p>`:''}`}
     </div>`;
 }
 
