@@ -82,6 +82,8 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<!-- Etapa 14 — generatorul CIM (V7) încorporat ca modul izolat (companion file, urcat lângă aplicație) -->
+<script src="rh_cim_generator.js" onerror="window._rhGenMissing=true"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -458,8 +460,27 @@ const SEED = {
   },
   // Etapa 13 — Dosare deschidere magazine nou (procedură + acte). Trackerul se sincronizează (operational, fără date personale).
   dosare: [],               // [{id, locatie, adresa, oras, responsabil, tipProprietar:'PF'|'PJ', proprietar, dataContract, dataTinta, pasi:[{nr,categorie,pas,responsabil,status,dataStart,termen,dataFinalizare,obs}], log:[{data,text,autor}], stare, createdAt}]
-  contractDrafts: []        // LOCAL-only (NU în cloud — conține CNP/CI/IBAN proprietar). [{id, tip:'PF'|'PJ', data:{...campuri}, salvatLa}]
+  contractDrafts: [],       // LOCAL-only (NU în cloud — conține CNP/CI/IBAN proprietar). [{id, tip:'PF'|'PJ', data:{...campuri}, salvatLa}]
+  // Etapa 14 — RH / Resurse umane (dosarul de personal al fiecărui angajat). Tracker operational, se sincronizează (fără date personale noi — CNP-urile sunt deja în angajati, local).
+  rhDosare: [],             // [{id, angajatId, angajatNume, docuri:[{cheie,eticheta,status,data,obs}], medicinaMuncii:{data,expira}, ssm:{data}, concediuZile, concediuFolosite, log:[{data,text,autor}], stare, createdAt}]
+  rhActe: []                // LOCAL-only (date personale) — drafts acte generate [{id, tip, angajat, data:{...}, salvatLa}]
 };
+
+// Documentele standard din dosarul de personal al unui angajat (checklist)
+const RH_DOC_STEPS = [
+  {cheie:'cim',        eticheta:'CIM semnat (contract individual de muncă)'},
+  {cheie:'informare',  eticheta:'Informare prealabilă (art. 17) semnată'},
+  {cheie:'fisaPost',   eticheta:'Fișa postului semnată'},
+  {cheie:'roi',        eticheta:'ROI — luare la cunoștință semnată'},
+  {cheie:'anexe',      eticheta:'Anexe RI (program, concedii) semnate'},
+  {cheie:'ci',         eticheta:'Copie carte de identitate'},
+  {cheie:'medicina',   eticheta:'Medicina muncii — apt la angajare'},
+  {cheie:'ssm',        eticheta:'Instructaj SSM / PSI efectuat'},
+  {cheie:'gdpr',       eticheta:'Acord / informare GDPR semnată'},
+  {cheie:'reges',      eticheta:'Înregistrat în REGES (Revisal)'},
+  {cheie:'cont',       eticheta:'Cont bancar / date salariu primite'}
+];
+const RH_DOC_STATUSES = ['Lipsă','În lucru','Gata'];
 
 // Cei 22 pași standard ai unui dosar de deschidere magazin (din procedura Rejoes / fișierul de status)
 const DOSAR_STEPS = [
@@ -547,6 +568,7 @@ const VIEWS_ALL = [
   {id:'profit', label:'Profit', icon:'M3 3v18h18 M7 14l4-4 4 4 5-5', roles:['admin','owner']},
   {id:'raportzilnic', label:'📋 Raport zilnic', icon:'M9 17v-6h6v6M3 7l9-4 9 4M5 7v14h14V7', roles:['admin','owner']},
   {id:'dosare', label:'📁 Dosare magazine', icon:'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z', roles:['admin','operator']},
+  {id:'rh', label:'📋 RH / Personal', icon:'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', roles:['admin','operator']},
   {id:'pontaj', label:'Pontaj', icon:'M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', roles:['admin','owner','operator','contabil-sef']},
   {id:'raportare', label:'Raportare zilnică', icon:'M9 17v-6h6v6M3 7l9-4 9 4M5 7v14h14V7', roles:['admin','owner','operator','contabil-sef']},
   {id:'tasks', label:'Tasks', icon:'M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z', roles:['admin','owner','operator','manager-depozit']},
@@ -607,7 +629,7 @@ function renderNav() {
 function go(view) {
   currentView = view;
   renderNav();
-  const titles = {analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
+  const titles = {analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
     diferente:'Diferențe casă', inventar:'Inventar', alerte:'Alerte automate',
     import:'Import / Export date', setari:'Setări'};
   document.getElementById('pageTitle').textContent = titles[view];
@@ -620,7 +642,7 @@ function go(view) {
     renderNav();
     return go(currentView);
   }
-  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
+  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
     diferente:renderDiferente, inventar:renderInventar, alerte:renderAlerte, import:renderImport, setari:renderSetari})[view]();
 }
 
@@ -5352,7 +5374,7 @@ function getEcorgVanzariPerioada(from, to) {
 
 // ---------- BACKUP ----------
 // Lista colecțiilor care intră în backup (exclude session, _backups)
-const BACKUP_KEYS = ['users','angajati','magazine','pontaj','raportari','diferente','inventar','alerte','tasks','nomenclator','sortari','facturiIntrare','comenzi','retururi','transferuri','casari','retururiClienti','discounturi','mesaje','edenredImport','praguri','dosare','contractDrafts'];
+const BACKUP_KEYS = ['users','angajati','magazine','pontaj','raportari','diferente','inventar','alerte','tasks','nomenclator','sortari','facturiIntrare','comenzi','retururi','transferuri','casari','retururiClienti','discounturi','mesaje','edenredImport','praguri','dosare','contractDrafts','rhDosare','rhActe'];
 
 function createBackup(label) {
   const snapshot = { ts: nowISO(), label: label || ('auto-'+todayISO()), data: {} };
@@ -7802,6 +7824,390 @@ function printContract(){
   if(!w){ toast('Permite ferestrele pop-up ca să printezi'); return; }
   w.document.write('<html><head><meta charset="utf-8"><title>'+_lastContract.fname+'</title><style>@page{margin:2cm}body{font-family:Georgia,serif}h4{margin:14px 0 4px}</style></head><body>'+_lastContract.html+'<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);}<\/scr'+'ipt></body></html>');
   w.document.close();
+}
+
+// ============================================================
+// ============== RH / RESURSE UMANE (Etapa 14) ===============
+// ============================================================
+let rhView = 'hub';   // 'hub' | 'angajare' | 'dosar' | 'acte'
+let rhSel = null;     // angajatId pentru dosar
+let _rhLastDoc = null;// {fname, html}
+
+const RH_FIRMA = {
+  nume:'S-COLECT REC S.R.L.', cif:'RO 38513453', regcom:'J2017004459354',
+  sediu:'Com. Cenei nr. 86, 307100, Jud. Timiș', admin:'Olga Baraban'
+};
+function _rhHeader(){
+  return `<div style="text-align:center;border-bottom:2px solid #1b5e3a;padding-bottom:8px;margin-bottom:16px">
+    <div style="font-size:16px;font-weight:700">${RH_FIRMA.nume}</div>
+    <div style="font-size:11px;color:#444">C.I.F. ${RH_FIRMA.cif} · Nr. Reg. Com. ${RH_FIRMA.regcom} · Sediu: ${RH_FIRMA.sediu}</div>
+    <div style="font-size:11px;color:#444">Administrator: ${RH_FIRMA.admin}</div>
+  </div>`;
+}
+
+function rhGetDosar(ang){ return (DB.rhDosare||[]).find(d=>d.angajatId===ang.id || d.angajatNume===ang.nume); }
+function rhEnsureDosar(ang){
+  let d = rhGetDosar(ang);
+  if(!d){
+    d = { id:'RHD-'+Date.now()+'-'+Math.floor(Math.random()*999), angajatId:ang.id, angajatNume:ang.nume,
+      docuri: RH_DOC_STEPS.map(s=>({cheie:s.cheie, eticheta:s.eticheta, status:'Lipsă', data:'', obs:''})),
+      medicinaMuncii:{data:'',expira:''}, ssm:{data:''}, concediuZile:20, concediuFolosite:0,
+      log:[], stare:'Activ', createdAt:nowISO() };
+    if(!DB.rhDosare) DB.rhDosare=[];
+    DB.rhDosare.push(d); save();
+  }
+  // completează docuri lipsă dacă s-a schimbat lista standard
+  RH_DOC_STEPS.forEach(s=>{ if(!d.docuri.some(x=>x.cheie===s.cheie)) d.docuri.push({cheie:s.cheie,eticheta:s.eticheta,status:'Lipsă',data:'',obs:''}); });
+  return d;
+}
+function _rhProgres(d){ const t=(d.docuri||[]); const g=t.filter(x=>x.status==='Gata').length; return {gata:g, total:t.length||RH_DOC_STEPS.length}; }
+
+function renderRH(){
+  if(rhView==='angajare') return renderRHAngajare();
+  if(rhView==='dosar' && rhSel) return renderRHDosar();
+  if(rhView==='acte') return renderRHActe();
+  // HUB
+  const angajati = DB.angajati.filter(a=>a.status!=='Inactiv');
+  document.getElementById('content').innerHTML = `
+    <div class="card" style="background:linear-gradient(135deg,rgba(80,160,255,.10),rgba(80,200,120,.08));border:1px solid rgba(120,170,220,.25)">
+      <h3 style="margin:0 0 6px">📋 Resurse umane — aici ai grijă de oameni 💚</h3>
+      <p style="margin:0 0 4px;color:var(--text-muted);font-size:13.5px">
+        Tot ce ține de personal, într-un singur loc: angajezi pe cineva nou, ții dosarul fiecăruia la zi și generezi actele de care ai nevoie — calm și ordonat.
+        Ține minte: oamenii noștri trebuie să se simtă bine și să știe că le suntem aproape. Hârtiile sunt doar ca totul să fie corect și liniștit pentru ei. 🙂
+      </p>
+      <p style="margin:0;color:var(--text-muted);font-size:12.5px">💡 De la Adi: citește o dată „Ghidul RH" și după aia te descurci singură ca o profesionistă.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px">
+        <button class="btn btn-primary" onclick="rhGo('angajare')">🧑‍💼 Angajare nouă (CIM)</button>
+        <button class="btn" onclick="rhGo('acte')">📄 Generează un act</button>
+        <button class="btn btn-ghost" onclick="openRhGhid()">📖 Ghidul RH (de la Adi)</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-head"><h3>👥 Dosarele angajaților (${angajati.length})</h3></div>
+      <p style="color:var(--text-muted);font-size:12.5px;margin:0 0 12px">Apasă pe un angajat ca să-i deschizi dosarul: documente, medicina muncii, SSM, concedii. Bara arată cât e de complet dosarul lui.</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${angajati.map(a=>{
+          const d=rhGetDosar(a); const pr=d?_rhProgres(d):{gata:0,total:RH_DOC_STEPS.length}; const pct=Math.round(pr.gata/pr.total*100);
+          const full=pct===100;
+          return `<div class="card" style="margin:0;cursor:pointer;border:1px solid var(--border)" onclick="openRhDosar('${a.id}')">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+              <div>
+                <strong>${escapeHtml(a.nume)}</strong>
+                <span class="badge badge-neutral" style="margin-left:6px">${escapeHtml(a.rol||'')}</span>
+                ${a.status==='Concediu maternitate'?`<span class="badge badge-info" style="margin-left:4px">maternitate</span>`:''}
+              </div>
+              <div style="text-align:right;min-width:140px">
+                <div style="font-size:11px;color:var(--text-muted)">${d?`${pr.gata}/${pr.total} documente`:'dosar nedeschis'}</div>
+                <div style="background:rgba(255,255,255,.10);border-radius:20px;height:8px;width:140px;margin-top:4px;overflow:hidden">
+                  <div style="height:100%;width:${pct}%;background:${full?'#1b7a3d':'linear-gradient(90deg,#4aa3ff,#50c878)'};border-radius:20px"></div>
+                </div>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+function rhGo(v){ rhView=v; renderRH(); }
+function rhBack(){ rhView='hub'; rhSel=null; renderRH(); }
+
+// ---------- ANGAJARE NOUĂ: generator CIM încorporat ----------
+function renderRHAngajare(){
+  const has = (typeof window.RH_CIM_GEN_HTML === 'function') && !window._rhGenMissing;
+  document.getElementById('content').innerHTML = `
+    <div class="card">
+      <button class="btn btn-sm btn-ghost" onclick="rhBack()">← RH</button>
+      <h3 style="margin:6px 0 4px">🧑‍💼 Angajare nouă — Contract Individual de Muncă</h3>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 10px">Completezi datele persoanei, alegi funcția și programul, apeși „Generează" — și iese contractul Word gata de tipărit, cu informarea prealabilă inclusă. Pentru re-emiteri, poți pre-completa dintr-un angajat existent.</p>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-field" style="flex:2"><label>Pre-completează din angajat existent (opțional)</label>
+          <select id="rhPrefillAng"><option value="">— persoană nouă, completez eu —</option>${DB.angajati.map(a=>`<option value="${a.id}">${escapeHtml(a.nume)}</option>`).join('')}</select></div>
+        <div class="form-field" style="flex:0"><button class="btn" onclick="rhApplyPrefill()">↧ Pre-completează</button></div>
+      </div>
+    </div>
+    <div class="card" style="padding:6px;overflow:hidden">
+      ${has ? `<iframe id="rhCimFrame" title="Generator CIM" style="width:100%;height:80vh;border:0;border-radius:8px;background:#fff"></iframe>`
+            : `<div class="empty" style="padding:30px"><h4>Generatorul CIM nu e încărcat încă</h4>
+                 <p>Fișierul <code>rh_cim_generator.js</code> trebuie urcat pe GitHub lângă <code>Rejoes_Control.html</code>. După upload și un refresh complet, generatorul apare chiar aici, în pagină.</p></div>`}
+    </div>`;
+  if(has){ try { document.getElementById('rhCimFrame').srcdoc = window.RH_CIM_GEN_HTML(); } catch(e){ toast('Nu am putut încărca generatorul'); } }
+}
+function rhApplyPrefill(){
+  const sel=document.getElementById('rhPrefillAng'); const f=document.getElementById('rhCimFrame');
+  if(!sel||!f){ return; }
+  const doc=f.contentDocument || (f.contentWindow&&f.contentWindow.document);
+  if(!doc || !doc.getElementById('numeSalariat')){ toast('Generatorul încă se încarcă — mai încearcă în 2-3 secunde 🙂'); return; }
+  const a=DB.angajati.find(x=>x.id===sel.value);
+  if(!a){ toast('Persoană nouă — completează câmpurile în generator'); return; }
+  const setv=(id,val)=>{ const el=doc.getElementById(id); if(el && val!=null && val!==''){ el.value=val; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); } };
+  setv('numeSalariat', a.nume);
+  setv('cnp', a.cnp||'');
+  setv('nrContract', a.nrContract||'');
+  toast('Pre-completat din '+a.nume+' — verifică restul câmpurilor ✍️');
+}
+
+// ---------- DOSARUL ANGAJATULUI ----------
+function openRhDosar(angId){ const a=DB.angajati.find(x=>x.id===angId); if(!a) return; rhEnsureDosar(a); rhSel=angId; rhView='dosar'; renderRH(); }
+function renderRHDosar(){
+  const a=DB.angajati.find(x=>x.id===rhSel); if(!a){ rhBack(); return; }
+  const d=rhEnsureDosar(a); const pr=_rhProgres(d); const pct=Math.round(pr.gata/pr.total*100); const full=pct===100;
+  const stColor=s=> s==='Gata'?'background:#1b7a3d;color:#fff':s==='În lucru'?'background:#caa018;color:#1a1a1a':'background:rgba(255,255,255,.12);color:var(--text-muted)';
+  const log=(d.log||[]).slice().reverse();
+  document.getElementById('content').innerHTML = `
+    <div class="card">
+      <button class="btn btn-sm btn-ghost" onclick="rhBack()">← Toți angajații</button>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-top:8px">
+        <div>
+          <h3 style="margin:0">${escapeHtml(a.nume)} <span class="badge badge-neutral">${escapeHtml(a.rol||'')}</span></h3>
+          <div style="color:var(--text-muted);font-size:12.5px;margin-top:3px">CNP ${a.cnp?escapeHtml(a.cnp):'—'} · contract nr. ${a.nrContract||'—'} · ${escapeHtml((DB.magazine.find(m=>m.id===a.magazin)||{}).nume||a.magazin||'')}</div>
+        </div>
+        <div style="text-align:right;min-width:140px">
+          <div style="font-size:22px;font-weight:800;color:${full?'#2fbf63':'#4aa3ff'}">${pct}%</div>
+          <div style="font-size:12px;color:var(--text-muted)">${pr.gata}/${pr.total} documente</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+        <button class="btn btn-primary btn-sm" onclick="rhGo('acte')">📄 Generează un act</button>
+        <button class="btn btn-sm" onclick="rhGo('angajare')">🧑‍💼 Generează CIM</button>
+        <button class="btn btn-ghost btn-sm" onclick="openRhGhid()">📖 Ghid</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 4px">📑 Documentele din dosar</h3>
+      <p style="color:var(--text-muted);font-size:12.5px;margin:0 0 10px">Bifează ce ai pentru fiecare. La „Gata" se trece automat data de azi dacă e goală.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Document</th><th>Status</th><th>Data</th><th>Observații</th></tr></thead>
+        <tbody>${d.docuri.map(doc=>`<tr>
+          <td style="font-size:13px">${escapeHtml(doc.eticheta)}</td>
+          <td><select onchange="updRhDoc('${d.id}','${doc.cheie}','status',this.value)" style="${stColor(doc.status)};border:none;border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer">${RH_DOC_STATUSES.map(s=>`<option ${s===doc.status?'selected':''}>${s}</option>`).join('')}</select></td>
+          <td><input type="date" value="${doc.data||''}" onchange="updRhDoc('${d.id}','${doc.cheie}','data',this.value)"></td>
+          <td><input type="text" value="${escapeHtml(doc.obs||'')}" placeholder="notițe" onchange="updRhDoc('${d.id}','${doc.cheie}','obs',this.value)" style="width:160px"></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">🩺 Medicina muncii · 🦺 SSM · 🏖️ Concedii</h3>
+      <div class="form-row">
+        <div class="form-field"><label>Medicina muncii — data</label><input type="date" value="${d.medicinaMuncii.data||''}" onchange="updRhField('${d.id}','medData',this.value)"></div>
+        <div class="form-field"><label>Medicina muncii — expiră</label><input type="date" value="${d.medicinaMuncii.expira||''}" onchange="updRhField('${d.id}','medExpira',this.value)"></div>
+        <div class="form-field"><label>Instructaj SSM/PSI — data</label><input type="date" value="${d.ssm.data||''}" onchange="updRhField('${d.id}','ssmData',this.value)"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Zile concediu / an</label><input type="number" value="${d.concediuZile}" onchange="updRhField('${d.id}','concediuZile',this.value)"></div>
+        <div class="form-field"><label>Zile folosite</label><input type="number" value="${d.concediuFolosite}" onchange="updRhField('${d.id}','concediuFolosite',this.value)"></div>
+        <div class="form-field"><label>Rămase</label><input type="text" value="${Math.max(0,(+d.concediuZile||0)-(+d.concediuFolosite||0))} zile" readonly style="opacity:.7"></div>
+      </div>
+      ${d.medicinaMuncii.expira && d.medicinaMuncii.expira < todayISO() ? `<p style="color:#c0392b;font-size:12.5px;margin:6px 0 0">⚠️ Medicina muncii a expirat — programează un control.</p>`:''}
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 4px">🗒️ Jurnal angajat</h3>
+      <div style="display:flex;gap:8px;margin:8px 0 12px">
+        <input type="text" id="rhLogInput" placeholder="ex: discuție evaluare, a cerut concediu 5 zile..." style="flex:1" onkeydown="if(event.key==='Enter')addRhLog('${d.id}')">
+        <button class="btn btn-primary btn-sm" onclick="addRhLog('${d.id}')">Adaugă</button>
+      </div>
+      ${log.length===0?`<p style="color:var(--text-muted);font-size:13px">Încă nimic notat aici.</p>`:
+      `<div style="display:flex;flex-direction:column;gap:7px">${log.map((l,i)=>`<div style="display:flex;gap:10px;font-size:13px;border-bottom:1px solid var(--border);padding-bottom:6px">
+        <span class="badge badge-neutral" style="white-space:nowrap">${l.data}</span>
+        <span style="flex:1">${escapeHtml(l.text)}${l.autor?` <span style="color:var(--text-muted)">— ${escapeHtml(l.autor)}</span>`:''}</span>
+        <button class="btn btn-sm btn-ghost" onclick="delRhLog('${d.id}',${log.length-1-i})">×</button>
+      </div>`).join('')}</div>`}
+    </div>`;
+}
+function updRhDoc(id, cheie, field, val){
+  const d=DB.rhDosare.find(x=>x.id===id); if(!d) return;
+  const doc=d.docuri.find(x=>x.cheie===cheie); if(!doc) return;
+  doc[field]=val;
+  if(field==='status' && val==='Gata' && !doc.data) doc.data=todayISO();
+  save(); renderRHDosar();
+}
+function updRhField(id, field, val){
+  const d=DB.rhDosare.find(x=>x.id===id); if(!d) return;
+  if(field==='medData') d.medicinaMuncii.data=val;
+  else if(field==='medExpira') d.medicinaMuncii.expira=val;
+  else if(field==='ssmData') d.ssm.data=val;
+  else if(field==='concediuZile') d.concediuZile=val;
+  else if(field==='concediuFolosite') d.concediuFolosite=val;
+  save(); renderRHDosar();
+}
+function addRhLog(id){
+  const d=DB.rhDosare.find(x=>x.id===id); if(!d) return;
+  const inp=document.getElementById('rhLogInput'); const t=(inp.value||'').trim(); if(!t) return;
+  if(!d.log) d.log=[];
+  d.log.push({data:todayISO(), text:t, autor:(DB.users?.[DB.session.user]?.nume)||DB.session.user||''});
+  save(); renderRHDosar();
+}
+function delRhLog(id, idx){ const d=DB.rhDosare.find(x=>x.id===id); if(!d||!d.log) return; d.log.splice(idx,1); save(); renderRHDosar(); }
+
+// ---------- GENERATOR „ALTE ACTE" ----------
+function renderRHActe(){
+  const acte=[
+    {k:'adeverinta', t:'📃 Adeverință de salariat', d:'pentru bancă, medic, școală etc.'},
+    {k:'incetare', t:'📕 Decizie de încetare CIM', d:'demisie, acordul părților, perioadă de probă...'},
+    {k:'actaditional', t:'📝 Act adițional la CIM', d:'modificare salariu, funcție, program...'},
+    {k:'adeverintaVechime', t:'📜 Adeverință de vechime', d:'la plecarea din firmă'}
+  ];
+  document.getElementById('content').innerHTML = `
+    <div class="card">
+      <button class="btn btn-sm btn-ghost" onclick="rhBack()">← RH</button>
+      <h3 style="margin:6px 0 4px">📄 Generează un act</h3>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 12px">Alege actul, completezi câmpurile cerute (ce lași gol apare marcat), apoi descarci Word sau PDF. Pentru CIM nou folosește „Angajare nouă".</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${acte.map(x=>`<button class="btn" style="justify-content:flex-start;text-align:left;padding:14px" onclick="rhActForm('${x.k}')"><div><div style="font-weight:600">${x.t}</div><small style="color:var(--text-muted);font-weight:400">${x.d}</small></div></button>`).join('')}
+      </div>
+    </div>`;
+}
+function _rhAngOptions(sel){ return '<option value="">— alege angajatul —</option>'+DB.angajati.map(a=>`<option ${a.nume===sel?'selected':''}>${escapeHtml(a.nume)}</option>`).join(''); }
+function rhActForm(kind){
+  let body='';
+  if(kind==='adeverinta' || kind==='adeverintaVechime'){
+    body=`
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Angajat</label><select id="ra_ang" onchange="rhFillAng()">${_rhAngOptions()}</select></div>
+        <div class="form-field"><label>Nr. / data</label><input id="ra_nr" placeholder="nr."></div></div>
+      <div class="form-row"><div class="form-field"><label>CNP</label><input id="ra_cnp"></div>
+        <div class="form-field"><label>Funcția</label><input id="ra_functie"></div>
+        <div class="form-field"><label>Nr. CIM</label><input id="ra_cim"></div></div>
+      ${kind==='adeverinta'?`<div class="form-row"><div class="form-field" style="flex:2"><label>Se eliberează pentru (scop)</label><input id="ra_scop" placeholder="ex: a-i servi la bancă"></div>
+        <div class="form-field"><label>Menționează salariul?</label><select id="ra_salinc"><option value="nu">Nu</option><option value="da">Da</option></select></div>
+        <div class="form-field"><label>Salariu brut (dacă da)</label><input id="ra_sal"></div></div>`:
+        `<div class="form-row"><div class="form-field"><label>Data angajării</label><input type="date" id="ra_de"></div>
+        <div class="form-field"><label>Data încetării</label><input type="date" id="ra_pana"></div></div>`}`;
+  } else if(kind==='incetare'){
+    body=`
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Angajat</label><select id="ra_ang" onchange="rhFillAng()">${_rhAngOptions()}</select></div>
+        <div class="form-field"><label>Nr. decizie / data</label><input id="ra_nr"></div></div>
+      <div class="form-row"><div class="form-field"><label>CNP</label><input id="ra_cnp"></div>
+        <div class="form-field"><label>Funcția</label><input id="ra_functie"></div>
+        <div class="form-field"><label>Nr. CIM</label><input id="ra_cim"></div></div>
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Temei încetare</label><select id="ra_temei">
+        <option value="acordul părților (art. 55 lit. b din Codul muncii)">Acordul părților (art. 55 lit. b)</option>
+        <option value="demisie (art. 81 din Codul muncii)">Demisie (art. 81)</option>
+        <option value="expirarea perioadei de probă (art. 31 alin. 3)">Perioadă de probă (art. 31 alin. 3)</option>
+        <option value="expirarea contractului pe durată determinată">Expirare contract pe durată determinată</option>
+        </select></div>
+        <div class="form-field"><label>Data încetării</label><input type="date" id="ra_data"></div></div>`;
+  } else if(kind==='actaditional'){
+    body=`
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Angajat</label><select id="ra_ang" onchange="rhFillAng()">${_rhAngOptions()}</select></div>
+        <div class="form-field"><label>Nr. act adițional / data</label><input id="ra_nr"></div></div>
+      <div class="form-row"><div class="form-field"><label>CNP</label><input id="ra_cnp"></div>
+        <div class="form-field"><label>Nr. CIM</label><input id="ra_cim"></div>
+        <div class="form-field"><label>Data intrării în vigoare</label><input type="date" id="ra_data"></div></div>
+      <div class="form-row"><div class="form-field" style="flex:3"><label>Ce se modifică</label><input id="ra_modific" placeholder="ex: salariul de bază lunar brut"></div></div>
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Vechea valoare</label><input id="ra_vechi" placeholder="ex: 3.300 lei"></div>
+        <div class="form-field" style="flex:2"><label>Noua valoare</label><input id="ra_nou" placeholder="ex: 3.700 lei"></div></div>`;
+  }
+  openModal(`<div style="max-height:74vh;overflow:auto;padding-right:6px">
+    <h3 style="margin-top:0">${kind==='adeverinta'?'Adeverință de salariat':kind==='adeverintaVechime'?'Adeverință de vechime':kind==='incetare'?'Decizie de încetare CIM':'Act adițional la CIM'}</h3>
+    <p style="color:var(--text-muted);font-size:12.5px;margin-top:-4px">Alege angajatul (se pre-completează din aplicație) și completează restul. Ce lași gol apare marcat în document.</p>
+    ${body}
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn" onclick="closeModal()">Anulează</button>
+      <button class="btn btn-primary" onclick="rhGenAct('${kind}')">✨ Generează</button>
+    </div></div>`);
+}
+function rhFillAng(){
+  const nume=document.getElementById('ra_ang').value;
+  const a=DB.angajati.find(x=>x.nume===nume); if(!a) return;
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el&&v!=null) el.value=v; };
+  set('ra_cnp', a.cnp||''); set('ra_functie', a.rol||''); set('ra_cim', a.nrContract||'');
+}
+function rhGenAct(kind){
+  const g=_gv, S=_slot;
+  const ang=g('ra_ang');
+  const sediuLine=`${RH_FIRMA.nume}, cu sediul social în ${RH_FIRMA.sediu}, C.I.F. ${RH_FIRMA.cif}, Nr. Reg. Com. ${RH_FIRMA.regcom}, reprezentată legal prin administrator ${RH_FIRMA.admin}`;
+  let titlu='', inner='', fname='Act';
+  if(kind==='adeverinta'){
+    const salinc=g('ra_salinc')==='da';
+    titlu='ADEVERINȚĂ DE SALARIAT'; fname='Adeverinta_salariat_'+ang.replace(/[^\w]+/g,'_');
+    inner=`<p style="text-align:right">Nr. ${S(g('ra_nr'),'___')} / ${S(g('ra_data')||todayISO(),'data')}</p>
+      <h2 style="text-align:center">ADEVERINȚĂ</h2>
+      <p>Prin prezenta, ${sediuLine}, adeverim că ${S(ang,'nume salariat')}, CNP ${S(g('ra_cnp'),'___')}, este angajat(ă) al societății noastre în funcția de ${S(g('ra_functie'),'funcția')}, în baza Contractului Individual de Muncă nr. ${S(g('ra_cim'),'___')}, înregistrat în registrul general de evidență a salariaților (REGES).</p>
+      ${salinc?`<p>Salariul de bază lunar brut al salariatului este de ${S(g('ra_sal'),'___')} lei.</p>`:''}
+      <p>Prezenta adeverință se eliberează spre a-i servi ${S(g('ra_scop'),'scopul')}.</p>`;
+  } else if(kind==='adeverintaVechime'){
+    titlu='ADEVERINȚĂ DE VECHIME'; fname='Adeverinta_vechime_'+ang.replace(/[^\w]+/g,'_');
+    inner=`<p style="text-align:right">Nr. ${S(g('ra_nr'),'___')} / ${todayISO()}</p>
+      <h2 style="text-align:center">ADEVERINȚĂ DE VECHIME</h2>
+      <p>Prin prezenta, ${sediuLine}, adeverim că ${S(ang,'nume salariat')}, CNP ${S(g('ra_cnp'),'___')}, a fost angajat(ă) al societății noastre în funcția de ${S(g('ra_functie'),'funcția')}, în baza CIM nr. ${S(g('ra_cim'),'___')}, în perioada ${S(g('ra_de'),'data angajării')} – ${S(g('ra_pana'),'data încetării')}.</p>
+      <p>Pe durata raporturilor de muncă, salariatul a dovedit profesionalism și corectitudine. Prezenta se eliberează spre a-i servi la dosarul personal.</p>`;
+  } else if(kind==='incetare'){
+    titlu='DECIZIE DE ÎNCETARE CIM'; fname='Decizie_incetare_'+ang.replace(/[^\w]+/g,'_');
+    inner=`<p style="text-align:right">Decizia nr. ${S(g('ra_nr'),'___')} / ${todayISO()}</p>
+      <h2 style="text-align:center">DECIZIE</h2>
+      <p>${RH_FIRMA.admin}, în calitate de administrator al ${RH_FIRMA.nume} (C.I.F. ${RH_FIRMA.cif}, Nr. Reg. Com. ${RH_FIRMA.regcom}, sediu ${RH_FIRMA.sediu}), în temeiul prerogativelor conferite de lege și de actul constitutiv,</p>
+      <p style="text-align:center"><b>DECIDE:</b></p>
+      <p><b>Art. 1.</b> Începând cu data de ${S(g('ra_data'),'data încetării')}, încetează Contractul Individual de Muncă nr. ${S(g('ra_cim'),'___')} al salariatului ${S(ang,'nume salariat')}, CNP ${S(g('ra_cnp'),'___')}, funcția ${S(g('ra_functie'),'funcția')}, în temeiul ${S(g('ra_temei'),'temei')}.</p>
+      <p><b>Art. 2.</b> La data încetării, salariatului i se vor achita toate drepturile salariale cuvenite și i se va elibera, la cerere, adeverința prevăzută de lege.</p>
+      <p><b>Art. 3.</b> Încetarea se va înregistra în REGES, conform legii. Prezenta decizie se comunică salariatului și se păstrează la dosarul de personal.</p>`;
+  } else if(kind==='actaditional'){
+    titlu='ACT ADIȚIONAL LA CIM'; fname='Act_aditional_'+ang.replace(/[^\w]+/g,'_');
+    inner=`<p style="text-align:center"><b>ACT ADIȚIONAL nr. ${S(g('ra_nr'),'___')} / ${todayISO()}</b><br>la Contractul Individual de Muncă nr. ${S(g('ra_cim'),'___')}</p>
+      <p><b>1. Angajatorul</b> — ${sediuLine}, și</p>
+      <p><b>2. Salariatul</b> — ${S(ang,'nume salariat')}, CNP ${S(g('ra_cnp'),'___')},</p>
+      <p>de comun acord, în temeiul art. 17 alin. (5) și art. 41 din Legea nr. 53/2003 — Codul muncii, convin modificarea CIM după cum urmează:</p>
+      <p><b>Art. 1.</b> Începând cu data de ${S(g('ra_data'),'data')}, se modifică <b>${S(g('ra_modific'),'elementul')}</b>, astfel: de la „${S(g('ra_vechi'),'vechea valoare')}" la „${S(g('ra_nou'),'noua valoare')}".</p>
+      <p><b>Art. 2.</b> Celelalte clauze ale Contractului Individual de Muncă rămân neschimbate.</p>
+      <p><b>Art. 3.</b> Prezentul act adițional s-a încheiat în două exemplare, câte unul pentru fiecare parte, și se înregistrează în REGES conform legii.</p>`;
+  }
+  // salvăm draft local
+  if(!DB.rhActe) DB.rhActe=[];
+  DB.rhActe.push({id:'RHA-'+Date.now(), tip:kind, angajat:ang, salvatLa:nowISO()});
+  if(DB.rhActe.length>50) DB.rhActe=DB.rhActe.slice(-50);
+  save();
+  const html=`<div style="font-family:Georgia,'Times New Roman',serif;line-height:1.55;font-size:13.5px;color:#111">${_rhHeader()}${inner}
+    <table style="width:100%;margin-top:30px"><tr>
+      <td style="width:50%;vertical-align:top">Angajator,<br>${RH_FIRMA.nume}<br>prin ${RH_FIRMA.admin}<br><br>Semnătură și ștampilă: __________</td>
+      <td style="width:50%;vertical-align:top">${kind==='incetare'?'Am luat la cunoștință,<br>Salariat':'Salariat,'}<br>${escapeHtml(ang||'____________')}<br><br>Semnătură: __________</td>
+    </tr></table></div>`;
+  _rhLastDoc={fname, html};
+  openModal(`<h3 style="margin-top:0">✅ ${titlu} — gata!</h3>
+    <p style="font-size:13px;color:var(--text-muted)">Verifică mai jos. Ce e <span style="color:#c0392b">[ roșu ]</span> completezi de mână. Apoi descarci.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px">
+      <button class="btn btn-primary" onclick="rhDownloadDoc()">📥 Descarcă Word</button>
+      <button class="btn" onclick="rhPrintDoc()">🖨️ Printează / PDF</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Închide</button>
+    </div>
+    <div style="max-height:50vh;overflow:auto;background:#fff;color:#111;border-radius:8px;padding:16px 20px">${html}</div>`);
+}
+function rhDownloadDoc(){ if(!_rhLastDoc) return; const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"></head><body>'+_rhLastDoc.html+'</body></html>'; const blob=new Blob(['﻿'+html],{type:'application/msword'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=_rhLastDoc.fname+'.doc'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500); toast('Descărcat 📄'); }
+function rhPrintDoc(){ if(!_rhLastDoc) return; const w=window.open('','_blank'); if(!w){ toast('Permite pop-up ca să printezi'); return; } w.document.write('<html><head><meta charset="utf-8"><title>'+_rhLastDoc.fname+'</title><style>@page{margin:2cm}body{font-family:Georgia,serif}</style></head><body>'+_rhLastDoc.html+'<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);}<\/scr'+'ipt></body></html>'); w.document.close(); }
+
+// ---------- GHID RH ----------
+function openRhGhid(){
+  openModal(`<div style="max-height:74vh;overflow:auto;padding-right:6px">
+    <h3 style="margin-top:0">📖 Ghidul RH — de la Adi, pe înțelesul tuturor 💚</h3>
+    <p style="font-size:13.5px">Ana, tu ești omul care are grijă de oamenii noștri. Partea de hârtii e doar ca totul să fie corect și liniștit pentru ei — restul (felul în care vorbești cu ei, cum îi faci să se simtă bine) o faci deja minunat. Hai să-ți arăt cum merge partea de acte, simplu.</p>
+
+    <h4 style="margin-bottom:4px">🧑‍💼 Când angajezi pe cineva nou</h4>
+    <p style="font-size:13.5px;margin-top:0">Apeși „Angajare nouă", completezi datele persoanei (nume, CNP, CI, funcție, salariu, data de început), alegi programul de lucru și apeși „Generează". Iese contractul (CIM) în Word, cu informarea inclusă. Îl tipărești, îl semnează omul, apoi:</p>
+    <ul style="font-size:13.5px">
+      <li>îi dai și <b>fișa postului</b>, <b>ROI-ul</b> (cu tabelul de luat la cunoștință) și anexele;</li>
+      <li>îl trimiți la <b>medicina muncii</b> și faci <b>instructajul SSM/PSI</b>;</li>
+      <li>se înregistrează în <b>REGES (Revisal)</b> înainte de prima zi de lucru;</li>
+      <li>bifezi tot în <b>dosarul lui</b> (vezi mai jos).</li>
+    </ul>
+
+    <h4 style="margin-bottom:4px">📑 Dosarul fiecărui angajat</h4>
+    <p style="font-size:13.5px;margin-top:0">Din ecranul RH, apeși pe numele unui angajat. Acolo bifezi ce documente are (CIM, fișa postului, ROI, medicina muncii, SSM, GDPR, REGES...), pui datele pentru medicina muncii și SSM, ții evidența concediilor și scrii note în jurnal. Bara de progres îți arată dintr-o privire cât e de complet dosarul. Ținta: tot verde. 🟢</p>
+
+    <h4 style="margin-bottom:4px">📄 Alte acte</h4>
+    <p style="font-size:13.5px;margin-top:0">„Generează un act" îți face rapid: <b>adeverință de salariat</b> (pentru bancă/medic), <b>adeverință de vechime</b>, <b>act adițional</b> (când se schimbă salariul sau funcția) și <b>decizie de încetare</b> (când pleacă cineva). Alegi angajatul, se completează singur ce știe aplicația, restul pui tu, descarci și gata.</p>
+
+    <h4 style="margin-bottom:4px">✍️ Reguli simple de ținut minte</h4>
+    <ul style="font-size:13.5px">
+      <li><b>Orice modificare</b> la contract (salariu, funcție, program) se face prin <b>act adițional</b> + se anunță omul din timp (informare prealabilă).</li>
+      <li><b>REGES</b> trebuie actualizat <b>înainte</b> ca schimbarea să intre în vigoare.</li>
+      <li>Medicina muncii are termen — când expiră, programezi din timp control nou (aplicația te avertizează în dosar).</li>
+      <li>Documentele importante (cu CNP) rămân pe calculatorul/telefonul tău, nu pleacă în cloud. E în regulă, așa trebuie.</li>
+    </ul>
+
+    <p style="font-size:13.5px;background:rgba(80,200,120,.10);border-radius:8px;padding:10px;margin-top:14px">Atât pentru început, Ana. Orice nelămurire la un act sau la o situație cu un coleg — un mesaj și rezolvăm împreună. Mă bazez pe tine. 💪 — Adi</p>
+    <div style="text-align:right;margin-top:12px"><button class="btn btn-primary" onclick="closeModal()">Am înțeles 🚀</button></div>
+  </div>`);
 }
 
 // ---------- BRIEFING ----------
@@ -11381,7 +11787,8 @@ const CLOUD_COLLECTIONS = [
   'cheltuieliMagazin','cheltuieliAngajati','cheltuieliFixe',  // Etapa 10 Faza A
   'furnizoriAutoExclude',  // Etapa 10E — reguli auto-marcare furnizori (mic, safe)
   'balantaCashBank','balantaCashBankUpdate',  // Etapa 10E — cash în bancă (1 număr + 1 timestamp, safe)
-  'dosare'  // Etapa 13 — trackerul dosarelor de deschidere magazin (operational, fără date personale)
+  'dosare',  // Etapa 13 — trackerul dosarelor de deschidere magazin (operational, fără date personale)
+  'rhDosare'  // Etapa 14 — dosarul de personal (tracker documente, operational)
 ];
 // NU includem: angajati (CNP/IBAN sensibile), users (PIN-uri), setari, session, _backups (sunt locale per device), ecorgImports (vezi nota mai sus), contractDrafts (CNP/CI/IBAN proprietar — local-only)
 
