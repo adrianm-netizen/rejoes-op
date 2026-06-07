@@ -82,8 +82,8 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
-<!-- Etapa 14 — generatorul CIM (V7) încorporat ca modul izolat (companion file, urcat lângă aplicație) -->
-<script src="rh_cim_generator.js" onerror="window._rhGenMissing=true"></script>
+<!-- Etapa 14 — generatorul CIM (V7) e găzduit ca fișier separat (generator_cim.html) și afișat în iframe în secțiunea RH -->
+
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -7914,7 +7914,6 @@ function rhBack(){ rhView='hub'; rhSel=null; renderRH(); }
 
 // ---------- ANGAJARE NOUĂ: generator CIM încorporat ----------
 function renderRHAngajare(){
-  const has = (typeof window.RH_CIM_GEN_HTML === 'function') && !window._rhGenMissing;
   document.getElementById('content').innerHTML = `
     <div class="card">
       <button class="btn btn-sm btn-ghost" onclick="rhBack()">← RH</button>
@@ -7925,13 +7924,11 @@ function renderRHAngajare(){
           <select id="rhPrefillAng"><option value="">— persoană nouă, completez eu —</option>${DB.angajati.map(a=>`<option value="${a.id}">${escapeHtml(a.nume)}</option>`).join('')}</select></div>
         <div class="form-field" style="flex:0"><button class="btn" onclick="rhApplyPrefill()">↧ Pre-completează</button></div>
       </div>
+      <p id="rhGenHint" style="color:var(--text-muted);font-size:12px;margin:8px 0 0">Dacă mai jos rămâne gol, fișierul <code>generator_cim.html</code> nu e urcat pe GitHub lângă aplicație.</p>
     </div>
     <div class="card" style="padding:6px;overflow:hidden">
-      ${has ? `<iframe id="rhCimFrame" title="Generator CIM" style="width:100%;height:80vh;border:0;border-radius:8px;background:#fff"></iframe>`
-            : `<div class="empty" style="padding:30px"><h4>Generatorul CIM nu e încărcat încă</h4>
-                 <p>Fișierul <code>rh_cim_generator.js</code> trebuie urcat pe GitHub lângă <code>Rejoes_Control.html</code>. După upload și un refresh complet, generatorul apare chiar aici, în pagină.</p></div>`}
+      <iframe id="rhCimFrame" title="Generator CIM" src="generator_cim.html" style="width:100%;height:80vh;border:0;border-radius:8px;background:#fff"></iframe>
     </div>`;
-  if(has){ try { document.getElementById('rhCimFrame').srcdoc = window.RH_CIM_GEN_HTML(); } catch(e){ toast('Nu am putut încărca generatorul'); } }
 }
 function rhApplyPrefill(){
   const sel=document.getElementById('rhPrefillAng'); const f=document.getElementById('rhCimFrame');

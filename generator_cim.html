@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generator CIM — S-COLECT REC S.R.L. (V7)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,Arial,sans-serif;background:#f5f5f5;color:#222;padding:20px}
+.container{max-width:780px;margin:0 auto;background:#fff;border-radius:12px;padding:28px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+h1{font-size:20px;font-weight:600;margin-bottom:4px}
+.subtitle{font-size:13px;color:#666;margin-bottom:24px}
+.section{border:1px solid #e8e8e8;border-radius:8px;padding:16px;margin-bottom:12px}
+.sec-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{font-size:12px;color:#555}
+.field input,.field select{padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fafafa;color:#222}
+.field input:focus,.field select:focus{outline:none;border-color:#666;background:#fff}
+.auto{background:#e8f4fd!important;color:#0066cc!important;font-weight:500}
+.auto-g{background:#eafaf1!important;color:#1a7a40!important;font-weight:500}
+.badge{display:inline-block;font-size:10px;padding:1px 6px;background:#e8f4fd;color:#0066cc;border-radius:4px;margin-left:4px;vertical-align:middle}
+.badge-warn{background:#fff3cd;color:#856404}
+.btn{width:100%;padding:13px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:500;cursor:pointer;margin-top:12px}
+.btn:hover{background:#333}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.status{text-align:center;font-size:13px;color:#555;margin-top:8px;min-height:18px}
+.status.ok{color:#1a7a40}
+.status.err{color:#c0392b}
+.warn{font-size:12px;color:#856404;background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;margin-top:8px}
+.sig-box{background:#f8f9fa;border:1px solid #e8e8e8;border-radius:6px;padding:12px}
+.sig-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#888;margin-bottom:8px}
+.cb-group{display:flex;flex-direction:column;gap:6px}
+.cb-row{display:flex;align-items:flex-start;gap:8px;padding:8px;background:#fafafa;border:1px solid #eee;border-radius:6px;cursor:pointer;transition:background .12s,border-color .12s}
+.cb-row:hover{background:#f0f4f8;border-color:#bcd}
+.cb-row input[type=checkbox],.cb-row input[type=radio]{margin-top:3px;flex-shrink:0;width:16px;height:16px;cursor:pointer;accent-color:#0066cc}
+.cb-row.selected{background:#e8f4fd;border-color:#0066cc}
+.cb-row .lbl{font-size:13px;color:#222;line-height:1.4}
+.cb-row .lbl small{display:block;font-size:11px;color:#666;margin-top:2px;font-weight:normal}
+.cb-row .lbl strong{font-weight:600}
+.hidden{display:none}
+.help{font-size:11px;color:#666;margin-top:4px;font-style:italic}
+.date-prev{font-size:11px;color:#0a7a40;font-weight:500;margin-top:3px;min-height:14px}
+.date-prev:empty{display:none}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Generator Contract Individual de Muncă (V7) — cu Informare prealabilă integrată</h1>
+  <p class="subtitle">S-COLECT REC S.R.L. &nbsp;|&nbsp; Toate câmpurile editabile și casetele de bifare sunt active. Data încetării și perioada de probă se calculează automat.</p>
+
+  <div class="section">
+    <div class="sec-title">Mod de generare a documentului</div>
+    <div class="cb-group">
+      <label class="cb-row selected" id="row-modeInformare">
+        <input type="radio" name="modeGen" id="modeInformare" value="informare" checked onchange="onModeChange()">
+        <div class="lbl"><strong>PACHET: Informare prealabilă + CIM (luare la cunoștință)</strong>
+          <small>Folosit pentru <strong>prima rundă SignNow</strong>: salariatul semnează Informarea de primire; CIM-ul este atașat doar pentru analiză și luare la cunoștință. Recomandat la predarea inițială.</small>
+        </div>
+      </label>
+      <label class="cb-row" id="row-modeCim">
+        <input type="radio" name="modeGen" id="modeCim" value="cimOnly" onchange="onModeChange()">
+        <div class="lbl"><strong>DOAR CIM (pentru semnare la trecere)</strong>
+          <small>Folosit pentru <strong>a doua rundă SignNow</strong>: după expirarea perioadei de analiză, CIM-ul se semnează ca anexă la actul adițional. Conține doar contractul, fără Informarea prealabilă.</small>
+        </div>
+      </label>
+    </div>
+  </div>
+
+  <div class="section" id="sec-informare">
+    <div class="sec-title">Detalii Informare prealabilă (numai pentru modul „PACHET")</div>
+    <div class="grid2">
+      <div class="field"><label>Nr. informare</label><input id="nrInformare" placeholder="ex: 1"></div>
+      <div class="field"><label>Data informării</label><input type="date" id="dataInformare"><div class="date-prev" id="dataInformare_prev"></div></div>
+      <div class="field full"><label>Data propusă pentru semnarea actului adițional <span style="font-size:11px;color:#888">(de la care produce efecte modificarea)</span></label><input type="date" id="dataSemnareActAditional"><div class="date-prev" id="dataSemnareActAditional_prev"></div></div>
+      <div class="field full"><label>E-mail/telefon contact HR <span style="font-size:11px;color:#888">(opțional — apare în textul informării)</span></label><input id="emailContact" placeholder="ex: hr@s-colect.ro"></div>
+    </div>
+    <div class="help">Aceste câmpuri completează automat textul Informării prealabile cu datele salariatului introduse mai jos. Decizia 007/18 MAI 2026 și intrarea în vigoare a ROI (25 MAI 2026) sunt incluse fix în text.</div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Contract</div>
+    <div class="grid3">
+      <div class="field"><label>Nr. contract (REVISAL)</label><input id="nrContract" placeholder="ex: 42"></div>
+      <div class="field full"><label>Data documentului <span style="font-size:11px;color:#888">(va fi scris ca „zz mmm aaaa")</span></label><input type="date" id="dataContract"><div class="date-prev" id="dataContract_prev"></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Date salariat</div>
+    <div class="grid2">
+      <div class="field full"><label>Nume și prenume</label><input id="numeSalariat" placeholder="Popescu Ion"></div>
+      <div class="field"><label>CNP (13 cifre)</label><input id="cnp" placeholder="1234567890123" maxlength="13"></div>
+      <div class="field full"><label>Domiciliu complet</label><input id="adresa" placeholder="Str. ..., nr. ..., loc. ..., jud. ..."></div>
+      <div class="field"><label>CI &mdash; serie</label><input id="ciSerie" placeholder="XX"></div>
+      <div class="field"><label>CI &mdash; număr</label><input id="ciNumar" placeholder="123456"></div>
+      <div class="field"><label>CI &mdash; emitent</label><input id="ciEmitent" placeholder="SPCLEP ..."></div>
+      <div class="field"><label>CI &mdash; data emiterii</label><input type="date" id="dataCI"><div class="date-prev" id="dataCI_prev"></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Post și funcție (Art. 1)</div>
+    <div class="grid2">
+      <div class="field">
+        <label>Funcție</label>
+        <select id="functie" onchange="onFunctie()">
+          <option value="">— Selectați funcția —</option>
+          <option value="lucrător comercial">Lucrător comercial</option>
+          <option value="manager depozit">Manager depozit</option>
+          <option value="manager operațional">Manager operațional</option>
+          <option value="lucrător depozit">Lucrător depozit</option>
+          <option value="lucrător și transportator depozit">Lucrător și transportator depozit</option>
+          <option value="casier">Casier</option>
+          <option value="responsabil vânzări">Responsabil vânzări</option>
+          <option value="coordonator logistică">Coordonator logistică</option>
+          <option value="inspector resurse umane">Inspector resurse umane</option>
+          <option value="director general">Director general</option>
+          <option value="director executiv">Director executiv</option>
+          <option value="director comercial">Director comercial</option>
+          <option value="director financiar">Director financiar</option>
+          <option value="contabil șef">Contabil șef</option>
+          <option value="contabil">Contabil</option>
+          <option value="economist">Economist</option>
+          <option value="alt post">Alt post (specificați în fișa postului)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Cod COR <span class="badge" id="cor-badge">auto</span></label>
+        <select id="codCor">
+          <option value="">— Selectați codul COR —</option>
+          <option value="522303">522303 — Lucrător comercial</option>
+          <option value="132408">132408 — Manager logistică / aprovizionare</option>
+          <option value="121908">121908 — Manager operațional</option>
+          <option value="932904">932904 — Lucrător depozit / manipulare mărfuri (magazioner)</option>
+          <option value="833101">833101 — Conducător auto autocamion (peste 3,5 t)</option>
+          <option value="832201">832201 — Conducător auto autoturism (sub 3,5 t)</option>
+          <option value="521101">521101 — Casier (comercial)</option>
+          <option value="332302">332302 — Responsabil vânzări / Reprezentant comercial</option>
+          <option value="432101">432101 — Coordonator logistică / Funcționar logistică</option>
+          <option value="242214">242214 — Inspector / Specialist resurse umane</option>
+          <option value="121120">121120 — Contabil șef (Conducător compartiment financiar-contabil)</option>
+          <option value="121110">121110 — Director financiar</option>
+          <option value="122106">122106 — Director comercial / vânzări</option>
+          <option value="331302">331302 — Contabil (Tehnician contabilitate)</option>
+          <option value="263102">263102 — Economist financiar</option>
+          <option value="112001">112001 — Director general</option>
+          <option value="112002">112002 — Director executiv</option>
+          <option value="112010">112010 — Administrator societate</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Locul muncii — bifați aplicabile (Art. 3) <span class="badge" id="loc-badge">auto din funcție</span></div>
+    <div class="cb-group">
+      <label class="cb-row" id="row-cbLucrCom">
+        <input type="checkbox" id="cbLucrCom">
+        <span class="lbl"><strong>Lucrător comercial</strong> — oricare dintre punctele de lucru / magazinele S-COLECT REC S.R.L., existente sau viitoare<small>Câmpul „Județ" de mai jos se aplică acestei opțiuni</small></span>
+      </label>
+      <label class="cb-row" id="row-cbMgrOps">
+        <input type="checkbox" id="cbMgrOps">
+        <span class="lbl"><strong>Manager operațional</strong> — oricare sediu, birou sau punct de lucru al Angajatorului, la nivel național</span>
+      </label>
+      <label class="cb-row" id="row-cbDepot">
+        <input type="checkbox" id="cbDepot">
+        <span class="lbl"><strong>Manager depozit / Lucrător depozit / Lucrător și transportator depozit</strong> — oricare dintre depozitele Angajatorului și, după caz, punctele de lucru / magazinele acestuia</span>
+      </label>
+      <label class="cb-row" id="row-cbBirouRemote">
+        <input type="checkbox" id="cbBirouRemote">
+        <span class="lbl"><strong>Contabil / Contabil șef / Director financiar / Director comercial / Director general / Director executiv / Economist / Inspector resurse umane</strong> — birou la sediul Angajatorului (Com. Cenei nr. 86, jud. Timiș), cu posibilitatea desfășurării activității, total sau parțial, în regim de telemuncă (remote), conform art. 105–110 din Codul muncii<small>Aplicabil funcțiilor administrative și de conducere</small></span>
+      </label>
+    </div>
+    <div class="field" style="margin-top:10px">
+      <label>Județ / Municipiu (pentru postul Lucrător comercial)</label>
+      <input id="judet" placeholder="ex: București, Ilfov">
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Durata contractului (Art. 2)</div>
+    <div class="grid3">
+      <div class="field">
+        <label>Data începerii</label>
+        <input type="date" id="dataStart" oninput="onStartDate()"><div class="date-prev" id="dataStart_prev"></div>
+      </div>
+      <div class="field">
+        <label>Data încetării <span class="badge">+ durată automat</span></label>
+        <input id="dataEnd" class="auto" readonly placeholder="— se calculează automat —">
+      </div>
+      <div class="field">
+        <label>Durată (luni)</label>
+        <input id="durata" value="3" oninput="onStartDate()">
+      </div>
+      <div class="field">
+        <label>Perioadă probă <span class="badge" id="proba-badge">auto</span></label>
+        <input id="proba" class="auto-g" readonly placeholder="— se setează din funcție —">
+      </div>
+    </div>
+    <p class="help">Funcții execuție: max. 30 zile probă. Funcții conducere: max. 90 zile probă.</p>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Program de lucru — bifați o variantă (Art. 4)</div>
+    <div class="cb-group">
+      <label class="cb-row" id="row-cbSchedEq">
+        <input type="radio" name="program" id="cbSchedEq" value="egal">
+        <span class="lbl"><strong>Program egal:</strong> 8 ore/zi, 5 zile/săptămână, cu 2 zile de repaus</span>
+      </label>
+      <label class="cb-row" id="row-cbSchedUn">
+        <input type="radio" name="program" id="cbSchedUn" value="inegal">
+        <span class="lbl"><strong>Program inegal:</strong> conform graficului din Anexa nr. 1 la Regulamentul Intern</span>
+      </label>
+      <label class="cb-row" id="row-cbSchedPart">
+        <input type="radio" name="program" id="cbSchedPart" value="partial" onchange="onSchedChange()">
+        <span class="lbl"><strong>Program parțial (part-time):</strong> conform art. 105 din Codul muncii. Specificați mai jos durata zilnică și săptămânală.<small>De ex. 4h/zi × 5 zile = 20h/săptămână</small></span>
+      </label>
+    </div>
+    <div class="grid2" id="part-time-fields" style="display:none;margin-top:10px;padding:10px;background:#f8f4ff;border-radius:6px;border:1px solid #d0c0e8">
+      <div class="field"><label>Ore/zi (program parțial)</label><input id="partOreZi" type="number" step="0.5" min="0" max="8" placeholder="ex: 4"></div>
+      <div class="field"><label>Ore/săptămână (program parțial)</label><input id="partOreSapt" type="number" step="0.5" min="0" max="40" placeholder="ex: 20"></div>
+    </div>
+    <div class="grid3" style="margin-top:10px">
+      <div class="field">
+        <label>Pauza de masă (minute)</label>
+        <input id="pauza" value="30" placeholder="30">
+      </div>
+      <div class="field" style="grid-column:span 2">
+        <label>Pauza de masă</label>
+        <select id="pauza_incl">
+          <option value="este">Este inclusă în durata muncii</option>
+          <option value="nu este">Nu este inclusă în durata muncii</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Salariu (Art. 5)</div>
+    <div class="field"><label>Salariu brut lunar (lei)</label><input id="salariu" type="number" placeholder="4050" min="0"></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Preaviz demisie — bifați o variantă (Art. 11) <span class="badge" id="preaviz-badge">auto din funcție</span></div>
+    <div class="cb-group">
+      <label class="cb-row" id="row-cbPrev20">
+        <input type="radio" name="preaviz" id="cbPrev20" value="20">
+        <span class="lbl"><strong>20 de zile lucrătoare</strong> — funcții de execuție</span>
+      </label>
+      <label class="cb-row" id="row-cbPrev45">
+        <input type="radio" name="preaviz" id="cbPrev45" value="45">
+        <span class="lbl"><strong>45 de zile lucrătoare</strong> — funcții de conducere</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Semnături</div>
+    <div class="grid2">
+      <div class="sig-box">
+        <div class="sig-label">Angajator</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="field">
+            <label>Funcție semnatar</label>
+            <select id="functieAng" onchange="onFunctieAng()">
+              <option value="administrator">Administrator</option>
+              <option value="director general">Director General</option>
+              <option value="director executiv">Director Executiv</option>
+              <option value="director comercial">Director Comercial</option>
+              <option value="director operațional">Director Operațional</option>
+              <option value="delegat">Delegat</option>
+              <option value="împuternicit">Împuternicit</option>
+              <option value="altă funcție">Altă funcție (specificați)</option>
+            </select>
+          </div>
+          <div class="field" id="functieAngCustomField" style="display:none">
+            <label>Specificați funcția</label>
+            <input id="functieAngCustom" placeholder="ex: Președinte CA">
+          </div>
+          <div class="field">
+            <label>Nume în clar</label>
+            <input id="numeAng" class="auto" readonly value="Olga Baraban">
+          </div>
+          <div class="field">
+            <label>Data semnării</label>
+            <input type="date" id="dateSigAng"><div class="date-prev" id="dateSigAng_prev"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-label">Salariat</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="field">
+            <label>Nume în clar <span class="badge">propagat</span></label>
+            <input id="numeSalProp" class="auto" readonly placeholder="— din date salariat —">
+          </div>
+          <div class="field">
+            <label>Funcție <span class="badge">propagată</span></label>
+            <input id="functieSalProp" class="auto" readonly placeholder="— din funcția selectată —">
+          </div>
+          <div class="field">
+            <label>Data semnării</label>
+            <input type="date" id="dateSigSal"><div class="date-prev" id="dateSigSal_prev"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn" id="genBtn" onclick="generateDoc()">
+    &#11123;&nbsp; Descarcă contractul completat (.docx)
+  </button>
+  <div class="warn">Fișierul generat este un document Word (.docx) cu toate datele pre-completate și bifele aplicate corect. Deschideți în Microsoft Word pentru verificare finală și semnare olografă.</div>
+  <p class="status" id="status"></p>
+</div>
+
+<script>
+const TEMPLATE_B64 = "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";
+
+// Cod COR auto-mapping per function
+const COR_MAP = {
+  'lucrător comercial':'522303',
+  'manager depozit':'132408',
+  'manager operațional':'121908',
+  'lucrător depozit':'932904',
+  'lucrător și transportator depozit':'932904',
+  'casier':'521101',
+  'responsabil vânzări':'332302',
+  'coordonator logistică':'432101',
+  'inspector resurse umane':'242214',
+  'director general':'112001',
+  'director executiv':'112002',
+  'director comercial':'122106',
+  'director financiar':'121110',
+  'contabil șef':'121120',
+  'contabil':'331302',
+  'economist':'263102'
+};
+
+// Functii de conducere (preaviz 45 zile)
+const CONDUCERE = new Set([
+  'manager depozit',
+  'manager operațional',
+  'responsabil vânzări',
+  'coordonator logistică',
+  'inspector resurse umane',
+  'director general',
+  'director executiv',
+  'director comercial',
+  'director financiar',
+  'contabil șef',
+  'contabil'
+]);
+
+// Locul muncii — auto-bifare în funcție de post
+const LOC_MAP = {
+  'lucrător comercial': 'cbLucrCom',
+  'manager operațional': 'cbMgrOps',
+  'manager depozit': 'cbDepot',
+  'lucrător depozit': 'cbDepot',
+  'lucrător și transportator depozit': 'cbDepot',
+  // Funcții administrative și de conducere — birou la sediu / telemuncă
+  'contabil': 'cbBirouRemote',
+  'contabil șef': 'cbBirouRemote',
+  'director comercial': 'cbBirouRemote',
+  'director financiar': 'cbBirouRemote',
+  'director general': 'cbBirouRemote',
+  'director executiv': 'cbBirouRemote',
+  'economist': 'cbBirouRemote',
+  'inspector resurse umane': 'cbBirouRemote'
+};
+
+const LUNI = ['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','noi','dec'];
+function fmtDate(d){if(!d)return'';return String(d.getDate()).padStart(2,'0')+' '+LUNI[d.getMonth()]+' '+d.getFullYear()}
+function parseDate(s){if(!s)return null;const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)}
+function fmtInput(s){const d=parseDate(s);return d?fmtDate(d):''}
+function get(id){const el=document.getElementById(id);return el?el.value:''}
+function checked(id){const el=document.getElementById(id);return el?el.checked:false}
+
+function addMonths(d, m){
+  const r = new Date(d);
+  const target = r.getMonth() + parseInt(m,10);
+  r.setMonth(target);
+  // Fix end-of-month overflow
+  if (r.getMonth() !== ((target % 12) + 12) % 12) r.setDate(0);
+  return r;
+}
+
+function onStartDate(){
+  const s = parseDate(get('dataStart'));
+  const m = parseInt(get('durata'),10);
+  if(!s || !m){document.getElementById('dataEnd').value='';return}
+  // Data încetării = data start + durată luni - 1 zi
+  const e = addMonths(s, m);
+  e.setDate(e.getDate()-1);
+  document.getElementById('dataEnd').value = fmtDate(e);
+}
+
+function onSchedChange(){
+  var isPart = document.getElementById('cbSchedPart') && document.getElementById('cbSchedPart').checked;
+  var pf = document.getElementById('part-time-fields');
+  if (pf) pf.style.display = isPart ? 'grid' : 'none';
+  if (typeof syncRadioRows === 'function') syncRadioRows();
+}
+
+function onFunctie(){
+  const fn = get('functie');
+  // Auto-fill COR
+  const cor = COR_MAP[fn] || '';
+  if (cor) document.getElementById('codCor').value = cor;
+  // Preaviz auto (radio)
+  const isCond = CONDUCERE.has(fn);
+  const isExec = fn && !isCond && fn !== 'alt post' && fn !== '';
+  if (isCond) {
+    document.getElementById('cbPrev45').checked = true;
+    document.getElementById('proba').value = '90 zile';
+    document.getElementById('proba-badge').textContent = 'conducere';
+  } else if (isExec) {
+    document.getElementById('cbPrev20').checked = true;
+    document.getElementById('proba').value = '30 zile';
+    document.getElementById('proba-badge').textContent = 'execuție';
+  } else {
+    document.getElementById('proba').value = '';
+    document.getElementById('proba-badge').textContent = 'auto';
+  }
+  syncRadioRows();
+  // Auto-bifare loc muncă (resetare toate, apoi bifare cea aplicabilă)
+  ['cbLucrCom','cbMgrOps','cbDepot','cbBirouRemote'].forEach(function(id){
+    var el = document.getElementById(id); if (el) el.checked = false;
+  });
+  const locCb = LOC_MAP[fn];
+  if (locCb) { var lc = document.getElementById(locCb); if (lc) lc.checked = true; }
+  syncCheckboxRows();
+  // Propagate to signature section
+  document.getElementById('functieSalProp').value = fn || '';
+}
+
+function syncCheckboxRows(){
+  ['cbLucrCom','cbMgrOps','cbDepot','cbBirouRemote'].forEach(id => {
+    const row = document.getElementById('row-' + id);
+    if (!row) return;
+    if (document.getElementById(id).checked) row.classList.add('selected');
+    else row.classList.remove('selected');
+  });
+}
+function syncRadioRows(){
+  [['cbSchedEq','cbSchedUn','cbSchedPart'],['cbPrev20','cbPrev45']].forEach(group => {
+    group.forEach(id => {
+      const row = document.getElementById('row-' + id);
+      if (!row) return;
+      if (document.getElementById(id).checked) row.classList.add('selected');
+      else row.classList.remove('selected');
+    });
+  });
+}
+
+document.getElementById('numeSalariat').addEventListener('input', function(){
+  document.getElementById('numeSalProp').value = this.value;
+});
+
+function onFunctieAng(){
+  const fn = get('functieAng');
+  const numeEl = document.getElementById('numeAng');
+  const customField = document.getElementById('functieAngCustomField');
+  if (fn === 'administrator') {
+    numeEl.value = 'Olga Baraban';
+    numeEl.readOnly = true;
+    numeEl.className = 'auto';
+    customField.style.display = 'none';
+  } else if (fn === 'altă funcție') {
+    numeEl.value = '';
+    numeEl.readOnly = false;
+    numeEl.className = '';
+    customField.style.display = 'flex';
+  } else {
+    numeEl.value = '';
+    numeEl.readOnly = false;
+    numeEl.className = '';
+    customField.style.display = 'none';
+  }
+}
+
+// Sync UI rows when user toggles checkboxes/radios manually
+document.querySelectorAll('.cb-row input[type=checkbox]').forEach(cb => {
+  cb.addEventListener('change', syncCheckboxRows);
+});
+document.querySelectorAll('.cb-row input[type=radio]').forEach(rb => {
+  rb.addEventListener('change', syncRadioRows);
+});
+
+window.addEventListener('DOMContentLoaded', function(){
+  onFunctieAng();
+  syncCheckboxRows();
+  syncRadioRows();
+  // Wire up live preview for each date input
+  ['dataContract','dataCI','dataStart','dateSigAng','dateSigSal','dataInformare','dataSemnareActAditional'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (!el) return;
+    var prev = document.getElementById(id + '_prev');
+    function updatePrev(){
+      var s = el.value;
+      prev.textContent = s ? ('→ în document: ' + fmtInput(s)) : '';
+    }
+    el.addEventListener('input', updatePrev);
+    el.addEventListener('change', updatePrev);
+    updatePrev();
+  });
+  // Pre-completare data informării cu astăzi
+  var di = document.getElementById('dataInformare');
+  if (di && !di.value) { di.value = new Date().toISOString().slice(0,10); di.dispatchEvent(new Event('change')); }
+  // Inițializare vizibilitate secțiune Informare
+  if (typeof onModeChange === 'function') onModeChange();
+  // Listener pentru radio program — afișează câmpurile part-time
+  ['cbSchedEq','cbSchedUn','cbSchedPart'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', onSchedChange);
+  });
+  onSchedChange();
+});
+
+function escXml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ===== Mod de generare =====
+function onModeChange(){
+  const isInformare = document.getElementById('modeInformare').checked;
+  document.getElementById('sec-informare').style.display = isInformare ? '' : 'none';
+  document.getElementById('row-modeInformare').classList.toggle('selected', isInformare);
+  document.getElementById('row-modeCim').classList.toggle('selected', !isInformare);
+}
+
+// ===== Helperi pentru construirea fragmentului XML al Informării prealabile =====
+function rXml(text, opts){
+  opts = opts || {};
+  const rPr = '<w:rPr>' +
+    (opts.bold ? '<w:b/><w:bCs/>' : '') +
+    (opts.italic ? '<w:i/><w:iCs/>' : '') +
+    (opts.size != null ? '<w:sz w:val="'+opts.size+'"/><w:szCs w:val="'+opts.size+'"/>' : '') +
+    (opts.color ? '<w:color w:val="'+opts.color+'"/>' : '') +
+    '<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>' +
+    '<w:lang w:val="ro-RO"/>' +
+    '</w:rPr>';
+  return '<w:r>'+rPr+'<w:t xml:space="preserve">'+escXml(text)+'</w:t></w:r>';
+}
+
+function pXml(content, opts){
+  opts = opts || {};
+  const before = opts.before != null ? opts.before : 80;
+  const after  = opts.after  != null ? opts.after  : 80;
+  const align  = opts.align ? '<w:jc w:val="'+opts.align+'"/>' : '';
+  const ind    = opts.indent ? '<w:ind w:left="'+opts.indent+'"/>' : '';
+  // Ordinea corectă în <w:pPr>: spacing → ind → jc → rPr (cf. OOXML schema)
+  const pPr = '<w:pPr><w:spacing w:before="'+before+'" w:after="'+after+'"/>'+ind+align+'<w:rPr><w:lang w:val="ro-RO"/></w:rPr></w:pPr>';
+  let runs = '';
+  if (Array.isArray(content)) {
+    runs = content.map(r => rXml(r.text, r)).join('');
+  } else {
+    runs = rXml(content, opts);
+  }
+  return '<w:p>'+pPr+runs+'</w:p>';
+}
+
+function pageBreakXml(){
+  return '<w:p><w:pPr><w:rPr><w:lang w:val="ro-RO"/></w:rPr></w:pPr><w:r><w:rPr><w:lang w:val="ro-RO"/></w:rPr><w:br w:type="page"/></w:r></w:p>';
+}
+
+function buildInformareFragment(f){
+  const C  = '0070C0';
+  const N  = '1F3864';
+  const B  = '2E5F9E';
+  const parts = [];
+
+  parts.push(pXml('S-COLECT REC S.R.L.', { align:'center', bold:true, size:24, before:60, after:60 }));
+  parts.push(pXml('C.I.F. RO 38513453 | Nr. Reg. Com.: J2017004459354 | Administrator: Olga Baraban', { align:'center', size:18, before:60, after:60 }));
+  parts.push(pXml([
+    { text:'Sediu social: ', size:18 },
+    { text:'Com. Cenei nr.86, 307100 Jud. Timiș, Romania', size:18, bold:true, italic:true, color:C }
+  ], { align:'center', before:60, after:240 }));
+
+  parts.push(pXml([
+    { text:'Nr. ', bold:true, size:22 },
+    { text:(f.nrInformare || '_____'), bold:true, italic:true, color:C, size:22 },
+    { text:' / ', bold:true, size:22 },
+    { text:(f.dataInformare || '____ / ____ / 2026'), bold:true, italic:true, color:C, size:22 }
+  ], { align:'right', before:120, after:240 }));
+
+  parts.push(pXml('INFORMARE PREALABILĂ', { align:'center', bold:true, color:N, size:32, before:120, after:60 }));
+  parts.push(pXml('privind modificarea elementelor Contractului Individual de Muncă', { align:'center', italic:true, size:22, before:60, after:60 }));
+  parts.push(pXml('(conform art. 17 alin. (1)–(3) și art. 17 alin. (5) din Legea nr. 53/2003 — Codul muncii)', { align:'center', italic:true, size:18, before:60, after:360 }));
+
+  parts.push(pXml('Către:', { bold:true, size:24, before:60, after:60 }));
+  parts.push(pXml([
+    { text:'d-l/d-na ', size:22 },
+    { text:(f.numeSalariat || '________________________________________'), bold:true, italic:true, color:C, size:22 }
+  ], { before:60, after:60 }));
+  parts.push(pXml([
+    { text:'CNP ', size:22 },
+    { text:(f.cnp || '______________________'), bold:true, italic:true, color:C, size:22 },
+    { text:',   funcția: ', size:22 },
+    { text:(f.functie || '________________________________'), bold:true, italic:true, color:C, size:22 }
+  ], { before:60, after:60 }));
+  parts.push(pXml([
+    { text:'Salariat al S-COLECT REC S.R.L., în baza Contractului Individual de Muncă înregistrat sub nr. ', size:22 },
+    { text:(f.nrContract || '____'), bold:true, italic:true, color:C, size:22 },
+    { text:' / ', size:22 },
+    { text:(f.dataContract || '____ / ____ / ______'), bold:true, italic:true, color:C, size:22 },
+    { text:' (denumit în continuare „CIM-ul inițial”).', size:22 }
+  ], { align:'both', before:60, after:240 }));
+
+  parts.push(pXml('Stimată/Stimate doamnă/domnule,', { italic:true, size:22, before:120, after:120 }));
+  parts.push(pXml([
+    { text:'Prin prezenta, în temeiul ', size:22 },
+    { text:'art. 17 alin. (1)–(3) din Legea nr. 53/2003 — Codul muncii, republicată', bold:true, size:22 },
+    { text:', vă aducem la cunoștință faptul că ', size:22 },
+    { text:'S-COLECT REC S.R.L.', bold:true, size:22 },
+    { text:', în calitate de Angajator, intenționează să modifice CIM-ul inițial începând cu data de ', size:22 },
+    { text:(f.dataSemnareActAditional || '____ / ____ / 2026'), bold:true, italic:true, color:C, size:22 },
+    { text:', prin încheierea unui act adițional, conform art. 17 alin. (5) din Codul muncii.', size:22 }
+  ], { align:'both' }));
+  parts.push(pXml([
+    { text:'Modificarea se realizează ca urmare a adoptării unui formular actualizat și consolidat de Contract Individual de Muncă la nivelul Societății, corelat cu noul ', size:22 },
+    { text:'Regulament Intern', bold:true, size:22 },
+    { text:' aprobat prin ', size:22 },
+    { text:'Decizia Asociatului Unic nr. 007 / 18 MAI 2026', bold:true, size:22 },
+    { text:', care intră în vigoare la data de ', size:22 },
+    { text:'25 MAI 2026', bold:true, color:C, size:22 },
+    { text:'.', size:22 }
+  ], { align:'both' }));
+
+  parts.push(pXml('Elemente ale CIM care urmează a fi modificate / actualizate:', { bold:true, color:B, size:24, before:180, after:60 }));
+  const bullets = [
+    'Obiectul contractului, locul muncii (clauză de mobilitate între punctele de lucru), timpul de muncă și repausul (40 ore/săptămână, perioadă de referință de 4 luni);',
+    'Salariul de bază și beneficiile aferente (tichete de masă, sporuri, transport), termenele de plată și clauza de confidențialitate salarială;',
+    'Concediul de odihnă, sănătatea și securitatea în muncă, răspunderea disciplinară și procedura cercetării disciplinare;',
+    'Încetarea contractului și preavizul, clauza de confidențialitate și clauza de mobilitate;',
+    'Orice alte elemente prevăzute la art. 17 alin. (3) din Codul muncii necesare a fi actualizate.'
+  ];
+  for (const b of bullets){
+    parts.push(pXml('• ' + b, { align:'both', indent:360, before:40, after:40, size:22 }));
+  }
+
+  parts.push(pXml([
+    { text:'Forma consolidată a noului Contract Individual de Muncă (CIM v7), care va înlocui clauzele CIM-ului inițial, ', size:22 },
+    { text:'este atașată prezentei informări începând cu pagina următoare', bold:true, size:22 },
+    { text:', spre analiză și luare la cunoștință.', size:22 }
+  ], { align:'both', before:180 }));
+
+  parts.push(pXml([
+    { text:'În cazul în care sunteți de acord cu modificările propuse, vă rugăm să vă prezentați pentru semnarea actului adițional la sediul Societății, până cel târziu la data de ', size:22 },
+    { text:(f.dataSemnareActAditional || '____ / ____ / 2026'), bold:true, italic:true, color:C, size:22 },
+    { text:'. Modificările vor produce efecte numai după semnarea bilaterală a actului adițional, conform art. 17 alin. (5) din Codul muncii.', size:22 }
+  ], { align:'both' }));
+
+  if (f.emailContact){
+    parts.push(pXml([
+      { text:'Pentru întrebări sau observații, ne puteți contacta la ', size:22 },
+      { text:f.emailContact, italic:true, color:C, size:22 },
+      { text:'.', size:22 }
+    ], { align:'both' }));
+  }
+
+  parts.push(pXml([
+    { text:'Vă reamintim că, potrivit art. 41 alin. (1) din Codul muncii, ', size:22 },
+    { text:'modificarea CIM se poate realiza numai prin acordul părților', bold:true, size:22 },
+    { text:'. Refuzul dumneavoastră de a semna actul adițional nu constituie motiv de concediere; CIM-ul inițial își păstrează valabilitatea în forma actuală.', size:22 }
+  ], { align:'both' }));
+
+  parts.push(pXml('Documente puse la dispoziție împreună cu prezenta informare:', { bold:true, color:B, size:24, before:240, after:60 }));
+  const anexe = [
+    'Forma consolidată a noului Contract Individual de Muncă (CIM v7) — atașată mai jos;',
+    'Regulamentul Intern al Societății aprobat prin Decizia 007/18 MAI 2026 și anexele sale (Anexa 1 Program de lucru, Anexa 2 Planificare concedii, Anexa 3 Fișa de evaluare);',
+    'Fișa postului aferentă funcției deținute.'
+  ];
+  for (const a of anexe){
+    parts.push(pXml('• ' + a, { align:'both', indent:360, before:40, after:40, size:22 }));
+  }
+
+  parts.push(pXml('Din partea Angajatorului,', { bold:true, size:22, before:360, after:60 }));
+  parts.push(pXml('S-COLECT REC S.R.L.', { bold:true, size:22, after:60 }));
+  parts.push(pXml('Nume și prenume: Olga Baraban', { size:22, after:60 }));
+  parts.push(pXml('Funcția: Administrator', { size:22, after:240 }));
+  parts.push(pXml('Semnătură: ______________________________      L.S.', { size:22, after:360 }));
+
+  parts.push(pXml('CONFIRMARE DE PRIMIRE ȘI LUARE LA CUNOȘTINȚĂ', { align:'center', bold:true, color:N, size:26, before:240, after:120 }));
+  parts.push(pXml('Subsemnatul/Subsemnata, salariat al S-COLECT REC S.R.L., confirm prin prezenta că am primit informarea prealabilă privind modificarea CIM, împreună cu forma consolidată a noului Contract Individual de Muncă (atașată mai jos), și că am luat cunoștință de modificările propuse.', { align:'both', size:22, before:60, after:120 }));
+  parts.push(pXml([
+    { text:'Nume și prenume salariat: ', size:22 },
+    { text:(f.numeSalariat || '_______________________________'), bold:true, size:22 }
+  ], { before:120, after:60 }));
+  parts.push(pXml([
+    { text:'Data primirii: ', size:22 },
+    { text:(f.dataInformare || '____ / ____ / 2026'), bold:true, italic:true, color:C, size:22 },
+    { text:'       Semnătură salariat: _______________________________', size:22 }
+  ], { before:60, after:240 }));
+
+  parts.push(pXml('— continuare pe pagina următoare: forma consolidată a CIM v7 pentru luare la cunoștință —', { align:'center', italic:true, size:18, color:'888888', before:240, after:240 }));
+
+  parts.push(pageBreakXml());
+  return parts.join('');
+}
+
+// Replace ☐ with ☒ inside a specific <w:sdt> identified by tag name
+function checkSdtBox(docXml, tagName) {
+  // Match <w:sdt>...<w:tag w:val="tagName"/>...<w:t>☐</w:t>...</w:sdt>
+  const re = new RegExp(
+    '(<w:sdt>(?:(?!</w:sdt>).)*?<w:tag w:val="' + tagName + '"/>(?:(?!</w:sdt>).)*?<w:t[^>]*>)\\u2610(</w:t>(?:(?!</w:sdt>).)*?</w:sdt>)',
+    's'
+  );
+  return docXml.replace(re, '$1☒$2');
+}
+
+async function generateDoc(){
+  const btn = document.getElementById('genBtn');
+  const st = document.getElementById('status');
+  btn.disabled = true;
+  st.className = 'status';
+  st.textContent = 'Se generează...';
+  try {
+    if (!window.JSZip) throw new Error('JSZip nu s-a încărcat. Verificați conexiunea.');
+
+    const startD = parseDate(get('dataStart'));
+    const m = parseInt(get('durata'),10) || 3;
+    let endStr = '';
+    if (startD) {
+      const e = addMonths(startD, m);
+      e.setDate(e.getDate()-1);
+      endStr = fmtDate(e);
+    }
+    const probaRaw = get('proba').replace(' zile','');
+
+    const fnAngSel = get('functieAng');
+    const fnAngFinal = fnAngSel === 'altă funcție' ? get('functieAngCustom') : fnAngSel;
+
+    // Build customXml data (bound fields)
+    const fields = {
+      nrContract:       get('nrContract'),
+      dataContract:     fmtInput(get('dataContract')),
+      numeSalariat:     get('numeSalariat'),
+      cnp:              get('cnp'),
+      adresa:           get('adresa'),
+      ciSerie:          get('ciSerie'),
+      ciNumar:          get('ciNumar'),
+      ciEmitent:        get('ciEmitent'),
+      dataCI:           fmtInput(get('dataCI')),
+      functie:          get('functie'),
+      codCor:           get('codCor'),
+      dataStart:        startD ? fmtDate(startD) : '',
+      dataEnd:          endStr,
+      durata:           String(m),
+      proba:            probaRaw,
+      judet:            get('judet'),
+      salariu:          get('salariu'),
+      pauza:            get('pauza') || '30',
+      pauza_incl:       get('pauza_incl'),
+      dateSigAngajator: fmtInput(get('dateSigAng')),
+      dateSigAngajat:   fmtInput(get('dateSigSal')),
+      functieAngajator: fnAngFinal,
+      numeAngajator:    get('numeAng')
+    };
+
+    const xml = '<?xml version="1.0" encoding="UTF-8"?><root>'+
+      Object.entries(fields).map(([k,v])=>`<${k}>${escXml(v)}</${k}>`).join('')+
+    '</root>';
+
+    // Load template
+    const binStr = atob(TEMPLATE_B64);
+    const bytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+
+    const zip = await JSZip.loadAsync(bytes.buffer);
+
+    // 1) Update customXml (bound fields)
+    zip.file('customXml/item1.xml', xml);
+
+    // 2) Update document.xml — opțional: prepend fragmentul Informării prealabile, apoi bifează casetele
+    let doc = await zip.file('word/document.xml').async('string');
+
+    const modeInformare = document.getElementById('modeInformare').checked;
+    if (modeInformare) {
+      const informareFields = {
+        numeSalariat:            get('numeSalariat'),
+        cnp:                     get('cnp'),
+        functie:                 get('functie'),
+        nrContract:              get('nrContract'),
+        dataContract:            fmtInput(get('dataContract')),
+        nrInformare:             get('nrInformare'),
+        dataInformare:           fmtInput(get('dataInformare')),
+        dataSemnareActAditional: fmtInput(get('dataSemnareActAditional')),
+        emailContact:            get('emailContact')
+      };
+      const informareXml = buildInformareFragment(informareFields);
+      doc = doc.replace('<w:body>', '<w:body>' + informareXml);
+    }
+
+    const checkboxesToTick = [
+      ['cbLucrCom', checked('cbLucrCom')],
+      ['cbMgrOps',  checked('cbMgrOps')],
+      ['cbDepot',   checked('cbDepot')],
+      ['cbSchedEq', checked('cbSchedEq')],
+      ['cbSchedUn', checked('cbSchedUn')],
+      ['cbPrev20',  checked('cbPrev20')],
+      ['cbPrev45',  checked('cbPrev45')]
+    ];
+
+    // Splice paragraf Program parțial în Art. 4 dacă cbSchedPart e bifat
+    if (checked('cbSchedPart')) {
+      var oreZi = (document.getElementById('partOreZi') && document.getElementById('partOreZi').value) || '____';
+      var oreSapt = (document.getElementById('partOreSapt') && document.getElementById('partOreSapt').value) || '____';
+      const schedPartXml =
+        '<w:p w14:paraId="00BAB002" w14:textId="77777777" w:rsidR="00817FC6" w:rsidRPr="000D64D3" w:rsidRDefault="00856DD8">' +
+        '<w:pPr><w:spacing w:before="60" w:after="60"/><w:ind w:left="720"/><w:jc w:val="both"/><w:rPr><w:lang w:val="ro-RO"/></w:rPr></w:pPr>' +
+        '<w:r><w:rPr><w:rFonts w:ascii="MS Gothic" w:hAnsi="MS Gothic"/><w:lang w:val="ro-RO"/></w:rPr><w:t>☒</w:t></w:r>' +
+        '<w:r><w:rPr><w:lang w:val="ro-RO"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>' +
+        '<w:r><w:rPr><w:b/><w:bCs/><w:lang w:val="ro-RO"/></w:rPr><w:t xml:space="preserve">Program parțial (timp parțial)</w:t></w:r>' +
+        '<w:r><w:rPr><w:lang w:val="ro-RO"/></w:rPr><w:t xml:space="preserve">: </w:t></w:r>' +
+        '<w:r><w:rPr><w:b/><w:i/><w:color w:val="0070C0"/><w:lang w:val="ro-RO"/></w:rPr><w:t xml:space="preserve">' + escXml(String(oreZi)) + '</w:t></w:r>' +
+        '<w:r><w:rPr><w:lang w:val="ro-RO"/></w:rPr><w:t xml:space="preserve"> ore/zi, </w:t></w:r>' +
+        '<w:r><w:rPr><w:b/><w:i/><w:color w:val="0070C0"/><w:lang w:val="ro-RO"/></w:rPr><w:t xml:space="preserve">' + escXml(String(oreSapt)) + '</w:t></w:r>' +
+        '<w:r><w:rPr><w:lang w:val="ro-RO"/></w:rPr><w:t xml:space="preserve"> ore/săptămână, conform art. 105 din Codul muncii. Această variantă derogă de la prevederile alin. (1) — durata normală de 40 ore/săptămână (normă întreagă) — și se aplică integral salariatului. Drepturile salariale sunt proporționale cu timpul efectiv lucrat.</w:t></w:r>' +
+        '</w:p>';
+      doc = doc.replace('<w:p w14:paraId="0422148E"', schedPartXml + '<w:p w14:paraId="0422148E"');
+    }
+
+    // Splice bullet birou/telemuncă în Art. 3 dacă cbBirouRemote e bifat (nu are SDT în template)
+    if (checked('cbBirouRemote')) {
+      const birouBulletXml =
+        '<w:p w14:paraId="00BAB001" w14:textId="77777777" w:rsidR="00817FC6" w:rsidRPr="000D64D3" w:rsidRDefault="00856DD8">' +
+        '<w:pPr><w:spacing w:before="60" w:after="60"/><w:ind w:left="720"/><w:jc w:val="both"/><w:rPr><w:lang w:val="ro-RO"/></w:rPr></w:pPr>' +
+        '<w:r><w:rPr><w:rFonts w:ascii="MS Gothic" w:hAnsi="MS Gothic"/><w:lang w:val="ro-RO"/></w:rPr><w:t>☒</w:t></w:r>' +
+        '<w:r><w:rPr><w:lang w:val="ro-RO"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>' +
+        '<w:r><w:rPr><w:b/><w:bCs/><w:lang w:val="ro-RO"/></w:rPr><w:t xml:space="preserve">Contabil / Contabil șef / Director financiar / Director comercial / Director general / Director executiv / Economist / Inspector resurse umane</w:t></w:r>' +
+        '<w:r><w:rPr><w:lang w:val="ro-RO"/></w:rPr><w:t xml:space="preserve"> — birou la sediul Angajatorului din Com. Cenei nr. 86, jud. Timiș, cu posibilitatea desfășurării activității, total sau parțial, în regim de </w:t></w:r>' +
+        '<w:r><w:rPr><w:b/><w:bCs/><w:lang w:val="ro-RO"/></w:rPr><w:t>telemuncă (remote)</w:t></w:r>' +
+        '<w:r><w:rPr><w:lang w:val="ro-RO"/></w:rPr><w:t xml:space="preserve">, conform art. 105–110 din Codul muncii și ale Regulamentului Intern al Societății. Modul concret de desfășurare a activității (la sediu, în telemuncă sau hibrid) se stabilește prin decizie internă, comunicată Salariatului în scris.</w:t></w:r>' +
+        '</w:p>';
+      // Inserăm înaintea paragrafului „(2) Repartizarea..."
+      doc = doc.replace('<w:p w14:paraId="04221487"', birouBulletXml + '<w:p w14:paraId="04221487"');
+    }
+    let ticked = 0;
+    for (const [tag, isChecked] of checkboxesToTick) {
+      if (isChecked) {
+        const before = doc;
+        doc = checkSdtBox(doc, tag);
+        if (doc !== before) ticked++;
+      }
+    }
+
+    zip.file('word/document.xml', doc);
+
+    const blob = await zip.generateAsync({
+      type:'blob',
+      mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      compression:'DEFLATE',
+      compressionOptions:{level:6}
+    });
+
+    const nm = (get('numeSalariat') || 'Salariat').replace(/\s+/g,'_');
+    const dt = (fields.dataStart || '').replace(/\s+/g,'-');
+    const prefix = modeInformare ? 'INFORMARE_si_CIM_' : 'CIM_';
+    const fname = prefix + nm + (dt ? '_' + dt : '') + '.docx';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname; a.click();
+    URL.revokeObjectURL(url);
+
+    st.className = 'status ok';
+    const modeMsg = modeInformare ? ' [pachet Informare + CIM]' : ' [doar CIM]';
+    st.textContent = '✓ Descărcat: ' + fname + ' (' + ticked + ' casete bifate)' + modeMsg;
+  } catch(e) {
+    st.className = 'status err';
+    st.textContent = 'Eroare: ' + e.message;
+    console.error(e);
+  }
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>
