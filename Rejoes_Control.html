@@ -8608,7 +8608,7 @@ async function importCashCard(event){
     rows.forEach(r=>{ const c0=String(r[0]==null?'':r[0]).trim(); const m=c0.match(dre); if(m){ const mon=m[3]+'-'+m[2]; const cash=_cashNum(r[2]); const card=_cashNum(r[3]); if(!months[mon])months[mon]={cash:0,card:0}; months[mon].cash+=cash; months[mon].card+=card; } });
     if(Object.keys(months).length===0){ toast('Nu am găsit rânduri pe zi (format neașteptat). Folosește exportul „cash vs card" din e:Corg.'); return; }
     DB.cashIncasari={months, importedAt:nowISO(), sursa:f.name};
-    save(); renderCashBanca(); toast('✓ Cash importat: '+Object.keys(months).length+' luni');
+    save(); try{ cloudPushEcorgData(); }catch(e){} renderCashBanca(); toast('✓ Cash importat: '+Object.keys(months).length+' luni');
   }catch(e){ console.error(e); toast('Eroare la citirea fișierului'); }
   finally{ event.target.value=''; }
 }
@@ -8621,7 +8621,7 @@ async function updateDepuneriCont003(){
     (tx||[]).forEach(t=>{ if(String(t.acc||'').includes(CONT003_MATCH) && (t.credit||0)>0 && t.data){ const mon=t.data.slice(0,7); months[mon]=(months[mon]||0)+t.credit; list.push({data:t.data, suma:t.credit, descriere:(t.descriere||'').slice(0,60)}); } });
     list.sort((a,b)=>a.data.localeCompare(b.data));
     DB.depuneriCont003={months, list, updatedAt:nowISO()};
-    save(); renderCashBanca();
+    save(); try{ cloudPushEcorgData(); }catch(e){} renderCashBanca();
     const n=Object.keys(months).length;
     toast(n?('✓ Depuneri actualizate: '+n+' luni'):'Nicio tranzacție pe cont 003 — importă întâi extrasele (Setări → 📥 e:Corg → Extrase bancare).');
   }catch(e){ console.error(e); toast('Eroare la calculul depunerilor'); }
@@ -12220,9 +12220,11 @@ const CLOUD_COLLECTIONS = [
   'furnizoriAutoExclude',  // Etapa 10E — reguli auto-marcare furnizori (mic, safe)
   'balantaCashBank','balantaCashBankUpdate',  // Etapa 10E — cash în bancă (1 număr + 1 timestamp, safe)
   'dosare',  // Etapa 13 — trackerul dosarelor de deschidere magazin (operational, fără date personale)
-  'rhDosare',  // Etapa 14 — dosarul de personal (tracker documente, operational)
-  'cashIncasari','depuneriCont003'  // Etapa 15 — sumare cash/depuneri (mici, safe)
+  'rhDosare'  // Etapa 14 — dosarul de personal (tracker documente, operational)
 ];
+// ⚠️ cashIncasari/depuneriCont003 NU în CLOUD_COLLECTIONS: sunt obiecte cu chei mereu prezente (months/importedAt/...),
+//    deci garda generică „local gol?" nu le vede niciodată goale → push-ul de versiune goală suprascria cloud-ul.
+//    Sincronizate sigur prin cheia cloud `cashBancaJson` (gardă pe nr. de luni), vezi cloudPushEcorgData/cloudPullEcorgData.
 // NU includem: angajati (CNP/IBAN sensibile), users (PIN-uri), setari, session, _backups (sunt locale per device), ecorgImports (vezi nota mai sus), contractDrafts (CNP/CI/IBAN proprietar — local-only)
 
 // ========== Etapa 11B — Backup cloud pentru date LOCAL-only (Financial/Achiziții/Extrase) ==========
@@ -12237,6 +12239,7 @@ async function cloudPushEcorgData() {
       vanzariCategorii: e.vanzariCategorii||[], posShifts: e.posShifts||[]
     }));
     await window.FB.db.ref('bankStatementsJson').set(JSON.stringify(DB.bankStatements||{imports:[],cashUpdatedFrom:null}));
+    await window.FB.db.ref('cashBancaJson').set(JSON.stringify({ cashIncasari: DB.cashIncasari||{months:{}}, depuneriCont003: DB.depuneriCont003||{months:{}} }));
   } catch(err){ console.error('cloudPushEcorgData failed:', err); }
 }
 async function cloudPullEcorgData() {
@@ -12258,6 +12261,17 @@ async function cloudPullEcorgData() {
       const bs = JSON.parse(bsraw);
       const localN = (DB.bankStatements && DB.bankStatements.imports || []).length;
       if (bs && Array.isArray(bs.imports) && bs.imports.length >= localN) DB.bankStatements = bs;
+    }
+    // Etapa 15 — Cash vs Bancă: restaurare cu gardă anti-pierdere (nu suprascrie local cu mai puține luni)
+    const cbraw = (await window.FB.db.ref('cashBancaJson').once('value')).val();
+    if (cbraw) {
+      const cb = JSON.parse(cbraw);
+      const lc = Object.keys((DB.cashIncasari&&DB.cashIncasari.months)||{}).length;
+      const cc = Object.keys((cb.cashIncasari&&cb.cashIncasari.months)||{}).length;
+      if (cb.cashIncasari && cc >= lc) DB.cashIncasari = cb.cashIncasari;
+      const ld = Object.keys((DB.depuneriCont003&&DB.depuneriCont003.months)||{}).length;
+      const cd = Object.keys((cb.depuneriCont003&&cb.depuneriCont003.months)||{}).length;
+      if (cb.depuneriCont003 && cd >= ld) DB.depuneriCont003 = cb.depuneriCont003;
     }
     save();
     invalidateEcorgCache && invalidateEcorgCache();
