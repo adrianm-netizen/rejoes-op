@@ -1019,7 +1019,8 @@ function renderPontaj() {
         <div class="toolbar">
           ${(!isReadOnly() && !isAdmin()) ? `<button class="btn btn-primary btn-sm" onclick="newPontaj()">+ Pontaj zilnic</button>` : ''}
           ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="newPontaj()">+ Pontaj zilnic</button>
-          <button class="btn btn-sm" onclick="completareLunaTipic()">⚡ Auto-completare luna</button>` : ''}
+          <button class="btn btn-sm" onclick="completareLunaTipic()">⚡ Auto-completare luna</button>
+          <button class="btn btn-sm" style="background:#6b3fa0;border-color:#6b3fa0;color:#fff" onclick="bfOpen()">🔄 Completează din e:Corg (în urmă)</button>` : ''}
           <button class="btn btn-sm btn-primary" style="background:#37618a;border-color:#37618a" onclick="exportCentralizator()">📊 Centralizator (Dana)</button>
           <button class="btn btn-sm" onclick="exportPontajIndividual()">📝 Pontaj individual</button>
           <button class="btn btn-sm" onclick="exportPontaj()">📥 Listă (Sumar/Detaliu)</button>
@@ -1201,6 +1202,139 @@ function completareLunaTipic() {
     }
   });
   save(); renderPontaj(); toast(`${added} înregistrări auto-completate`);
+}
+
+// ============================================================
+// === BACK-FILL pontaj + raportări din e:Corg (Etapa 16) =====
+// ============================================================
+// Porecle/forme din e:Corg care nu se rezolvă din token-uri:
+const BF_NAME_MAP = { 'vero':'IONASCU VERONICA' };
+let bfState = null;
+function _bfNorm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim(); }
+function _bfDate(s){ s=String(s||'').trim(); let m=s.match(/(\d{4})-(\d{2})-(\d{2})/); if(m) return m[1]+'-'+m[2]+'-'+m[3]; m=s.match(/(\d{2})[.\/](\d{2})[.\/](\d{4})/); if(m) return m[3]+'-'+m[2]+'-'+m[1]; return null; }
+function _bfStore(raw){ const s=String(raw||'').trim(); let m=DB.magazine.find(x=>x.id===s); if(m)return m; m=DB.magazine.find(x=>x.id && s.indexOf(x.id)>=0); if(m)return m; const n=_bfNorm(s); m=DB.magazine.find(x=>{ const xn=_bfNorm(x.nume).replace(/ tm$| magazin.*| \(.*/,'').trim().split(' ')[0]; return xn && xn.length>2 && n.indexOf(xn)>=0; }); return m||null; }
+function _bfResolve(raw){ const n=_bfNorm(raw); if(BF_NAME_MAP[n]) return BF_NAME_MAP[n]; const toks=n.split(' ').filter(t=>t.length>1); let best='',bs=0; DB.angajati.forEach(a=>{ const an=_bfNorm(a.nume).split(' '); let sc=0; toks.forEach(t=>{ if(an.includes(t)) sc++; }); if(sc>bs){bs=sc;best=a.nume;} }); return bs>0?best:''; }
+function _bfDayHours(prog, dow){
+  const p=PROGRAME[prog]||{};
+  if(p.oreZi) return {s:'9:00', e:'20:00', o:String(p.oreZi)};                 // 2+2 → 10h
+  if(p.mFri!==undefined){
+    if(dow>=1&&dow<=5){ const e=p.mFri>=8?'17:00':p.mFri===7?'16:00':p.mFri===4?'13:00':'17:00'; return {s:'9:00',e,o:String(p.mFri)}; }
+    const h=p.sat>0?p.sat:4; return {s:'9:00', e:h===4?'13:00':'17:00', o:String(h)};   // Sb/Dum lucrate
+  }
+  return {s:'9:00', e:'17:00', o:'8'};
+}
+function _bfDefProg(tip){ return tip==='Mediu'?'10h, 2+2': tip==='Mic'?'8h L-V + 4h Sb': tip==='Depozit'?'8h/zi L-V':'8h/zi L-V'; }
+
+async function bfOpen(){
+  if(!isAdmin()){ toast('Doar adminul poate rula completarea din e:Corg'); return; }
+  toast('Citesc bonurile din e:Corg...');
+  let items; try{ items=await idbGetAllReceipts(); }catch(e){ console.error(e); toast('Nu pot citi bonurile (IndexedDB).'); return; }
+  if(!items||!items.length){ toast('Nu există bonuri importate. Importă Receipt din Setări → 📥 e:Corg.'); return; }
+  const perDSA={}, assocRaw={}, storesSeen={}; let minD=null,maxD=null, skipped=0;
+  items.forEach(it=>{
+    const d=_bfDate(it.data); const st=_bfStore(it.magazin); const raw=String(it.casier||'').trim();
+    if(!d||!st||!raw || raw.toLowerCase()==='sales associate'){ skipped++; return; }
+    const amt=+it.amount||0, bon=it.bonId||(d+raw);
+    if(!minD||d<minD)minD=d; if(!maxD||d>maxD)maxD=d; storesSeen[st.id]=st;
+    const k=d+'|'+st.id+'|'+raw; (perDSA[k]=perDSA[k]||{b:new Set(),s:0}); perDSA[k].b.add(bon); perDSA[k].s+=amt;
+    const a=(assocRaw[raw]=assocRaw[raw]||{dates:new Set(),stores:new Set(),b:new Set(),s:0}); a.dates.add(d); a.stores.add(st.id); a.b.add(bon); a.s+=amt;
+  });
+  const assocList=Object.keys(assocRaw).sort().map(raw=>({raw, ...assocRaw[raw]}));
+  const nameOverride={}; assocList.forEach(a=>{ nameOverride[a.raw]=_bfResolve(a.raw)||a.raw; });
+  const storeList=Object.values(storesSeen).sort((x,y)=>x.id.localeCompare(y.id));
+  const storeProg={}; storeList.forEach(st=>{ storeProg[st.id]=_bfDefProg(st.tip); });
+  bfState={perDSA, assocList, nameOverride, storeList, storesSeen, storeProg, minD, maxD, nItems:items.length, skipped};
+  renderBackfill();
+}
+
+function _bfPlan(){
+  const s=bfState; if(!s) return {pNew:[],rNew:[]};
+  const pKeys=new Set(DB.pontaj.map(p=>p.data+'|'+p.angajat));
+  const rKeys=new Set(DB.raportari.map(r=>r.data+'|'+r.magazin));
+  const byPA={}, dsAgg={};
+  Object.keys(s.perDSA).forEach(k=>{
+    const i=k.indexOf('|'), j=k.indexOf('|',i+1); const d=k.slice(0,i), stId=k.slice(i+1,j), raw=k.slice(j+1);
+    const nm=s.nameOverride[raw]; if(!nm || nm==='—') return;
+    const cell=s.perDSA[k], nb=cell.b.size;
+    const pk=d+'|'+nm; if(!byPA[pk] || nb>byPA[pk].bonuri) byPA[pk]={data:d, stId, angajat:nm, bonuri:nb};
+    const dk=d+'|'+stId; (dsAgg[dk]=dsAgg[dk]||{s:0,b:new Set(),cas:{}}); dsAgg[dk].s+=cell.s; cell.b.forEach(b=>dsAgg[dk].b.add(b)); dsAgg[dk].cas[nm]=(dsAgg[dk].cas[nm]||0)+nb;
+  });
+  const pNew=Object.values(byPA).filter(e=>!pKeys.has(e.data+'|'+e.angajat));
+  const rNew=Object.keys(dsAgg).filter(dk=>!rKeys.has(dk)).map(dk=>{ const p=dk.indexOf('|'); const d=dk.slice(0,p), stId=dk.slice(p+1); const a=dsAgg[dk]; const top=Object.entries(a.cas).sort((x,y)=>y[1]-x[1])[0]; return {data:d, magazin:stId, vanzari:Math.round(a.s*100)/100, bonuri:a.b.size, casier:top?top[0]:''}; });
+  return {pNew, rNew};
+}
+
+function bfSetName(i, val){ if(!bfState) return; const raw=bfState.assocList[i].raw; bfState.nameOverride[raw]=val; renderBackfill(); }
+function bfSetStoreProg(stId, val){ if(!bfState) return; bfState.storeProg[stId]=val; renderBackfill(); }
+
+function renderBackfill(){
+  const s=bfState; if(!s){ renderPontaj(); return; }
+  const {pNew,rNew}=_bfPlan();
+  const progOpts=Object.keys(PROGRAME);
+  const angOpts=['—'].concat(DB.angajati.map(a=>a.nume));
+  // luni acoperite de pontajul nou
+  const luniP={}; pNew.forEach(e=>{ const m=e.data.slice(0,7); luniP[m]=(luniP[m]||0)+1; });
+  document.getElementById('content').innerHTML = `
+    <div class="card">
+      <button class="btn btn-sm btn-ghost" onclick="bfState=null;renderPontaj()">← Înapoi la pontaj</button>
+      <h3 style="margin:8px 0 4px">🔄 Completează pontajul din e:Corg (în urmă)</h3>
+      <p style="color:var(--text-muted);font-size:13px;margin:0 0 6px">Din bonuri reconstruiesc zilele lucrate (cine a emis bonuri, în ce zi, la ce magazin) și raportul de încasări. <b>Completez doar zilele lipsă — nu suprascriu nimic din ce a făcut Ana.</b> Se face backup înainte de aplicare.</p>
+      <p style="color:var(--text-muted);font-size:12.5px;margin:0">📅 Bonuri găsite: ${s.nItems} · perioada ${s.minD||'—'} → ${s.maxD||'—'} · ${s.skipped} linii sărite (fără dată/magazin/casier).</p>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 4px">👤 Vânzătorii din e:Corg → angajat</h3>
+      <p style="color:var(--text-muted);font-size:12.5px;margin:0 0 10px">Verifică maparea. Cei plecați: lasă numele corect (apare în pontaj la magazinul lui). Pune „—" ca să ignori un vânzător.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Nume în e:Corg</th><th>→ Angajat (pontaj)</th><th>Zile</th><th>Bonuri</th><th>Magazine</th></tr></thead>
+        <tbody>${s.assocList.map((a,i)=>{
+          const cur=s.nameOverride[a.raw]; const inList=angOpts.includes(cur);
+          return `<tr>
+            <td><b>${escapeHtml(a.raw)}</b></td>
+            <td><select onchange="bfSetName(${i},this.value)" style="max-width:220px">${angOpts.map(o=>`<option ${o===cur?'selected':''}>${escapeHtml(o)}</option>`).join('')}${inList?'':`<option selected>${escapeHtml(cur)}</option>`}</select></td>
+            <td>${a.dates.size}</td><td>${a.b.size}</td>
+            <td style="font-size:11.5px;color:var(--text-muted)">${[...a.stores].map(id=>(s.storesSeen[id]||{}).nume||id).join(', ')}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 4px">🏪 Programul fiecărui magazin (pentru ore)</h3>
+      <p style="color:var(--text-muted);font-size:12.5px;margin:0 0 10px">Orele pe zi lucrată se iau din programul magazinului. Implicit după tip; ajustează dacă e nevoie.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Magazin</th><th>Tip</th><th>Program (ore)</th></tr></thead>
+        <tbody>${s.storeList.map(st=>`<tr>
+          <td>${escapeHtml(st.id+' '+st.nume)}</td><td>${escapeHtml(st.tip||'')}</td>
+          <td><select onchange="bfSetStoreProg('${st.id}',this.value)">${progOpts.map(o=>`<option ${o===s.storeProg[st.id]?'selected':''}>${o}</option>`).join('')}</select></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+
+    <div class="card" style="border:2px solid #6b3fa0;background:rgba(107,63,160,.05)">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:13px;color:var(--text-muted)">Se vor adăuga (doar zile lipsă):</div>
+          <div style="font-size:20px;font-weight:800">📋 ${pNew.length} pontaje · 🧾 ${rNew.length} raportări</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Pontaje pe luni: ${Object.keys(luniP).sort().map(m=>_monLabel(m)+' ('+luniP[m]+')').join(' · ')||'—'}</div>
+        </div>
+        <button class="btn btn-primary" onclick="bfApply()" ${pNew.length||rNew.length?'':'disabled'}>✅ Aplică (cu backup)</button>
+      </div>
+    </div>`;
+}
+
+function bfApply(){
+  if(!bfState){ return; }
+  if(!isAdmin()){ toast('Doar adminul'); return; }
+  const {pNew,rNew}=_bfPlan();
+  if(!pNew.length && !rNew.length){ toast('Nimic de adăugat'); return; }
+  if(!confirm(`Adaug ${pNew.length} pontaje + ${rNew.length} raportări (doar zilele lipsă, din e:Corg)?\n\nSe face întâi un backup. Nu se suprascrie nimic existent.`)) return;
+  try{ createBackup('pre-backfill-ecorg-'+nowISO().replace(/[:T.]/g,'-').slice(0,19)); }catch(e){}
+  let np=0,nr=0;
+  pNew.forEach(e=>{ const st=bfState.storesSeen[e.stId]; const prog=bfState.storeProg[e.stId]; const dow=new Date(e.data+'T00:00:00').getDay(); const h=_bfDayHours(prog,dow);
+    DB.pontaj.push({data:e.data, angajat:e.angajat, locatie:st?(st.id+' '+st.nume):e.stId, tipZi:'Lucrat 🟢', oraStart:h.s, oraSfarsit:h.e, oreLucrate:h.o, observatii:'auto e:Corg', salvatLa:nowISO()}); np++; });
+  rNew.forEach(r=>{ DB.raportari.push({data:r.data, magazin:r.magazin, casier:r.casier, vanzari:r.vanzari, pos:'', numerarTeoretic:'', numerarPredat:'', diferenta:0, bonuri:r.bonuri, anulari:0, retururi:0, difStoc:0, alerta:'OK', motiv:'', detalii:'', observatii:'auto e:Corg', salvatLa:nowISO(), auto:true}); nr++; });
+  save(); bfState=null; toast(`✓ Adăugat: ${np} pontaje + ${nr} raportări (din e:Corg)`); go('pontaj');
 }
 
 // ---------- RAPORTARE ----------
