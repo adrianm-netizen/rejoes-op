@@ -470,6 +470,7 @@ const SEED = {
 };
 const CONT003_MATCH = '0576117403';   // contul de depuneri numerar (RO42…403)
 const CASH_NEDEPUS_PRAG = 45000;      // prag alertă sold cumulativ nedepus (lei)
+const CASH_ZERO_PRAG = 3000;          // sub această valoare (abs) considerăm că soldul e „≈ pe zero" (tot cash-ul depus)
 
 // Documentele standard din dosarul de personal al unui angajat (checklist)
 const RH_DOC_STEPS = [
@@ -8514,6 +8515,8 @@ function renderCashBanca(){
   let cum=0; const rows=months.map(m=>{ const cash=(cm[m]&&cm[m].cash)||0; const dep=dm[m]||0; const dif=cash-dep; cum+=dif; return {m,cash,dep,dif,cum}; });
   const last=rows.length?rows[rows.length-1]:null;
   const alerta=last&&last.cum>CASH_NEDEPUS_PRAG;
+  const peZero=last&&Math.abs(last.cum)<=CASH_ZERO_PRAG;
+  let lastZeroRow=null; for(let i=rows.length-1;i>=0;i--){ if(Math.abs(rows[i].cum)<=CASH_ZERO_PRAG){ lastZeroRow=rows[i]; break; } }
   const totCash=rows.reduce((s,r)=>s+r.cash,0), totDep=rows.reduce((s,r)=>s+r.dep,0);
   document.getElementById('content').innerHTML = `
     <div class="card" style="background:linear-gradient(135deg,rgba(80,200,120,.10),rgba(80,160,255,.07));border:1px solid rgba(120,200,150,.25)">
@@ -8531,14 +8534,17 @@ function renderCashBanca(){
       </div>
     </div>
 
-    ${last?`<div class="card" style="${alerta?'border:2px solid #c0392b;background:rgba(192,57,43,.06)':'border:1px solid rgba(80,200,120,.3);background:rgba(80,200,120,.05)'}">
+    ${last?`<div class="card" style="${alerta?'border:2px solid #c0392b;background:rgba(192,57,43,.06)':peZero?'border:2px solid #1b7a3d;background:rgba(27,122,61,.07)':'border:1px solid rgba(80,200,120,.3);background:rgba(80,200,120,.05)'}">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <div>
           <div style="font-size:12px;color:var(--text-muted)">Sold cash nedepus (cumulat, la ${_monLabel(last.m)})</div>
-          <div style="font-size:28px;font-weight:800;color:${alerta?'#c0392b':'#1b7a3d'}">${fmt(last.cum)} lei</div>
+          <div style="font-size:28px;font-weight:800;color:${alerta?'#c0392b':'#1b7a3d'}">${fmt(last.cum)} lei ${peZero?'<span style="font-size:15px">⚖️ ≈ pe zero</span>':''}</div>
+          ${lastZeroRow?`<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">Ultima dată pe zero (sub ${fmt(CASH_ZERO_PRAG)} lei): <b>${_monLabel(lastZeroRow.m)}</b> — ${fmt(lastZeroRow.cum)} lei</div>`:`<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">Încă nu am atins „pe zero" în perioada afișată.</div>`}
         </div>
         <div style="font-size:13px;text-align:right">
-          ${alerta?`<div style="color:#c0392b;font-weight:700">⚠️ Peste pragul de ${fmt(CASH_NEDEPUS_PRAG)} lei!</div><div style="color:var(--text-muted);font-size:12px">Verifică dacă există cash neîncasat la bancă.</div>`:`<div style="color:#1b7a3d;font-weight:700">✅ Sub pragul de ${fmt(CASH_NEDEPUS_PRAG)} lei</div><div style="color:var(--text-muted);font-size:12px">Cash-ul ajunge depus în ritm normal.</div>`}
+          ${alerta?`<div style="color:#c0392b;font-weight:700">⚠️ Peste pragul de ${fmt(CASH_NEDEPUS_PRAG)} lei!</div><div style="color:var(--text-muted);font-size:12px">Verifică dacă există cash neajuns la bancă.</div>`
+            :peZero?`<div style="color:#1b7a3d;font-weight:700">✅ Suntem pe zero</div><div style="color:var(--text-muted);font-size:12px">Tot cash-ul încasat a ajuns depus.</div>`
+            :`<div style="color:#1b7a3d;font-weight:700">✅ Sub pragul de ${fmt(CASH_NEDEPUS_PRAG)} lei</div><div style="color:var(--text-muted);font-size:12px">Cash în tranzit — se depune în ritm normal.</div>`}
         </div>
       </div>
     </div>`:''}
@@ -8553,7 +8559,7 @@ function renderCashBanca(){
           <td style="text-align:right">${fmt(r.cash)}</td>
           <td style="text-align:right">${fmt(r.dep)}</td>
           <td style="text-align:right;color:${r.dif>0?'#b06000':'#1b7a3d'}">${r.dif>0?'+':''}${fmt(r.dif)}</td>
-          <td style="text-align:right;font-weight:700;color:${r.cum>CASH_NEDEPUS_PRAG?'#c0392b':'inherit'}">${fmt(r.cum)}${r.cum>CASH_NEDEPUS_PRAG?' ⚠':''}</td>
+          <td style="text-align:right;font-weight:700;color:${r.cum>CASH_NEDEPUS_PRAG?'#c0392b':Math.abs(r.cum)<=CASH_ZERO_PRAG?'#1b7a3d':'inherit'}">${fmt(r.cum)}${r.cum>CASH_NEDEPUS_PRAG?' ⚠':Math.abs(r.cum)<=CASH_ZERO_PRAG?' ✓':''}</td>
         </tr>`).join('')}
         <tr style="border-top:2px solid var(--border);font-weight:700"><td>TOTAL</td><td style="text-align:right">${fmt(totCash)}</td><td style="text-align:right">${fmt(totDep)}</td><td style="text-align:right">${fmt(totCash-totDep)}</td><td></td></tr>
         </tbody>
