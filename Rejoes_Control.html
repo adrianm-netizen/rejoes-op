@@ -8502,10 +8502,21 @@ function openRhGhid(){
 function _cashNum(x){ const n=parseFloat(String(x==null?'':x).replace(/\s/g,'').replace(/,/g,'')); return isNaN(n)?0:n; }
 const _LUNI_NUM = ['', 'Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'];
 function _monLabel(m){ const p=(m||'').split('-'); return p.length===2?(_LUNI_NUM[+p[1]]+' '+p[0]):m; }
+// Cărei perioade (decade) de încasare îi aparține o depunere — cash-ul se depune cu ~10 zile decalaj.
+function _depPerioada(iso){
+  const p=(iso||'').split('-'); if(p.length<3) return '';
+  let y=+p[0], mo=+p[1]; const d=+p[2];
+  if(d<=10){ mo--; if(mo<1){mo=12;y--;} return 'Decada III '+_LUNI_NUM[mo]+' '+y; }   // 1-10 → cash din decada III (21-31) a lunii precedente
+  if(d<=20) return 'Decada I '+_LUNI_NUM[mo]+' '+y;                                       // 11-20 → cash din decada I (1-10) luna curentă
+  return 'Decada II '+_LUNI_NUM[mo]+' '+y;                                                // 21-31 → cash din decada II (11-20) luna curentă
+}
+function _dmy(iso){ const p=(iso||'').split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):iso; }
 
 function renderCashBanca(){
   const cm=(DB.cashIncasari&&DB.cashIncasari.months)||{};
   const dm=(DB.depuneriCont003&&DB.depuneriCont003.months)||{};
+  const depList=(DB.depuneriCont003&&DB.depuneriCont003.list)||[];
+  const lastDep=depList.length?depList[depList.length-1]:null;
   // Cumulativul pornește de la prima lună cu date de cash — depunerile dinainte sunt pentru cash încasat în perioada anterioară (e:Corg nu o acoperă), le excludem din reconciliere.
   const cashKeys=Object.keys(cm).filter(k=>((cm[k]&&cm[k].cash)||0)>0).sort();
   const minCash=cashKeys.length?cashKeys[0]:null;
@@ -8540,6 +8551,7 @@ function renderCashBanca(){
           <div style="font-size:12px;color:var(--text-muted)">Sold cash nedepus (cumulat, la ${_monLabel(last.m)})</div>
           <div style="font-size:28px;font-weight:800;color:${alerta?'#c0392b':'#1b7a3d'}">${fmt(last.cum)} lei ${peZero?'<span style="font-size:15px">⚖️ ≈ pe zero</span>':''}</div>
           ${lastZeroRow?`<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">Ultima dată pe zero (sub ${fmt(CASH_ZERO_PRAG)} lei): <b>${_monLabel(lastZeroRow.m)}</b> — ${fmt(lastZeroRow.cum)} lei</div>`:`<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">Încă nu am atins „pe zero" în perioada afișată.</div>`}
+          ${lastDep?`<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">💰 Ultima depunere: <b>${fmt(lastDep.suma)} lei</b> pe ${_dmy(lastDep.data)} — pentru <b>${_depPerioada(lastDep.data)}</b></div>`:''}
         </div>
         <div style="font-size:13px;text-align:right">
           ${alerta?`<div style="color:#c0392b;font-weight:700">⚠️ Peste pragul de ${fmt(CASH_NEDEPUS_PRAG)} lei!</div><div style="color:var(--text-muted);font-size:12px">Verifică dacă există cash neajuns la bancă.</div>`
@@ -8566,7 +8578,22 @@ function renderCashBanca(){
       </table></div>
       <p style="font-size:11.5px;color:var(--text-muted);margin-top:8px">Cash-ul unei perioade se depune în zilele următoare (în mai multe tranșe), de aceea diferența pe o lună poate fi pozitivă sau negativă — contează tendința soldului cumulativ. Un cumulativ care tot crește = cash care nu ajunge la bancă. Cumulativul pornește de la prima lună cu date de cash (${minCash?_monLabel(minCash):'—'}).</p>
       ${depAnterioare>0?`<p style="font-size:11.5px;color:var(--text-muted);margin-top:2px">ℹ️ Depuneri înainte de perioada cash-ului (pentru încasări mai vechi, neacoperite de e:Corg): <b>${fmt(depAnterioare)} lei</b> — informativ, excluse din reconciliere.</p>`:''}`}
-    </div>`;
+    </div>
+
+    ${depList.length?`<div class="card">
+      <div class="section-head"><h3>🗓️ Depuneri — când și pentru ce perioadă</h3></div>
+      <p style="color:var(--text-muted);font-size:12.5px;margin:0 0 10px">Fiecare intrare de numerar pe cont 003, cu perioada (decada) de încasare pe care o acoperă. Cash-ul se depune cu ~10 zile decalaj, de aceea o depunere de la început de lună e pentru cash-ul de la sfârșitul lunii precedente. Cele mai recente sus.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Data depunerii</th><th style="text-align:right">Sumă (lei)</th><th>Pentru perioada</th><th>Detalii extras</th></tr></thead>
+        <tbody>${depList.slice().reverse().slice(0,60).map(d=>`<tr>
+          <td>${_dmy(d.data)}</td>
+          <td style="text-align:right">${fmt(d.suma)}</td>
+          <td><span class="badge badge-info">${_depPerioada(d.data)}</span></td>
+          <td style="font-size:11.5px;color:var(--text-muted)">${escapeHtml(d.descriere||'')}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+      ${depList.length>60?`<p style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Se afișează cele mai recente 60 de depuneri din ${depList.length} (total).</p>`:''}
+    </div>`:''}`;
 }
 
 async function importCashCard(event){
@@ -8590,9 +8617,10 @@ async function updateDepuneriCont003(){
   try{
     toast('Calculez depunerile din extrase...');
     const tx=await idbBankGetAll();
-    const months={};
-    (tx||[]).forEach(t=>{ if(String(t.acc||'').includes(CONT003_MATCH) && (t.credit||0)>0 && t.data){ const mon=t.data.slice(0,7); months[mon]=(months[mon]||0)+t.credit; } });
-    DB.depuneriCont003={months, updatedAt:nowISO()};
+    const months={}; const list=[];
+    (tx||[]).forEach(t=>{ if(String(t.acc||'').includes(CONT003_MATCH) && (t.credit||0)>0 && t.data){ const mon=t.data.slice(0,7); months[mon]=(months[mon]||0)+t.credit; list.push({data:t.data, suma:t.credit, descriere:(t.descriere||'').slice(0,60)}); } });
+    list.sort((a,b)=>a.data.localeCompare(b.data));
+    DB.depuneriCont003={months, list, updatedAt:nowISO()};
     save(); renderCashBanca();
     const n=Object.keys(months).length;
     toast(n?('✓ Depuneri actualizate: '+n+' luni'):'Nicio tranzacție pe cont 003 — importă întâi extrasele (Setări → 📥 e:Corg → Extrase bancare).');
