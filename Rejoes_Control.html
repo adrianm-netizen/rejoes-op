@@ -10591,6 +10591,10 @@ function delFurnizor(idx) {
 const USER_COLORS = { ana: '#e91e63', adrian: '#0a1e14', gabi: '#2d6a4f' };
 const USER_AVATAR = { ana: '👤', adrian: '🛡️', gabi: '📦' };
 
+const MSG_EMOJIS = ['😀','😄','😁','😉','😊','🙂','😍','😘','😂','🤣','😅','😎','🤔','😴','😮','😢','😭','😡','😱','🥳','😇','🙄','😬','🤝','👍','👎','👏','🙏','💪','✌️','🤞','👌','✅','❌','⚠️','❓','❗','🔥','💚','❤️','💛','💙','🎉','🎊','📦','🚀','💰','📊','📈','📋','🕐','📅','☕','🌞','🌧️','👋','🤗','😋','🤩','🫶'];
+let _msgAttach = null;       // {type, name, data(base64 dataURL), isImage}
+const _mediaCache = {};      // mediaId -> dataURL
+let _msgById = {};           // id -> text (pt. editare)
 function renderMesaje() {
   if (!window.FB) {
     document.getElementById('content').innerHTML = `
@@ -10614,7 +10618,11 @@ function renderMesaje() {
       <div id="msgList" style="height:60vh;min-height:400px;overflow-y:auto;padding:14px;background:#f4f6f4;display:flex;flex-direction:column;gap:8px">
         <div style="text-align:center;color:var(--text-muted);font-size:12px;padding:20px">Încarc mesajele…</div>
       </div>
-      <div style="background:#fff;border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;align-items:center">
+      <div id="msgEmojiPanel" style="display:none;background:#fff;border-top:1px solid var(--border);padding:8px 12px;font-size:22px;line-height:1.7;max-height:150px;overflow:auto">${MSG_EMOJIS.map(e=>`<span style="cursor:pointer;padding:2px 3px" onclick="insertEmoji('${e}')">${e}</span>`).join('')}</div>
+      <div id="msgAttachPrev" style="display:none;background:#fff;border-top:1px solid var(--border);padding:8px 12px;font-size:12px;color:var(--text-muted)"></div>
+      <div style="background:#fff;border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:6px;align-items:center">
+        <button type="button" onclick="toggleEmoji()" title="Emoji" style="background:none;border:none;font-size:22px;cursor:pointer;padding:0 2px;line-height:1">😀</button>
+        <label title="Atașează poză sau fișier" style="cursor:pointer;font-size:20px;padding:0 2px;line-height:1">📎<input type="file" id="msgFile" accept="image/*,application/pdf,.doc,.docx,.xlsx,.csv" style="display:none" onchange="msgPickFile(event)"></label>
         <input type="text" id="msgInput" placeholder="Scrie un mesaj…" style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:20px;font-size:14px;font-family:inherit" onkeydown="if(event.key==='Enter')sendMessage()">
         <button class="btn btn-primary" onclick="sendMessage()" style="border-radius:20px;padding:8px 18px">Trimite</button>
       </div>
@@ -10705,47 +10713,100 @@ function renderMessages(msgs) {
         ${!isMe?`<div style="width:32px;height:32px;background:${color};color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${avatar}</div>`:''}
         <div style="background:${isMe?'#2d8659':'#fff'};color:${isMe?'#fff':'#0f1d17'};padding:8px 12px;border-radius:14px;${isMe?'border-bottom-right-radius:4px':'border-bottom-left-radius:4px'};box-shadow:0 1px 2px rgba(0,0,0,.06);max-width:100%">
           ${!isMe?`<div style="font-size:11px;font-weight:600;color:${color};margin-bottom:2px">${fromName}</div>`:''}
-          <div style="font-size:14px;word-wrap:break-word;white-space:pre-wrap">${escapeHtml(m.text||'')}</div>
-          <div style="font-size:10px;opacity:.6;margin-top:3px;text-align:right">${time}</div>
+          ${m.media?`<div data-media="${m.media.id}" data-img="${m.media.isImage?1:0}" data-name="${escapeHtml(m.media.name||'fișier')}" style="margin-bottom:4px">${_mediaCache[m.media.id]?_mediaHtml(m.media,_mediaCache[m.media.id]):`<span style="opacity:.6;font-size:12px">📎 ${escapeHtml(m.media.name||'')} — se încarcă…</span>`}</div>`:''}
+          ${m.text?`<div style="font-size:14px;word-wrap:break-word;white-space:pre-wrap">${escapeHtml(m.text)}</div>`:''}
+          <div style="font-size:10px;opacity:.6;margin-top:3px;text-align:right;display:flex;gap:7px;justify-content:flex-end;align-items:center">${m.edited?'<span>(editat)</span>':''}<span>${time}</span>${isMe?`<span style="cursor:pointer" title="Editează" onclick="editMessage('${m.id}')">✎</span><span style="cursor:pointer" title="Șterge" onclick="deleteMessage('${m.id}')">🗑</span>`:''}</div>
         </div>
       </div>`;
   });
   listEl.innerHTML = html;
   listEl.scrollTop = listEl.scrollHeight;
+  _msgById = {}; const _need=[];
+  msgs.forEach(m=>{ _msgById[m.id]=m.text||''; if(m.media && m.media.id && !_mediaCache[m.media.id] && _need.indexOf(m.media.id)<0) _need.push(m.media.id); });
+  _need.forEach(id=>fetchMedia(id));
 }
 
 function escapeHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function sendMessage() {
   const inp = document.getElementById('msgInput');
-  const text = inp.value.trim();
-  if (!text) return;
-  if (!window.FB || !window.FB.db) { toast('⚠ Firebase nu e conectat — F12 pentru detalii'); console.error('FB:', window.FB); return; }
+  const text = inp ? inp.value.trim() : '';
+  if (!text && !_msgAttach) return;
+  if (!window.FB || !window.FB.db) { toast('⚠ Firebase nu e conectat'); return; }
   const me = DB.session.user;
-  console.log('📤 Sending message as', me, ':', text);
-  const messageData = {
-    from: me,
-    fromName: (DB.users[me]||{}).nume || me,
-    text: text,
-    ts: Date.now()
+  const doSend = (mediaRef) => {
+    const messageData = { from: me, fromName: (DB.users[me]||{}).nume || me, text: text, ts: Date.now() };
+    if (mediaRef) messageData.media = mediaRef;
+    try {
+      const newRef = window.FB.db.ref('messages').push(messageData);
+      if (inp) { inp.value = ''; inp.focus(); }
+      _msgAttach = null; showAttachPrev(); const ep=document.getElementById('msgEmojiPanel'); if(ep) ep.style.display='none';
+      newRef.then(() => refreshMessagesOnce()).catch(err => { toast('⚠ Eroare la trimitere'); if(inp) inp.value = text; });
+    } catch(err) { toast('⚠ Excepție la trimitere: ' + err.message); }
   };
-  try {
-    const newRef = window.FB.db.ref('messages').push(messageData);
-    console.log('📤 Push initiated, ref:', newRef.key);
-    inp.value = '';
-    inp.focus();
-    newRef.then(() => {
-      console.log('✓ Message saved to Firebase:', newRef.key);
-      refreshMessagesOnce(); // afișează imediat, fără să aștepte fluxul live
-    }).catch(err => {
-      console.error('✗ Firebase push failed:', err);
-      toast('⚠ Eroare la trimitere: ' + (err && err.message ? err.message : 'unknown') + ' — F12 pentru detalii');
-      inp.value = text;
-    });
-  } catch(err) {
-    console.error('✗ sendMessage exception:', err);
-    toast('⚠ Excepție la trimitere: ' + err.message);
-  }
+  if (_msgAttach) {
+    const att = _msgAttach;
+    try {
+      const mRef = window.FB.db.ref('media').push({ data: att.data, type: att.type, name: att.name, ts: Date.now() });
+      _mediaCache[mRef.key] = att.data; // deja îl avem local
+      mRef.then(() => doSend({ id: mRef.key, type: att.type, name: att.name, isImage: att.isImage }))
+          .catch(() => toast('⚠ Eroare la atașare'));
+    } catch(e){ toast('⚠ Eroare la atașare'); }
+  } else { doSend(null); }
+}
+// ---- Emoji ----
+function toggleEmoji(){ const p=document.getElementById('msgEmojiPanel'); if(p) p.style.display = p.style.display==='none' ? 'block':'none'; }
+function insertEmoji(e){ const inp=document.getElementById('msgInput'); if(!inp) return; const s=inp.selectionStart??inp.value.length, en=inp.selectionEnd??inp.value.length; inp.value=inp.value.slice(0,s)+e+inp.value.slice(en); inp.focus(); const pos=s+e.length; try{ inp.setSelectionRange(pos,pos); }catch(_){} }
+// ---- Atașament (poză comprimată / fișier mic) ----
+function msgPickFile(ev){
+  const f=ev.target.files&&ev.target.files[0]; ev.target.value=''; if(!f) return;
+  const isImg=/^image\//.test(f.type);
+  if(!isImg && f.size > 500*1024){ toast('Fișierul e prea mare (max 500 KB pentru documente). Pozele se comprimă automat.'); return; }
+  if(isImg){ _compressImage(f, (dataUrl)=>{ _msgAttach={type:'image/jpeg', name:(f.name||'poza')+'.jpg', data:dataUrl, isImage:true}; showAttachPrev(); }); }
+  else { const r=new FileReader(); r.onload=()=>{ _msgAttach={type:f.type||'application/octet-stream', name:f.name||'fisier', data:r.result, isImage:false}; showAttachPrev(); }; r.onerror=()=>toast('Nu pot citi fișierul'); r.readAsDataURL(f); }
+}
+function _compressImage(file, cb){
+  const img=new Image(); const url=URL.createObjectURL(file);
+  img.onload=()=>{ const max=1100; let w=img.width, h=img.height; if(w>max||h>max){ if(w>=h){ h=Math.round(h*max/w); w=max; } else { w=Math.round(w*max/h); h=max; } } const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); URL.revokeObjectURL(url); try{ cb(c.toDataURL('image/jpeg',0.6)); }catch(e){ toast('Nu pot procesa imaginea'); } };
+  img.onerror=()=>{ URL.revokeObjectURL(url); toast('Nu pot citi imaginea'); }; img.src=url;
+}
+function showAttachPrev(){ const p=document.getElementById('msgAttachPrev'); if(!p) return; if(!_msgAttach){ p.style.display='none'; p.innerHTML=''; return; } p.style.display='block'; p.innerHTML=(_msgAttach.isImage?`<img src="${_msgAttach.data}" style="height:46px;border-radius:6px;vertical-align:middle;margin-right:8px">`:`📄 `)+`<b>${escapeHtml(_msgAttach.name)}</b> <button class="btn btn-sm btn-ghost" onclick="_msgAttach=null;showAttachPrev()">× scoate</button>`; }
+// ---- Media: afișare + lazy-load ----
+function _mediaHtml(media, dataUrl){
+  if(media.isImage) return `<img src="${dataUrl}" onclick="openMedia('${media.id}')" style="max-width:200px;max-height:220px;border-radius:8px;cursor:pointer;display:block" title="Click pentru mărire">`;
+  return `<a href="${dataUrl}" download="${escapeHtml(media.name||'fisier')}" style="font-size:13px">📄 ${escapeHtml(media.name||'fișier')} (descarcă)</a>`;
+}
+function openMedia(id){ const d=_mediaCache[id]; if(!d) return; const w=window.open(''); if(w){ w.document.write('<title>Imagine</title><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;height:100vh"><img src="'+d+'" style="max-width:100%;max-height:100%"></body>'); w.document.close(); } }
+async function fetchMedia(id){
+  if(_mediaCache[id]) { patchMedia(id); return; }
+  if(!window.FB || !window.FB.db) return;
+  try{
+    let token=''; try{ if(window.FB.auth && window.FB.auth.currentUser) token=await window.FB.auth.currentUser.getIdToken(); }catch(e){}
+    const base='https://rejoes-op-default-rtdb.europe-west1.firebasedatabase.app/media/'+id+'.json';
+    const resp=await fetch(base+(token?('?auth='+encodeURIComponent(token)):''), {cache:'no-store'});
+    if(!resp.ok) return; const v=await resp.json(); if(v && v.data){ _mediaCache[id]=v.data; patchMedia(id, v); }
+  }catch(e){}
+}
+function patchMedia(id, v){
+  document.querySelectorAll('[data-media="'+id+'"]').forEach(el=>{
+    const media={ id, isImage: el.getAttribute('data-img')==='1', name: el.getAttribute('data-name') };
+    if(_mediaCache[id]) el.innerHTML=_mediaHtml(media, _mediaCache[id]);
+  });
+  const lst=document.getElementById('msgList'); if(lst) lst.scrollTop=lst.scrollHeight;
+}
+// ---- Editare / ștergere mesaj propriu ----
+function editMessage(id){
+  if(!window.FB || !window.FB.db) return;
+  const cur=_msgById[id]||'';
+  const t=prompt('Editează mesajul:', cur);
+  if(t===null) return; const nt=t.trim(); if(!nt){ toast('Mesajul nu poate fi gol (folosește 🗑 pentru ștergere).'); return; }
+  if(nt===cur) return;
+  window.FB.db.ref('messages/'+id).update({ text:nt, edited:true, editedTs:Date.now() }).then(()=>refreshMessagesOnce()).catch(()=>toast('⚠ Nu am putut edita'));
+}
+function deleteMessage(id){
+  if(!window.FB || !window.FB.db) return;
+  if(!confirm('Ștergi mesajul?')) return;
+  window.FB.db.ref('messages/'+id).remove().then(()=>refreshMessagesOnce()).catch(()=>toast('⚠ Nu am putut șterge'));
 }
 
 // Listen for new messages globally (to toast + notify when not on Mesaje view)
