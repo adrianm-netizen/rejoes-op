@@ -1725,13 +1725,79 @@ function renderInventar() {
         <div class="tab ${inventarTab==='verificari'?'active':''}" onclick="inventarTab='verificari';renderInventar()">📋 Verificări stoc <span style="background:var(--accent);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${(DB.inventar||[]).length}</span></div>
         <div class="tab ${inventarTab==='programari'?'active':''}" onclick="inventarTab='programari';renderInventar()">📅 Programări ${scadenteN>0?`<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${scadenteN} scadente</span>`:`<span style="background:var(--accent);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${(DB.verificariProgramate||[]).length}</span>`}</div>
         <div class="tab ${inventarTab==='casari'?'active':''}" onclick="inventarTab='casari';renderInventar()">🔥 Casări ${casariN>0?`<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${casariN}</span>`:''}</div>
+        <div class="tab ${inventarTab==='momentzero'?'active':''}" onclick="inventarTab='momentzero';renderInventar()">📦 Inventar moment-zero ${baselineN>0?`<span style="background:#1b7a3d;color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${baselineN}</span>`:''}</div>
       </div>
     </div>
     <div id="invBody" style="margin-top:14px"></div>
   `;
   if (inventarTab === 'verificari') renderInventarVerificari();
   else if (inventarTab === 'programari') renderInventarProgramari();
+  else if (inventarTab === 'momentzero') renderInventarMomentZero();
   else renderInventarCasari();
+}
+
+// ===== Inventar „moment-zero" — introducere rapidă pe locații (Etapa 17) =====
+let mzLoc = '', mzData = '2026-06-10', mzBatch = [];
+function renderInventarMomentZero(){
+  const body=document.getElementById('invBody'); if(!body) return;
+  const locuri=DB.magazine.filter(m=>m.status==='Activ');
+  if(!mzLoc) mzLoc=(locuri.find(m=>m.tip!=='Depozit')||locuri[0]||{}).id||'';
+  // status pe locații (câte au moment-zero salvat)
+  const mzByLoc={}; (DB.inventar||[]).filter(it=>it.momentZero).forEach(it=>{ mzByLoc[it.magazin]=(mzByLoc[it.magazin]||0)+1; });
+  const totBuc=mzBatch.reduce((s,b)=>s+(+b.buc||0),0);
+  const totVal=mzBatch.reduce((s,b)=>s+(+b.buc||0)*(+b.val||0),0);
+  body.innerHTML=`
+    <div class="card" style="background:linear-gradient(135deg,rgba(80,200,120,.10),rgba(80,160,255,.06));border:1px solid rgba(120,200,150,.25)">
+      <h3 style="margin:0 0 4px">📦 Inventar de pornire („moment-zero")</h3>
+      <p style="margin:0 0 10px;color:var(--text-muted);font-size:13px">Aici introduci stocul faptic numărat pe 10 iunie, pe fiecare locație. Alegi locația, tastezi produsul + bucățile (+ prețul, dacă îl știi) și apeși Enter. Repede, rând cu rând. La final apeși „Salvează".</p>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-field"><label>Locație</label><select id="mzLocSel" onchange="mzLoc=this.value;renderInventarMomentZero()">${locuri.map(m=>`<option value="${m.id}" ${m.id===mzLoc?'selected':''}>${m.id} ${m.nume}${mzByLoc[m.id]?' ✓':''}</option>`).join('')}</select></div>
+        <div class="form-field"><label>Data inventarului</label><input type="date" id="mzDataInp" value="${mzData}" onchange="mzData=this.value"></div>
+        <div class="form-field" style="flex:2"><small style="color:var(--text-muted)">Locații cu moment-zero salvat: ${Object.keys(mzByLoc).length}/${locuri.length}. ${mzByLoc[mzLoc]?`<b style="color:#1b7a3d">${mag(mzLoc)} are deja ${mzByLoc[mzLoc]} articole salvate</b> (cele noi se adaugă).`:'Această locație nu are încă moment-zero.'}</small></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 8px">➕ Adaugă rapid — ${escapeHtml(mag(mzLoc))}</h3>
+      <datalist id="mzSkuList">${(DB.nomenclator||[]).slice(0,2000).map(p=>`<option value="${escapeHtml(p.denumire||'')}">`).join('')}</datalist>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-field" style="flex:3"><label>Produs / SKU</label><input type="text" id="mzSku" list="mzSkuList" placeholder="ex: Tricou B" autocomplete="off" onkeydown="if(event.key==='Enter')mzAdd()"></div>
+        <div class="form-field"><label>Bucăți</label><input type="number" id="mzBuc" min="0" placeholder="0" onkeydown="if(event.key==='Enter')mzAdd()"></div>
+        <div class="form-field"><label>Preț/buc (opțional)</label><input type="number" step="0.01" id="mzVal" placeholder="0" onkeydown="if(event.key==='Enter')mzAdd()"></div>
+        <div class="form-field" style="flex:0"><button class="btn btn-primary" onclick="mzAdd()">+ Adaugă</button></div>
+      </div>
+      <p style="font-size:11.5px;color:var(--text-muted);margin:4px 0 0">💡 După „Adaugă" cursorul revine la Produs — tastezi următorul și tot așa. Enter merge la fel ca butonul.</p>
+    </div>
+
+    <div class="card">
+      <div class="section-head"><h3>📝 De salvat pentru ${escapeHtml(mag(mzLoc))} (${mzBatch.length} articole · ${totBuc} buc${totVal>0?` · ${fmt(totVal)} lei`:''})</h3>
+        <div class="toolbar">${mzBatch.length?`<button class="btn btn-sm btn-ghost" onclick="if(confirm('Golești lista neselectată?')){mzBatch=[];renderInventarMomentZero();}">Golește</button><button class="btn btn-sm btn-primary" onclick="mzSave()">💾 Salvează în inventar</button>`:''}</div>
+      </div>
+      ${mzBatch.length===0?`<div class="empty"><h4>Listă goală</h4><p>Adaugă produse mai sus. Se salvează abia când apeși „Salvează".</p></div>`:
+      `<div class="table-wrap"><table><thead><tr><th>#</th><th>Produs / SKU</th><th class="num">Bucăți</th><th class="num">Preț/buc</th><th class="num">Valoare</th><th></th></tr></thead>
+        <tbody>${mzBatch.slice().reverse().map((b,ri)=>{ const i=mzBatch.length-1-ri; return `<tr>
+          <td>${i+1}</td><td>${escapeHtml(b.sku)}</td><td class="num">${b.buc}</td><td class="num">${b.val?fmt(b.val):'—'}</td><td class="num">${b.val?fmt(b.buc*b.val):'—'}</td>
+          <td><button class="btn btn-sm btn-ghost" onclick="mzDelBatch(${i})">×</button></td>
+        </tr>`;}).join('')}</tbody></table></div>`}
+    </div>`;
+}
+function mzAdd(){
+  const skuEl=document.getElementById('mzSku'), bucEl=document.getElementById('mzBuc'), valEl=document.getElementById('mzVal');
+  const sku=(skuEl?skuEl.value:'').trim(); const buc=parseInt(bucEl?bucEl.value:'')||0; const val=parseFloat(valEl?valEl.value:'')||0;
+  if(!sku){ if(skuEl) skuEl.focus(); toast('Scrie produsul'); return; }
+  if(buc<=0){ if(bucEl) bucEl.focus(); toast('Pune bucățile'); return; }
+  mzBatch.push({sku, buc, val});
+  renderInventarMomentZero();
+  setTimeout(()=>{ const s=document.getElementById('mzSku'); if(s) s.focus(); }, 30);
+}
+function mzDelBatch(i){ mzBatch.splice(i,1); renderInventarMomentZero(); }
+function mzSave(){
+  if(!mzBatch.length){ toast('Nimic de salvat'); return; }
+  const loc=mzLoc, data=mzData; const tip = loc==='DEP-001'?'depozit':'magazin';
+  if(!confirm(`Salvez ${mzBatch.length} articole ca inventar moment-zero pentru ${mag(loc)}, la data ${data}? (cele existente rămân; acestea se adaugă)`)) return;
+  if(!DB.inventar) DB.inventar=[];
+  let i=0; mzBatch.forEach(b=>{ DB.inventar.push({ data, magazin:loc, sku:b.sku, stocDeclarat:b.buc, stocReal:b.buc, diferenta:0, valUnit:b.val||0, impact:0, status:'baseline', momentZero:true, tip, autor:DB.session.user, salvatLa:nowISO(), idGen:'INV-MZ-'+Date.now()+'-'+(i++) }); });
+  save(); const n=mzBatch.length; mzBatch=[]; renderInventarMomentZero(); toast(`✓ ${n} articole salvate pentru ${mag(loc)} (moment-zero)`);
 }
 
 function renderInventarVerificari() {
