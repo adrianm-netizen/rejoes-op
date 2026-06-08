@@ -1750,7 +1750,8 @@ function renderInventarMomentZero(){
   const locuri=DB.magazine.filter(m=>m.status==='Activ');
   if(!mzLoc) mzLoc=(locuri.find(m=>m.tip!=='Depozit')||locuri[0]||{}).id||'';
   // status pe locații (câte au moment-zero salvat)
-  const mzByLoc={}; (DB.inventar||[]).filter(it=>it.momentZero).forEach(it=>{ mzByLoc[it.magazin]=(mzByLoc[it.magazin]||0)+1; });
+  // progresul numără DOAR numărătoarea reală (nu importul vechi de aprilie INV-BASE-)
+  const mzByLoc={}; (DB.inventar||[]).filter(it=>it.momentZero && !(it.idGen||'').startsWith('INV-BASE-')).forEach(it=>{ mzByLoc[it.magazin]=(mzByLoc[it.magazin]||0)+1; });
   const totBuc=mzBatch.reduce((s,b)=>s+(+b.buc||0),0);
   const totVal=mzBatch.reduce((s,b)=>s+(+b.buc||0)*(+b.val||0),0);
   // Lista a ce e DEJA salvat pe locația aleasă — ca fetele să-și vadă munca pe loc (nu doar un contor)
@@ -8891,7 +8892,7 @@ function _depPerioada(iso){
   if(d<=20) return 'Decada I '+_LUNI_NUM[mo]+' '+y;                                       // 11-20 → cash din decada I (1-10) luna curentă
   return 'Decada II '+_LUNI_NUM[mo]+' '+y;                                                // 21-31 → cash din decada II (11-20) luna curentă
 }
-function _dmy(iso){ const p=(iso||'').split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):iso; }
+function _dmy(iso){ const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m?(m[3]+'/'+m[2]+'/'+m[1]):(iso||''); }
 
 function renderCashBanca(){
   const cm=(DB.cashIncasari&&DB.cashIncasari.months)||{};
@@ -13236,6 +13237,55 @@ try {
 
 // Etapa 11C — auto-restaurare din cloud la pornire dacă local e gol (profil gestionat șterge datele)
 setTimeout(() => { try { autoRestoreIfEmpty(); } catch(e){} }, 2000);
+
+// ===== Format dată România (dd/mm/yyyy) PESTE TOT, dintr-un singur loc =====
+// Orice dată afișată ca text în format ISO (2026-06-08) sau ISO+oră devine 08/06/2026.
+// Calendarele <input type=date> își iau formatul din limba browserului (nu se poate schimba din cod) —
+// de aceea punem lângă fiecare un indiciu „🗓️ dd/mm/yyyy" ca să nu fie confuzie.
+function _fmtDateNode(n){ if(n && n.nodeValue && /\d{4}-\d{2}-\d{2}/.test(n.nodeValue)){ n.nodeValue = n.nodeValue.replace(/(\d{4})-(\d{2})-(\d{2})/g,'$3/$2/$1'); } }
+function formatDatesIn(root){
+  if(!root) return;
+  if(root.nodeType===3){ _fmtDateNode(root); return; }
+  if(!root.querySelectorAll) return;
+  try{
+    const walker=document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode(n){
+      const p=n.parentNode; if(!p) return NodeFilter.FILTER_REJECT;
+      const t=p.nodeName; if(t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||t==='INPUT'||t==='OPTION') return NodeFilter.FILTER_REJECT;
+      return /\d{4}-\d{2}-\d{2}/.test(n.nodeValue)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_REJECT;
+    }});
+    const hits=[]; let nd; while(nd=walker.nextNode()) hits.push(nd);
+    hits.forEach(_fmtDateNode);
+  }catch(e){}
+}
+function addDateHints(root){
+  if(!root || !root.querySelectorAll) return;
+  try{
+    root.querySelectorAll('input[type=date]').forEach(inp=>{
+      if(inp.dataset.roHint) return;
+      inp.dataset.roHint='1';
+      const span=document.createElement('span');
+      span.className='ro-date-hint';
+      span.style.cssText='font-size:11px;color:#1b7a3d;font-weight:600;margin-left:6px;white-space:nowrap';
+      const upd=()=>{ span.textContent = inp.value ? ('🗓️ '+_dmy(inp.value)) : ''; };
+      upd(); inp.addEventListener('change',upd); inp.addEventListener('input',upd);
+      if(inp.parentNode) inp.parentNode.insertBefore(span, inp.nextSibling);
+    });
+  }catch(e){}
+}
+(function setupDateRoFormatter(){
+  try{
+    const targets=['content','modal'].map(id=>document.getElementById(id)).filter(Boolean);
+    const obs=new MutationObserver(muts=>{
+      for(const m of muts){
+        m.addedNodes && m.addedNodes.forEach(node=>{
+          if(node.nodeType===1){ formatDatesIn(node); addDateHints(node); }
+          else if(node.nodeType===3){ _fmtDateNode(node); }
+        });
+      }
+    });
+    targets.forEach(t=>{ obs.observe(t,{childList:true,subtree:true}); formatDatesIn(t); addDateHints(t); });
+  }catch(e){}
+})();
 
 if (DB.session && DB.session.user && DB.users[DB.session.user]) {
   document.getElementById('loginScreen').style.display = 'none';
