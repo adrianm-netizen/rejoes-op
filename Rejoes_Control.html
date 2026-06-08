@@ -1676,7 +1676,12 @@ function inventarFiltrat() {
   const q = (invFilterSku||'').toLowerCase();
   return DB.inventar.filter(it =>
     (!invFilterMag || it.magazin === invFilterMag) &&
-    (!invFilterTip || (invFilterTip==='baseline' ? it.momentZero : !it.momentZero)) &&
+    (!invFilterTip || (
+      invFilterTip==='baseline' ? it.momentZero :
+      invFilterTip==='aprilie'  ? (it.momentZero && (it.idGen||'').startsWith('INV-BASE-')) :
+      invFilterTip==='numarat'  ? (it.momentZero && !(it.idGen||'').startsWith('INV-BASE-')) :
+      !it.momentZero
+    )) &&
     (!q || (it.sku||'').toLowerCase().includes(q))
   );
 }
@@ -1748,19 +1753,40 @@ function renderInventarMomentZero(){
   const mzByLoc={}; (DB.inventar||[]).filter(it=>it.momentZero).forEach(it=>{ mzByLoc[it.magazin]=(mzByLoc[it.magazin]||0)+1; });
   const totBuc=mzBatch.reduce((s,b)=>s+(+b.buc||0),0);
   const totVal=mzBatch.reduce((s,b)=>s+(+b.buc||0)*(+b.val||0),0);
+  // Lista a ce e DEJA salvat pe locația aleasă — ca fetele să-și vadă munca pe loc (nu doar un contor)
+  const mzSavedAll=(DB.inventar||[]).filter(it=>it.momentZero && it.magazin===mzLoc);
+  const mzApr=mzSavedAll.filter(it=>(it.idGen||'').startsWith('INV-BASE-'));    // import vechi (aprilie) — orientativ
+  const mzSaved=mzSavedAll.filter(it=>!(it.idGen||'').startsWith('INV-BASE-')); // numărate ACUM (real)
+  const mzSavedBuc=mzSaved.reduce((s,it)=>s+(+it.stocReal||0),0);
+  const mzSavedVal=mzSaved.reduce((s,it)=>s+(+it.stocReal||0)*(+it.valUnit||0),0);
+  const mzSavedNoPrice=mzSaved.filter(it=>!(+it.valUnit>0)).length;
+  const mzSavedCard=`
+    <div class="card">
+      <div class="section-head"><h3>✅ Numărat acum pe ${escapeHtml(mag(mzLoc))} (${mzSaved.length} articole · ${mzSavedBuc} buc${mzSavedVal>0?` · ${fmt(mzSavedVal)} lei`:''})</h3></div>
+      ${mzApr.length?`<p style="margin:0 0 8px;font-size:12px;color:var(--text-muted);background:#f3f4f6;border:1px solid #e3e6ea;padding:6px 10px;border-radius:8px">📦 Separat: ${mzApr.length} articole din importul vechi (aprilie) — orientative, NU sunt în totalul de mai sus. Le vezi în „Verificări stoc" cu eticheta „import aprilie".</p>`:''}
+      ${mzSavedNoPrice>0?`<p style="margin:0 0 8px;font-size:12.5px;color:#8a5a00;background:#fff7e6;border:1px solid #ffe0a3;padding:6px 10px;border-radius:8px">⚠️ ${mzSavedNoPrice} articole fără preț — scrie prețul minim (de pe etichetă) în coloana „Preț/buc", ca inventarul să aibă valoare în lei.</p>`:''}
+      ${mzSaved.length===0?`<div class="empty"><h4>Încă nimic salvat aici</h4><p>Articolele apar aici imediat ce apeși „Salvează în inventar".</p></div>`:
+      `<div class="table-wrap"><table><thead><tr><th>Data</th><th>Produs / SKU</th><th class="num">Bucăți</th><th class="num">Preț/buc</th><th class="num">Valoare</th><th></th></tr></thead>
+        <tbody>${mzSaved.slice().reverse().map(it=>`<tr>
+          <td>${it.data||''}</td><td>${escapeHtml(it.sku||'')}</td><td class="num">${it.stocReal}</td>
+          <td class="num"><input type="number" step="0.01" value="${(+it.valUnit>0)?it.valUnit:''}" placeholder="—" style="width:84px;text-align:right;padding:3px 6px" onchange="mzSetSavedPrice('${it.idGen}',this.value)"></td>
+          <td class="num">${(+it.valUnit>0)?fmt((+it.stocReal||0)*(+it.valUnit)):'—'}</td>
+          <td><button class="btn btn-sm btn-ghost" title="Șterge articolul" onclick="mzDelSaved('${it.idGen}')">×</button></td>
+        </tr>`).join('')}</tbody></table></div>`}
+    </div>`;
   body.innerHTML=`
     <div class="card" style="background:linear-gradient(135deg,rgba(80,200,120,.10),rgba(80,160,255,.06));border:1px solid rgba(120,200,150,.25)">
       <h3 style="margin:0 0 4px">📦 Inventar de pornire („moment-zero")</h3>
       <p style="margin:0 0 10px;color:var(--text-muted);font-size:13px">Aici introduci stocul faptic numărat pe 10 iunie, pe fiecare locație. Alegi locația, tastezi produsul + bucățile (+ prețul, dacă îl știi) și apeși Enter. Repede, rând cu rând. La final apeși „Salvează".</p>
       <div class="form-row" style="align-items:flex-end">
         <div class="form-field"><label>Locație</label><select id="mzLocSel" onchange="mzLoc=this.value;renderInventarMomentZero()">${locuri.map(m=>`<option value="${m.id}" ${m.id===mzLoc?'selected':''}>${m.id} ${m.nume}${mzByLoc[m.id]?' ✓':''}</option>`).join('')}</select></div>
-        <div class="form-field"><label>Data inventarului</label><input type="date" id="mzDataInp" value="${mzData}" onchange="mzData=this.value"></div>
+        <div class="form-field"><label>Data inventarului <span style="color:#1b7a3d">●</span></label><input type="date" id="mzDataInp" value="${mzData}" onchange="mzData=this.value;renderInventarMomentZero()" style="border:1.5px solid #2d8659;font-weight:600"></div>
         <div class="form-field" style="flex:2"><small style="color:var(--text-muted)">Locații cu moment-zero salvat: ${Object.keys(mzByLoc).length}/${locuri.length}. ${mzByLoc[mzLoc]?`<b style="color:#1b7a3d">${mag(mzLoc)} are deja ${mzByLoc[mzLoc]} articole salvate</b> (cele noi se adaugă).`:'Această locație nu are încă moment-zero.'}</small></div>
       </div>
     </div>
 
     <div class="card">
-      <h3 style="margin:0 0 8px">➕ Adaugă rapid — ${escapeHtml(mag(mzLoc))}</h3>
+      <h3 style="margin:0 0 8px">➕ Adaugă rapid — ${escapeHtml(mag(mzLoc))} <span style="font-weight:500;font-size:13px;color:var(--text-muted)">· data: <b style="color:#1b7a3d">${mzData}</b></span></h3>
       <datalist id="mzSkuList">${(DB.nomenclator||[]).slice(0,2000).map(p=>`<option value="${escapeHtml(p.denumire||'')}">`).join('')}</datalist>
       <div class="form-row" style="align-items:flex-end">
         <div class="form-field" style="flex:3"><label>Produs / SKU</label><input type="text" id="mzSku" list="mzSkuList" placeholder="ex: Tricou B" autocomplete="off" onkeydown="if(event.key==='Enter')mzAdd()"></div>
@@ -1781,7 +1807,8 @@ function renderInventarMomentZero(){
           <td>${i+1}</td><td>${escapeHtml(b.sku)}</td><td class="num">${b.buc}</td><td class="num">${b.val?fmt(b.val):'—'}</td><td class="num">${b.val?fmt(b.buc*b.val):'—'}</td>
           <td><button class="btn btn-sm btn-ghost" onclick="mzDelBatch(${i})">×</button></td>
         </tr>`;}).join('')}</tbody></table></div>`}
-    </div>`;
+    </div>
+    ${mzSavedCard}`;
 }
 function mzAdd(){
   const skuEl=document.getElementById('mzSku'), bucEl=document.getElementById('mzBuc'), valEl=document.getElementById('mzVal');
@@ -1801,6 +1828,17 @@ function mzSave(){
   if(!DB.inventar) DB.inventar=[];
   let i=0; mzBatch.forEach(b=>{ DB.inventar.push({ data, magazin:loc, sku:b.sku, stocDeclarat:b.buc, stocReal:b.buc, diferenta:0, valUnit:b.val||0, impact:0, status:'baseline', momentZero:true, tip, autor:DB.session.user, salvatLa:nowISO(), idGen:'INV-MZ-'+Date.now()+'-'+(i++) }); });
   save(); const n=mzBatch.length; mzBatch=[]; renderInventarMomentZero(); toast(`✓ ${n} articole salvate pentru ${mag(loc)} (moment-zero)`);
+}
+function mzDelSaved(idGen){
+  const i=(DB.inventar||[]).findIndex(it=>it.idGen===idGen);
+  if(i<0){ toast('Nu am găsit articolul'); return; }
+  const it=DB.inventar[i];
+  if(!confirm(`Ștergi „${it.sku}" (${it.stocReal} buc) din inventarul salvat?`)) return;
+  DB.inventar.splice(i,1); save(); renderInventarMomentZero(); toast('✓ Șters');
+}
+function mzSetSavedPrice(idGen,val){
+  const it=(DB.inventar||[]).find(x=>x.idGen===idGen); if(!it) return;
+  const v=parseFloat(val)||0; it.valUnit=v; it.impact=(it.diferenta||0)*v; save(); renderInventarMomentZero();
 }
 
 function renderInventarVerificari() {
@@ -1826,7 +1864,9 @@ function renderInventarVerificari() {
         </select>
         <select onchange="invFilterTip=this.value;renderInventar()" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px">
           <option value="">Toate tipurile</option>
-          <option value="baseline" ${invFilterTip==='baseline'?'selected':''}>Doar baseline</option>
+          <option value="baseline" ${invFilterTip==='baseline'?'selected':''}>Doar baseline (tot)</option>
+          <option value="numarat" ${invFilterTip==='numarat'?'selected':''}>Doar numărat 10 iun</option>
+          <option value="aprilie" ${invFilterTip==='aprilie'?'selected':''}>Doar import aprilie</option>
           <option value="verificare" ${invFilterTip==='verificare'?'selected':''}>Doar verificări</option>
         </select>
         <input type="text" placeholder="🔍 SKU/produs..." oninput="invFilterSku=this.value;renderInventar()" value="${invFilterSku||''}" style="flex:1;min-width:160px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px">
@@ -1841,7 +1881,7 @@ function renderInventarVerificari() {
             <td class="num">${it.stocDeclarat||0}</td><td class="num">${it.stocReal||0}</td>
             <td class="num" style="color:${(it.diferenta||0)===0?'var(--success)':'var(--danger)'}">${it.diferenta||0}</td>
             <td class="num">${it.valUnit?fmt(it.valUnit):'—'}</td>
-            <td>${it.momentZero?'<span class="badge badge-ok" style="font-size:9px">📦 baseline</span>':(it.tip==='depozit'?'<span class="badge badge-info" style="font-size:9px">depozit</span>':'<span class="badge badge-neutral" style="font-size:9px">verificare</span>')}</td>
+            <td>${it.momentZero?((it.idGen||'').startsWith('INV-BASE-')?'<span class="badge" style="font-size:9px;background:#fff3e0;color:#8a5a00;border:1px solid #ffd9a0">📦 import aprilie</span>':'<span class="badge badge-ok" style="font-size:9px">📦 numărat 10 iun</span>'):(it.tip==='depozit'?'<span class="badge badge-info" style="font-size:9px">depozit</span>':'<span class="badge badge-neutral" style="font-size:9px">verificare</span>')}</td>
             <td><button class="btn btn-sm btn-ghost" onclick="editInv(${idx})">✎</button><button class="btn btn-sm btn-ghost" onclick="delInv(${idx})">×</button></td>
           </tr>`;
         }).join('')}</tbody>
