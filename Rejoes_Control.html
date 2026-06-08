@@ -1763,7 +1763,7 @@ function renderInventarMomentZero(){
       <div class="form-row" style="align-items:flex-end">
         <div class="form-field" style="flex:3"><label>Produs / SKU</label><input type="text" id="mzSku" list="mzSkuList" placeholder="ex: Tricou B" autocomplete="off" onkeydown="if(event.key==='Enter')mzAdd()"></div>
         <div class="form-field"><label>Bucăți</label><input type="number" id="mzBuc" min="0" placeholder="0" onkeydown="if(event.key==='Enter')mzAdd()"></div>
-        <div class="form-field"><label>Preț/buc (opțional)</label><input type="number" step="0.01" id="mzVal" placeholder="0" onkeydown="if(event.key==='Enter')mzAdd()"></div>
+        <div class="form-field"><label>Preț/buc <span style="color:#1b7a3d">(recomandat)</span></label><input type="number" step="0.01" id="mzVal" placeholder="preț minim de pe etichetă" onkeydown="if(event.key==='Enter')mzAdd()"></div>
         <div class="form-field" style="flex:0"><button class="btn btn-primary" onclick="mzAdd()">+ Adaugă</button></div>
       </div>
       <p style="font-size:11.5px;color:var(--text-muted);margin:4px 0 0">💡 După „Adaugă" cursorul revine la Produs — tastezi următorul și tot așa. Enter merge la fel ca butonul.</p>
@@ -1786,6 +1786,7 @@ function mzAdd(){
   const sku=(skuEl?skuEl.value:'').trim(); const buc=parseInt(bucEl?bucEl.value:'')||0; const val=parseFloat(valEl?valEl.value:'')||0;
   if(!sku){ if(skuEl) skuEl.focus(); toast('Scrie produsul'); return; }
   if(buc<=0){ if(bucEl) bucEl.focus(); toast('Pune bucățile'); return; }
+  if(val<=0){ if(!confirm(`Adaugi „${sku}" fără preț?\n\nE recomandat să pui prețul minim (de pe etichetă) — altfel valoarea inventarului nu va fi corectă.`)){ if(valEl) valEl.focus(); return; } }
   mzBatch.push({sku, buc, val});
   renderInventarMomentZero();
   setTimeout(()=>{ const s=document.getElementById('mzSku'); if(s) s.focus(); }, 30);
