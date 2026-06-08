@@ -10664,6 +10664,7 @@ const MSG_EMOJIS = ['😀','😄','😁','😉','😊','🙂','😍','😘','�
 let _msgAttach = null;       // {type, name, data(base64 dataURL), isImage}
 const _mediaCache = {};      // mediaId -> dataURL
 let _msgById = {};           // id -> text (pt. editare)
+let _lastMsgSig = null;       // semnătura ultimei liste afișate (ca să NU reconstruim degeaba la fiecare 3s)
 function renderMesaje() {
   if (!window.FB) {
     document.getElementById('content').innerHTML = `
@@ -10758,6 +10759,14 @@ function loadMessages() {
 function renderMessages(msgs) {
   const listEl = document.getElementById('msgList');
   if (!listEl) return;
+  // Dacă lista de mesaje e identică (cazul normal la poll-ul de 3s), NU atingem DOM-ul deloc →
+  // derularea rămâne fix unde a lăsat-o utilizatorul, fără salt.
+  const _sig = msgs.map(m => m.id + ':' + (m.ts||0) + ':' + (m.text||'') + ':' + (m.edited?1:0) + ':' + ((m.media&&m.media.id)||'')).join('|');
+  if (_sig === _lastMsgSig) return;
+  _lastMsgSig = _sig;
+  // La schimbare reală: nu sări automat jos dacă utilizatorul a derulat în sus să citească istoricul.
+  const _wasNearBottom = (listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight) < 120;
+  const _prevScroll = listEl.scrollTop;
   if (msgs.length === 0) {
     listEl.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:40px">Niciun mesaj încă. Scrie primul!</div>`;
     return;
@@ -10789,7 +10798,7 @@ function renderMessages(msgs) {
       </div>`;
   });
   listEl.innerHTML = html;
-  listEl.scrollTop = listEl.scrollHeight;
+  if (_wasNearBottom) listEl.scrollTop = listEl.scrollHeight; else listEl.scrollTop = _prevScroll;
   _msgById = {}; const _need=[];
   msgs.forEach(m=>{ _msgById[m.id]=m.text||''; if(m.media && m.media.id && !_mediaCache[m.media.id] && _need.indexOf(m.media.id)<0) _need.push(m.media.id); });
   _need.forEach(id=>fetchMedia(id));
@@ -10861,7 +10870,7 @@ function patchMedia(id, v){
     const media={ id, isImage: el.getAttribute('data-img')==='1', name: el.getAttribute('data-name') };
     if(_mediaCache[id]) el.innerHTML=_mediaHtml(media, _mediaCache[id]);
   });
-  const lst=document.getElementById('msgList'); if(lst) lst.scrollTop=lst.scrollHeight;
+  const lst=document.getElementById('msgList'); if(lst && (lst.scrollHeight - lst.scrollTop - lst.clientHeight) < 150) lst.scrollTop=lst.scrollHeight;
 }
 // ---- Editare / ștergere mesaj propriu ----
 function editMessage(id){
