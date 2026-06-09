@@ -1373,7 +1373,7 @@ function renderRaportare() {
   const _delta=(cur,prev)=>{ if(!prev) return ''; const p=Math.round((cur-prev)/prev*1000)/10; return `<span style="color:${p>=0?'#0a7d3b':'#dc2626'};font-size:11px"> (${p>=0?'+':''}${p}%)</span>`; };
   const rapZile=new Set(rapList.map(o=>o.r.data)).size;
   const rapBonMed = rapTotB>0 ? rapTotV/rapTotB : 0;
-  const rapShown=rapList.slice(0,400);
+  const rapShown=rapList.slice(0,3000);
   document.getElementById('content').innerHTML = `
     ${!readOnly ? `<div class="card">
       <div class="section-head"><h3>Adaugă raportare zilnică</h3></div>
