@@ -83,6 +83,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="import_raportari_ana.js"></script>
+<script src="import_raportari_istoric.js"></script>
 <!-- Etapa 14 — generatorul CIM (V7) e găzduit ca fișier separat (generator_cim.html) și afișat în iframe în secțiunea RH -->
 
 <style>
@@ -1407,7 +1408,7 @@ function renderRaportare() {
 
     <div class="card">
       <div class="section-head"><h3>📊 Raport analitic — încasări</h3>
-        <div class="toolbar">${isAdmin()?`<button class="btn btn-sm" style="background:#2d8659;color:#fff;border-color:#2d8659" onclick="if(typeof importRaportariAna==='function'){importRaportariAna()}else{toast('Încarcă și import_raportari_ana.js pe GitHub')}">📥 Import Excel Ana</button><button class="btn btn-sm" onclick="curatRaportariDup()">🧹 Curăță duplicate</button>`:''}<button class="btn btn-sm" onclick="exportRap()">📥 Export</button></div>
+        <div class="toolbar">${isAdmin()?`<button class="btn btn-sm" style="background:#2d8659;color:#fff;border-color:#2d8659" onclick="if(typeof importRaportariAna==='function'){importRaportariAna()}else{toast('Încarcă și import_raportari_ana.js pe GitHub')}">📥 Import Excel Ana</button><button class="btn btn-sm" style="background:#1b5e3f;color:#fff;border-color:#1b5e3f" onclick="if(typeof importRaportariIstoric==='function'){importRaportariIstoric()}else{toast('Încarcă import_raportari_istoric.js pe GitHub')}">📥 Import istoric (bonuri)</button><button class="btn btn-sm" onclick="curatRaportariDup()">🧹 Curăță duplicate</button>`:''}<button class="btn btn-sm" onclick="exportRap()">📥 Export</button></div>
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <select class="btn" onchange="rapPMode=this.value;renderRaportare()">
