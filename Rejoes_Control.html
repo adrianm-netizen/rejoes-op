@@ -1021,7 +1021,7 @@ function renderPontaj() {
     .filter(p => p.data>=pFrom && p.data<=pTo)
     .filter(p => pontajFiltruAng==='TOATE' || p.angajat===pontajFiltruAng)
     .sort((a,b) => (b.data||'').localeCompare(a.data||''));
-  const recs = recsAll.slice(0, 1500);
+  const recs = recsAll.slice(0, 5000);
   const _periodLabel = pontajMode==='tot'?'toată perioada':(pontajMode==='custom'?((pontajFrom||'...')+' → '+(pontajTo||'...')):(LUNI_RO[pontajLuna-1]+' '+pontajAn));
   const _byAng={};
   recsAll.forEach(r=>{ const k=r.angajat||'—'; (_byAng[k]=_byAng[k]||{zile:0,ore:0}); if((r.tipZi||'').includes('Lucrat')){ _byAng[k].zile++; _byAng[k].ore+=parseFloat(r.oreLucrate)||0; } });
