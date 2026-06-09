@@ -964,6 +964,17 @@ function renderDashboard() {
 // ---------- PONTAJ ----------
 let pontajLuna = new Date().getMonth()+1;
 let pontajAn = new Date().getFullYear();
+let pontajMode = 'luna';   // 'luna' | 'custom' | 'tot'
+let pontajFrom = '', pontajTo = '';
+function pontajRange(){
+  if(pontajMode==='tot') return ['0000-01-01','9999-12-31'];
+  if(pontajMode==='custom') return [pontajFrom||'0000-01-01', pontajTo||'9999-12-31'];
+  const f=`${pontajAn}-${String(pontajLuna).padStart(2,'0')}-01`;
+  const last=new Date(pontajAn,pontajLuna,0).getDate();
+  const t=`${pontajAn}-${String(pontajLuna).padStart(2,'0')}-${String(last).padStart(2,'0')}`;
+  return [f,t];
+}
+function setPontajCustom(){ const a=document.getElementById('pFrom'),b=document.getElementById('pTo'); pontajFrom=a?a.value:''; pontajTo=b?b.value:''; pontajMode='custom'; renderPontaj(); }
 let pontajFiltruAng = 'TOATE';
 
 function isContabil() { return DB.session.role === 'contabil-sef'; }
@@ -1005,19 +1016,31 @@ function renderEdenredView() {
 }
 
 function renderPontaj() {
-  // Filtre
-  const recs = DB.pontaj
-    .filter(p => isLunaSelectata(p.data, pontajAn, pontajLuna))
+  const [pFrom,pTo] = pontajRange();
+  const recsAll = DB.pontaj
+    .filter(p => p.data>=pFrom && p.data<=pTo)
     .filter(p => pontajFiltruAng==='TOATE' || p.angajat===pontajFiltruAng)
     .sort((a,b) => (b.data||'').localeCompare(a.data||''));
+  const recs = recsAll.slice(0, 1500);
+  const _periodLabel = pontajMode==='tot'?'toată perioada':(pontajMode==='custom'?((pontajFrom||'...')+' → '+(pontajTo||'...')):(LUNI_RO[pontajLuna-1]+' '+pontajAn));
+  const _byAng={};
+  recsAll.forEach(r=>{ const k=r.angajat||'—'; (_byAng[k]=_byAng[k]||{zile:0,ore:0}); if((r.tipZi||'').includes('Lucrat')){ _byAng[k].zile++; _byAng[k].ore+=parseFloat(r.oreLucrate)||0; } });
+  const _tot=Object.entries(_byAng).map(([n,v])=>({n,zile:v.zile,ore:v.ore})).sort((a,b)=>b.ore-a.ore);
+  const totalsHtml = _tot.length? `<div style="margin:0 0 14px;border:1px solid var(--border);border-radius:8px;padding:10px;background:#fafefb">
+      <div style="font-weight:600;margin-bottom:8px">Σ Totaluri pe angajat — ${_periodLabel}</div>
+      <div class="table-wrap"><table><thead><tr><th>Angajat</th><th class="num">Zile lucrate</th><th class="num">Ore total</th></tr></thead><tbody>
+      ${_tot.map(r=>`<tr><td>${r.n}</td><td class="num">${r.zile}</td><td class="num"><strong>${fmt(r.ore,1)} h</strong></td></tr>`).join('')}
+      <tr style="border-top:2px solid var(--border)"><td><strong>TOTAL (${_tot.length} pers.)</strong></td><td class="num"><strong>${_tot.reduce((s,r)=>s+r.zile,0)}</strong></td><td class="num"><strong>${fmt(_tot.reduce((s,r)=>s+r.ore,0),1)} h</strong></td></tr>
+      </tbody></table></div></div>` : '';
 
   document.getElementById('content').innerHTML = `
     <div class="card">
       <div class="section-head">
         <div class="toolbar">
-          <select id="pLuna" class="btn">${LUNI_RO.map((l,i)=>`<option value="${i+1}" ${i+1===pontajLuna?'selected':''}>${l}</option>`).join('')}</select>
-          <select id="pAn" class="btn">${[pontajAn-1,pontajAn,pontajAn+1].map(y=>`<option value="${y}" ${y===pontajAn?'selected':''}>${y}</option>`).join('')}</select>
-          <select id="pAng" class="btn"><option value="TOATE">Toți angajații</option>${DB.angajati.filter(a=>a.status==='Activ').map(a=>`<option value="${a.nume}" ${a.nume===pontajFiltruAng?'selected':''}>${a.nume}</option>`).join('')}</select>
+          <select id="pMode" class="btn">${[['luna','Lună'],['custom','Interval ales'],['tot','Toată perioada']].map(o=>`<option value="${o[0]}" ${pontajMode===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select>
+          ${pontajMode==='luna'?`<select id="pLuna" class="btn">${LUNI_RO.map((l,i)=>`<option value="${i+1}" ${i+1===pontajLuna?'selected':''}>${l}</option>`).join('')}</select><select id="pAn" class="btn">${[pontajAn-1,pontajAn,pontajAn+1].map(y=>`<option value="${y}" ${y===pontajAn?'selected':''}>${y}</option>`).join('')}</select>`:''}
+          ${pontajMode==='custom'?`<input type="date" id="pFrom" class="btn" value="${pontajFrom}"> – <input type="date" id="pTo" class="btn" value="${pontajTo}"> <button class="btn btn-sm" onclick="setPontajCustom()">Aplică</button>`:''}
+          <select id="pAng" class="btn"><option value="TOATE">Toți angajații</option>${[...new Set(DB.pontaj.map(p=>p.angajat))].filter(Boolean).sort().map(n=>`<option value="${n}" ${n===pontajFiltruAng?'selected':''}>${n}</option>`).join('')}</select>
         </div>
         <div class="toolbar">
           ${(!isReadOnly() && !isAdmin()) ? `<button class="btn btn-primary btn-sm" onclick="newPontaj()">+ Pontaj zilnic</button>` : ''}
@@ -1033,8 +1056,9 @@ function renderPontaj() {
       </div>
 
       <div style="margin-bottom:14px;color:var(--text-muted);font-size:13px">
-        <strong>${recs.length}</strong> înregistrări în ${LUNI_RO[pontajLuna-1]} ${pontajAn}${pontajFiltruAng!=='TOATE' ? ' pentru '+pontajFiltruAng : ''}
+        <strong>${recsAll.length}</strong> înregistrări · ${_periodLabel}${pontajFiltruAng!=='TOATE' ? ' · '+pontajFiltruAng : ''}${recsAll.length>recs.length?` (afișez primele ${recs.length})`:''}
       </div>
+      ${totalsHtml}
 
       ${recs.length===0 ? `<div class="empty"><h4>Nicio înregistrare</h4><p>Adaugă pontaj zilnic sau importă din Sheet.</p></div>` :
       `<div class="table-wrap"><table>
@@ -1058,8 +1082,11 @@ function renderPontaj() {
       </table></div>`}
     </div>
   `;
-  document.getElementById('pLuna').onchange = e => { pontajLuna = +e.target.value; renderPontaj(); };
-  document.getElementById('pAn').onchange = e => { pontajAn = +e.target.value; renderPontaj(); };
+  { const _pm=document.getElementById('pMode'); if(_pm) _pm.onchange=e=>{ pontajMode=e.target.value; renderPontaj(); }; }
+  { const _pl=document.getElementById('pLuna'); if(_pl) _pl.onchange=e=>{ pontajLuna=+e.target.value; renderPontaj(); }; }
+  { const _pa=document.getElementById('pAn'); if(_pa) _pa.onchange=e=>{ pontajAn=+e.target.value; renderPontaj(); }; }
+  { const _pf=document.getElementById('pFrom'); if(_pf) _pf.onchange=setPontajCustom; }
+  { const _pt=document.getElementById('pTo'); if(_pt) _pt.onchange=setPontajCustom; }
   document.getElementById('pAng').onchange = e => { pontajFiltruAng = e.target.value; renderPontaj(); };
 }
 
