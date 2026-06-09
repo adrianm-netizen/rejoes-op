@@ -84,6 +84,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="import_raportari_ana.js"></script>
 <script src="import_raportari_istoric.js"></script>
+<script src="import_pontaj_istoric.js"></script>
 <!-- Etapa 14 — generatorul CIM (V7) e găzduit ca fișier separat (generator_cim.html) și afișat în iframe în secțiunea RH -->
 
 <style>
@@ -1022,7 +1023,8 @@ function renderPontaj() {
           ${(!isReadOnly() && !isAdmin()) ? `<button class="btn btn-primary btn-sm" onclick="newPontaj()">+ Pontaj zilnic</button>` : ''}
           ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="newPontaj()">+ Pontaj zilnic</button>
           <button class="btn btn-sm" onclick="completareLunaTipic()">⚡ Auto-completare luna</button>
-          <button class="btn btn-sm" style="background:#6b3fa0;border-color:#6b3fa0;color:#fff" onclick="bfOpen()">🔄 Completează din e:Corg (în urmă)</button>` : ''}
+          <button class="btn btn-sm" style="background:#6b3fa0;border-color:#6b3fa0;color:#fff" onclick="bfOpen()">🔄 Completează din e:Corg (în urmă)</button>
+          <button class="btn btn-sm" style="background:#1b5e3f;border-color:#1b5e3f;color:#fff" onclick="if(typeof importPontajIstoric==='function'){importPontajIstoric()}else{toast('Încarcă import_pontaj_istoric.js pe GitHub')}">📥 Pontaj istoric (bonuri)</button>` : ''}
           <button class="btn btn-sm btn-primary" style="background:#37618a;border-color:#37618a" onclick="exportCentralizator()">📊 Centralizator (Dana)</button>
           <button class="btn btn-sm" onclick="exportPontajIndividual()">📝 Pontaj individual</button>
           <button class="btn btn-sm" onclick="exportPontaj()">📥 Listă (Sumar/Detaliu)</button>
