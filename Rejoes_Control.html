@@ -13029,7 +13029,9 @@ function setAutoSync(enable) {
 // introduse pe un device de a fi șterse de altul cu date mai vechi/divergente.
 const _MERGE_COLLECTIONS = {
   pontaj:    r => (r.data||'') + '|' + (r.angajat||''),
-  raportari: r => (r.data||'') + '|' + (r.magazin||'') + '|' + (r.casier||'')
+  raportari: r => (r.data||'') + '|' + (r.magazin||'') + '|' + (r.casier||''),
+  inventar:  r => r.idGen || ((r.data||'') + '|' + (r.magazin||'') + '|' + (r.sku||'') + '|' + (r.stocReal||'')),
+  sortari:   r => r.idGen || r.id || ((r.facturaId||'') + '|' + (r.data||'') + '|' + (r.articolCod||''))
 };
 function _mergeArrById(local, incoming, keyFn) {
   const map = new Map();
