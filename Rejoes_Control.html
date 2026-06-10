@@ -1820,26 +1820,52 @@ async function exportInventarFrumos(){
   try{
     if(typeof ExcelJS==='undefined'){ toast('Folosesc exportul simplu'); exportInv(); return; }
     const wb=new ExcelJS.Workbook(); wb.creator='Rejoes';
-    const GREEN='FF1B7A3D', LIGHT='FFEFF7F1';
-    const styleHdr=ws=>{ const r=ws.getRow(1); r.height=22; r.eachCell(c=>{ c.fill={type:'pattern',pattern:'solid',fgColor:{argb:GREEN}}; c.font={bold:true,color:{argb:'FFFFFFFF'},size:11}; c.alignment={horizontal:'center',vertical:'middle'}; c.border={bottom:{style:'thin',color:{argb:'FFCCCCCC'}}}; }); };
-    const ses=_invSesiuni();
-    const s1=wb.addWorksheet('Rezumat inventare');
-    s1.columns=[{header:'Data',key:'d',width:13},{header:'Magazin',key:'m',width:26},{header:'Tip',key:'t',width:13},{header:'Făcut de',key:'au',width:22},{header:'Articole',key:'a',width:10},{header:'Bucăți',key:'b',width:12},{header:'Valoare (lei)',key:'v',width:15},{header:'Fără preț',key:'f',width:10}];
-    styleHdr(s1);
-    ses.forEach((o,i)=>{ const r=s1.addRow([_dmy(o.data),mag(o.magazin),o.baseline?'Inventar':'Verificare',o.autori,o.art,o.buc,Math.round(o.val*100)/100,o.fp]); if(i%2) r.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:LIGHT}};}); });
-    const t1=s1.addRow(['TOTAL','','','',ses.reduce((x,o)=>x+o.art,0),ses.reduce((x,o)=>x+o.buc,0),Math.round(ses.reduce((x,o)=>x+o.val,0)*100)/100,'']); t1.font={bold:true}; t1.eachCell(c=>{c.border={top:{style:'medium'}};});
-    s1.getColumn('v').numFmt='#,##0.00'; s1.getColumn('b').numFmt='#,##0'; s1.views=[{state:'frozen',ySplit:1}];
-    const perMag={}; ses.forEach(s=>{ if(!perMag[s.magazin]||String(s.data)>String(perMag[s.magazin].data)) perMag[s.magazin]=s; });
-    const s2=wb.addWorksheet('Per magazin (ultimul)');
-    s2.columns=[{header:'Magazin',key:'m',width:26},{header:'Data',key:'d',width:13},{header:'Făcut de',key:'au',width:22},{header:'Articole',key:'a',width:10},{header:'Bucăți',key:'b',width:12},{header:'Valoare (lei)',key:'v',width:15}];
-    styleHdr(s2);
-    Object.values(perMag).sort((a,b)=>String(a.magazin).localeCompare(String(b.magazin))).forEach(s=>{ s2.addRow([mag(s.magazin),_dmy(s.data),s.autori,s.art,s.buc,Math.round(s.val*100)/100]); });
-    s2.getColumn('v').numFmt='#,##0.00'; s2.getColumn('b').numFmt='#,##0';
-    const s3=wb.addWorksheet('Detaliat (toate articolele)');
-    s3.columns=[{header:'Data',key:'d',width:13},{header:'Magazin',key:'m',width:26},{header:'Produs / SKU',key:'p',width:30},{header:'Bucăți',key:'b',width:10},{header:'Preț/buc',key:'pr',width:11},{header:'Valoare',key:'v',width:13},{header:'Tip',key:'t',width:14},{header:'Făcut de',key:'au',width:20}];
-    styleHdr(s3);
-    (DB.inventar||[]).slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).forEach(it=>{ s3.addRow([_dmy(it.data),mag(it.magazin),it.sku,(+it.stocReal||0),(+it.valUnit||0),Math.round((+it.stocReal||0)*(+it.valUnit||0)*100)/100, it.momentZero?((String(it.idGen||'')).startsWith('INV-BASE-')?'import aprilie':'inventar'):'verificare', it.autor||'']); });
-    s3.getColumn('v').numFmt='#,##0.00'; s3.getColumn('pr').numFmt='#,##0.00'; s3.getColumn('b').numFmt='#,##0'; s3.views=[{state:'frozen',ySplit:1}];
+    const ws=wb.addWorksheet('Inventare');
+    ws.properties.outlineLevelRow=1;
+    try{ ws.properties.outlineProperties={summaryBelow:false,summaryRight:false}; }catch(e){}
+    [12,34,20,12,9,11,10,14].forEach((w,i)=>{ ws.getColumn(i+1).width=w; });
+    // ---- antet firmă + logo-uri ----
+    const _img=async(u)=>{ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.arrayBuffer(); }catch(e){ return null; } };
+    const [logoSC,logoRJ]=await Promise.all([_img('logo_scolect.png'),_img('appicon_512.png')]);
+    ws.mergeCells('A1:H1'); const _c1=ws.getCell('A1'); _c1.value='S COLECT REC SRL'; _c1.font={bold:true,size:14,color:{argb:'FF1B7A3D'}}; _c1.alignment={horizontal:'center'};
+    ws.mergeCells('A2:H2'); const _c2=ws.getCell('A2'); _c2.value='Magazine REJOES · Second-Hand Fashion'; _c2.font={size:10,italic:true,color:{argb:'FF555555'}}; _c2.alignment={horizontal:'center'};
+    ws.mergeCells('A3:H3'); const _c3=ws.getCell('A3'); _c3.value='CIF RO 38513453 · Reg. Com. J2017004459354 · Str. Republicii 20, 305400 Jimbolia, jud. Timiș · info@tm-res.com'; _c3.font={size:9,color:{argb:'FF777777'}}; _c3.alignment={horizontal:'center'};
+    ws.getRow(1).height=20; ws.getRow(2).height=14; ws.getRow(3).height=14; ws.getRow(4).height=8;
+    if(logoSC){ try{ const id=wb.addImage({buffer:logoSC,extension:'png'}); ws.addImage(id,{tl:{col:0.1,row:0.1},ext:{width:80,height:80}}); }catch(e){} }
+    if(logoRJ){ try{ const id=wb.addImage({buffer:logoRJ,extension:'png'}); ws.addImage(id,{tl:{col:7.2,row:0.1},ext:{width:68,height:68}}); }catch(e){} }
+    // ---- antet tabel (rând 5) ----
+    const _HDR=['Data','Magazin / Produs','Făcut de','Tip','Articole','Bucăți','Preț/buc','Valoare (lei)'];
+    const _hr=ws.getRow(5); _hr.height=18;
+    _HDR.forEach((t,i)=>{ const c=_hr.getCell(i+1); c.value=t; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1B7A3D'}}; c.font={bold:true,color:{argb:'FFFFFFFF'},size:10}; c.alignment={horizontal:'center',vertical:'middle'}; });
+    // grupare pe sesiune (magazin + data), cea mai nouă prima
+    const bySes={};
+    (DB.inventar||[]).forEach(it=>{ const k=(it.magazin||'?')+'§'+(it.data||'?'); (bySes[k]=bySes[k]||[]).push(it); });
+    const keys=Object.keys(bySes).sort((a,b)=>String(b.split('§')[1]||'').localeCompare(String(a.split('§')[1]||'')));
+    let gBuc=0,gVal=0,gArt=0;
+    keys.forEach(k=>{
+      const items=bySes[k], mg=items[0].magazin, dt=items[0].data;
+      const buc=items.reduce((s,it)=>s+(+it.stocReal||0),0);
+      const val=items.reduce((s,it)=>s+(+it.stocReal||0)*(+it.valUnit||0),0);
+      const autori=[...new Set(items.map(it=>it.autor).filter(Boolean))].join(', ')||'—';
+      const baseline=items.some(it=>it.momentZero);
+      gBuc+=buc; gVal+=val; gArt+=items.length;
+      // articole (desfășurate cu +, pornesc ascunse)
+      items.slice().sort((a,b)=>String(a.sku||'').localeCompare(String(b.sku||''))).forEach(it=>{
+        const dr=ws.addRow(['','    '+(it.sku||''),'','','',(+it.stocReal||0),(+it.valUnit||0),Math.round((+it.stocReal||0)*(+it.valUnit||0)*100)/100]);
+        dr.outlineLevel=1; dr.hidden=true;
+        dr.eachCell(c=>{ c.font={size:10}; });
+        dr.getCell(8).numFmt='#,##0.00'; dr.getCell(7).numFmt='#,##0.00'; dr.getCell(6).numFmt='#,##0';
+      });
+      // rând rezumat al inventarului (rămâne vizibil, cu butonul +/-)
+      const sr=ws.addRow([_dmy(dt),mag(mg),autori,baseline?'Inventar':'Verificare',items.length,buc,'',Math.round(val*100)/100]);
+      sr.outlineLevel=0;
+      sr.eachCell(c=>{ c.font={bold:true,size:10}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEFF7F1'}}; });
+      sr.getCell(8).numFmt='#,##0.00'; sr.getCell(6).numFmt='#,##0';
+    });
+    const gt=ws.addRow(['TOTAL','','','',gArt,gBuc,'',Math.round(gVal*100)/100]);
+    gt.eachCell(c=>{ c.font={bold:true,size:10}; c.border={top:{style:'medium'}}; });
+    gt.getCell(8).numFmt='#,##0.00'; gt.getCell(6).numFmt='#,##0';
+    ws.views=[{state:'frozen',ySplit:5}];
     const buf=await wb.xlsx.writeBuffer();
     const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='Inventar_Rejoes_'+todayISO()+'.xlsx'; document.body.appendChild(a); a.click(); a.remove();
