@@ -1826,13 +1826,13 @@ async function exportInventarFrumos(){
     [12,34,20,12,9,11,10,14].forEach((w,i)=>{ ws.getColumn(i+1).width=w; });
     // ---- antet firmă + logo-uri ----
     const _img=async(u)=>{ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.arrayBuffer(); }catch(e){ return null; } };
-    const [logoSC,logoRJ]=await Promise.all([_img('logo_scolect.png'),_img('appicon_512.png')]);
+    const [logoSC,logoRJ]=await Promise.all([_img('logo_scolect.png'),_img('logo_rejoes.png')]);
     ws.mergeCells('A1:H1'); const _c1=ws.getCell('A1'); _c1.value='S COLECT REC SRL'; _c1.font={bold:true,size:14,color:{argb:'FF1B7A3D'}}; _c1.alignment={horizontal:'center'};
     ws.mergeCells('A2:H2'); const _c2=ws.getCell('A2'); _c2.value='Magazine REJOES · Second-Hand Fashion'; _c2.font={size:10,italic:true,color:{argb:'FF555555'}}; _c2.alignment={horizontal:'center'};
     ws.mergeCells('A3:H3'); const _c3=ws.getCell('A3'); _c3.value='CIF RO 38513453 · Reg. Com. J2017004459354 · Str. Republicii 20, 305400 Jimbolia, jud. Timiș · info@tm-res.com'; _c3.font={size:9,color:{argb:'FF777777'}}; _c3.alignment={horizontal:'center'};
     ws.getRow(1).height=20; ws.getRow(2).height=14; ws.getRow(3).height=14; ws.getRow(4).height=8;
     if(logoSC){ try{ const id=wb.addImage({buffer:logoSC,extension:'png'}); ws.addImage(id,{tl:{col:0.1,row:0.1},ext:{width:80,height:80}}); }catch(e){} }
-    if(logoRJ){ try{ const id=wb.addImage({buffer:logoRJ,extension:'png'}); ws.addImage(id,{tl:{col:7.2,row:0.1},ext:{width:68,height:68}}); }catch(e){} }
+    if(logoRJ){ try{ const id=wb.addImage({buffer:logoRJ,extension:'png'}); ws.addImage(id,{tl:{col:5.95,row:0.55},ext:{width:165,height:51}}); }catch(e){} }
     // ---- antet tabel (rând 5) ----
     const _HDR=['Data','Magazin / Produs','Făcut de','Tip','Articole','Bucăți','Preț/buc','Valoare (lei)'];
     const _hr=ws.getRow(5); _hr.height=18;
