@@ -1764,6 +1764,7 @@ function renderInventar() {
         <div class="tab ${inventarTab==='programari'?'active':''}" onclick="inventarTab='programari';renderInventar()">📅 Programări ${scadenteN>0?`<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${scadenteN} scadente</span>`:`<span style="background:var(--accent);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${(DB.verificariProgramate||[]).length}</span>`}</div>
         <div class="tab ${inventarTab==='casari'?'active':''}" onclick="inventarTab='casari';renderInventar()">🔥 Casări ${casariN>0?`<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${casariN}</span>`:''}</div>
         <div class="tab ${inventarTab==='momentzero'?'active':''}" onclick="inventarTab='momentzero';renderInventar()">📦 Inventar moment-zero ${baselineN>0?`<span style="background:#1b7a3d;color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;margin-left:4px">${baselineN}</span>`:''}</div>
+        ${(isAdmin()||DB.session.role==='owner')?`<div class="tab ${inventarTab==='rezumate'?'active':''}" onclick="inventarTab='rezumate';renderInventar()">📊 Rezumate inventare</div>`:''}
       </div>
     </div>
     <div id="invBody" style="margin-top:14px"></div>
@@ -1771,7 +1772,79 @@ function renderInventar() {
   if (inventarTab === 'verificari') renderInventarVerificari();
   else if (inventarTab === 'programari') renderInventarProgramari();
   else if (inventarTab === 'momentzero') renderInventarMomentZero();
+  else if (inventarTab === 'rezumate') renderInventarRezumate();
   else renderInventarCasari();
+}
+
+// ===== Rezumate inventare (admin + owner) — listă sesiuni + Excel frumos =====
+function _invSesiuni(){
+  const g={};
+  (DB.inventar||[]).forEach(it=>{
+    const k=(it.magazin||'?')+'§'+(it.data||'?');
+    const o=(g[k]=g[k]||{magazin:it.magazin,data:it.data,art:0,buc:0,val:0,fp:0,baseline:0,autori:new Set()});
+    o.art++; o.buc+=(+it.stocReal||0); o.val+=(+it.stocReal||0)*(+it.valUnit||0);
+    if(!(+it.valUnit>0)) o.fp++; if(it.momentZero) o.baseline++; if(it.autor) o.autori.add(it.autor);
+  });
+  return Object.values(g).map(o=>({magazin:o.magazin,data:o.data,art:o.art,buc:o.buc,val:o.val,fp:o.fp,baseline:o.baseline,autori:[...o.autori].join(', ')}))
+    .sort((a,b)=>(String(b.data||'')).localeCompare(String(a.data||'')) || String(a.magazin).localeCompare(String(b.magazin)));
+}
+function renderInventarRezumate(){
+  const body=document.getElementById('invBody'); if(!body) return;
+  const ses=_invSesiuni();
+  const perMag={}; ses.forEach(s=>{ if(!perMag[s.magazin]||String(s.data)>String(perMag[s.magazin].data)) perMag[s.magazin]=s; });
+  const magList=Object.values(perMag).sort((a,b)=>String(a.magazin).localeCompare(String(b.magazin)));
+  const totBuc=magList.reduce((x,s)=>x+s.buc,0), totVal=magList.reduce((x,s)=>x+s.val,0);
+  body.innerHTML=`
+    <div class="card">
+      <div class="section-head"><h3>📊 Rezumate inventare</h3>
+        <div class="toolbar"><button class="btn btn-sm btn-primary" style="background:#1b7a3d;border-color:#1b7a3d" onclick="exportInventarFrumos()">📥 Descarcă Excel frumos</button></div>
+      </div>
+      ${ses.length===0?'<div class="empty"><h4>Niciun inventar încă</h4><p>Aici apar rezumatele după ce se introduc inventare.</p></div>':`
+      <div class="form-row" style="gap:10px;margin-bottom:14px">
+        <div style="flex:1;text-align:center;border:1px solid var(--border);border-radius:8px;padding:12px;background:#fafefb"><div style="font-size:12px;color:var(--text-muted)">Locații inventariate</div><div style="font-size:26px;font-weight:800">${magList.length}</div></div>
+        <div style="flex:1;text-align:center;border:1px solid var(--border);border-radius:8px;padding:12px;background:#fafefb"><div style="font-size:12px;color:var(--text-muted)">Total bucăți (ultimul/locație)</div><div style="font-size:26px;font-weight:800">${fmt(totBuc,0)}</div></div>
+        <div style="flex:1;text-align:center;border:1px solid var(--border);border-radius:8px;padding:12px;background:#fafefb"><div style="font-size:12px;color:var(--text-muted)">Valoare totală la cost</div><div style="font-size:26px;font-weight:800;color:#1b7a3d">${fmt(totVal)} lei</div></div>
+      </div>
+      <h4 style="margin:8px 0">📍 Ultimul inventar pe fiecare magazin</h4>
+      <div class="table-wrap"><table><thead><tr><th>Magazin</th><th>Data</th><th class="num">Articole</th><th class="num">Bucăți</th><th class="num">Valoare (lei)</th></tr></thead><tbody>
+        ${magList.map(s=>`<tr><td>${escapeHtml(mag(s.magazin))}</td><td>${s.data}</td><td class="num">${s.art}</td><td class="num">${fmt(s.buc,0)}</td><td class="num"><strong>${fmt(s.val)}</strong></td></tr>`).join('')}
+        <tr style="border-top:2px solid var(--border)"><td colspan="2"><strong>TOTAL</strong></td><td class="num"><strong>${magList.reduce((x,s)=>x+s.art,0)}</strong></td><td class="num"><strong>${fmt(totBuc,0)}</strong></td><td class="num"><strong>${fmt(totVal)}</strong></td></tr>
+      </tbody></table></div>
+      <h4 style="margin:18px 0 8px">🗒️ Toate inventarele (${ses.length}) — cine, când, cât</h4>
+      <div class="table-wrap"><table><thead><tr><th>Data</th><th>Magazin</th><th>Tip</th><th>Făcut de</th><th class="num">Articole</th><th class="num">Bucăți</th><th class="num">Valoare (lei)</th><th class="num">Fără preț</th></tr></thead><tbody>
+        ${ses.map(s=>`<tr><td><strong>${s.data}</strong></td><td>${escapeHtml(mag(s.magazin))}</td><td>${s.baseline?'<span class="badge badge-ok" style="font-size:9px">📦 inventar</span>':'<span class="badge badge-neutral" style="font-size:9px">verificare</span>'}</td><td>${escapeHtml(s.autori||'—')}</td><td class="num">${s.art}</td><td class="num">${fmt(s.buc,0)}</td><td class="num"><strong>${fmt(s.val)}</strong></td><td class="num">${s.fp>0?`<span style="color:#a06a00">${s.fp}</span>`:'0'}</td></tr>`).join('')}
+      </tbody></table></div>`}
+    </div>`;
+}
+async function exportInventarFrumos(){
+  try{
+    if(typeof ExcelJS==='undefined'){ toast('Folosesc exportul simplu'); exportInv(); return; }
+    const wb=new ExcelJS.Workbook(); wb.creator='Rejoes';
+    const GREEN='FF1B7A3D', LIGHT='FFEFF7F1';
+    const styleHdr=ws=>{ const r=ws.getRow(1); r.height=22; r.eachCell(c=>{ c.fill={type:'pattern',pattern:'solid',fgColor:{argb:GREEN}}; c.font={bold:true,color:{argb:'FFFFFFFF'},size:11}; c.alignment={horizontal:'center',vertical:'middle'}; c.border={bottom:{style:'thin',color:{argb:'FFCCCCCC'}}}; }); };
+    const ses=_invSesiuni();
+    const s1=wb.addWorksheet('Rezumat inventare');
+    s1.columns=[{header:'Data',key:'d',width:13},{header:'Magazin',key:'m',width:26},{header:'Tip',key:'t',width:13},{header:'Făcut de',key:'au',width:22},{header:'Articole',key:'a',width:10},{header:'Bucăți',key:'b',width:12},{header:'Valoare (lei)',key:'v',width:15},{header:'Fără preț',key:'f',width:10}];
+    styleHdr(s1);
+    ses.forEach((o,i)=>{ const r=s1.addRow([_dmy(o.data),mag(o.magazin),o.baseline?'Inventar':'Verificare',o.autori,o.art,o.buc,Math.round(o.val*100)/100,o.fp]); if(i%2) r.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:LIGHT}};}); });
+    const t1=s1.addRow(['TOTAL','','','',ses.reduce((x,o)=>x+o.art,0),ses.reduce((x,o)=>x+o.buc,0),Math.round(ses.reduce((x,o)=>x+o.val,0)*100)/100,'']); t1.font={bold:true}; t1.eachCell(c=>{c.border={top:{style:'medium'}};});
+    s1.getColumn('v').numFmt='#,##0.00'; s1.getColumn('b').numFmt='#,##0'; s1.views=[{state:'frozen',ySplit:1}];
+    const perMag={}; ses.forEach(s=>{ if(!perMag[s.magazin]||String(s.data)>String(perMag[s.magazin].data)) perMag[s.magazin]=s; });
+    const s2=wb.addWorksheet('Per magazin (ultimul)');
+    s2.columns=[{header:'Magazin',key:'m',width:26},{header:'Data',key:'d',width:13},{header:'Făcut de',key:'au',width:22},{header:'Articole',key:'a',width:10},{header:'Bucăți',key:'b',width:12},{header:'Valoare (lei)',key:'v',width:15}];
+    styleHdr(s2);
+    Object.values(perMag).sort((a,b)=>String(a.magazin).localeCompare(String(b.magazin))).forEach(s=>{ s2.addRow([mag(s.magazin),_dmy(s.data),s.autori,s.art,s.buc,Math.round(s.val*100)/100]); });
+    s2.getColumn('v').numFmt='#,##0.00'; s2.getColumn('b').numFmt='#,##0';
+    const s3=wb.addWorksheet('Detaliat (toate articolele)');
+    s3.columns=[{header:'Data',key:'d',width:13},{header:'Magazin',key:'m',width:26},{header:'Produs / SKU',key:'p',width:30},{header:'Bucăți',key:'b',width:10},{header:'Preț/buc',key:'pr',width:11},{header:'Valoare',key:'v',width:13},{header:'Tip',key:'t',width:14},{header:'Făcut de',key:'au',width:20}];
+    styleHdr(s3);
+    (DB.inventar||[]).slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).forEach(it=>{ s3.addRow([_dmy(it.data),mag(it.magazin),it.sku,(+it.stocReal||0),(+it.valUnit||0),Math.round((+it.stocReal||0)*(+it.valUnit||0)*100)/100, it.momentZero?((String(it.idGen||'')).startsWith('INV-BASE-')?'import aprilie':'inventar'):'verificare', it.autor||'']); });
+    s3.getColumn('v').numFmt='#,##0.00'; s3.getColumn('pr').numFmt='#,##0.00'; s3.getColumn('b').numFmt='#,##0'; s3.views=[{state:'frozen',ySplit:1}];
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='Inventar_Rejoes_'+todayISO()+'.xlsx'; document.body.appendChild(a); a.click(); a.remove();
+    toast('✓ Excel descărcat');
+  }catch(e){ console.error(e); toast('Eroare export — folosesc varianta simplă'); try{exportInv();}catch(_){} }
 }
 
 // ===== Inventar „moment-zero" — introducere rapidă pe locații (Etapa 17) =====
