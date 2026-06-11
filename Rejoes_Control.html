@@ -13378,14 +13378,17 @@ const _MERGE_COLLECTIONS = {
   transferuri: r => r.id,
   facturiIntrare: r => r.id
 };
+function _cmdRank(s){ return ({'emisă':1,'recepționată':2,'în pregătire':3,'expediată':4,'completă':4,'recepționată la magazin':5})[s]||0; }
 function _mergeArrById(local, incoming, keyFn) {
   const map = new Map();
   (Array.isArray(local) ? local : []).forEach(r => { if (r) map.set(keyFn(r), r); });
   (Array.isArray(incoming) ? incoming : []).forEach(r => {
     if (!r) return;
     const k = keyFn(r), ex = map.get(k);
-    if (!ex) map.set(k, r);
-    else if ((r.salvatLa||'') > (ex.salvatLa||'')) map.set(k, r); // păstrează cel mai recent
+    if (!ex) { map.set(k, r); return; }
+    const rr=_cmdRank(r.status), er=_cmdRank(ex.status);
+    if (rr!==er) { if (rr>er) map.set(k, r); return; }            // comandă mai avansată câștigă
+    if ((r.salvatLa||'') > (ex.salvatLa||'')) map.set(k, r);       // altfel, cea mai recentă
   });
   return [...map.values()];
 }
