@@ -9864,7 +9864,7 @@ function renderReceptie(body) {
           <td class="num">${fmt(f.transport)}</td>
           <td class="num"><strong>${fmt(total)}</strong> ${f.valuta||'RON'}</td>
           <td><span class="badge ${f.status==='sortat'?'badge-ok':'badge-warn'}">${f.status||'în sortare'}</span></td>
-          <td><button class="btn btn-sm btn-ghost" onclick="editFacturaIntrare(${idx})">✎</button><button class="btn btn-sm btn-ghost" onclick="delFacturaIntrare(${idx})">×</button></td>
+          <td>${f.fisier && _poateVedeaFactura()?`<button class="btn btn-sm btn-ghost" title="Vezi factura originală (${escapeHtml(f.fisier.name||'')})" onclick="veziFacturaFisier('${f.id}')">📄</button>`:''}<button class="btn btn-sm btn-ghost" onclick="editFacturaIntrare(${idx})">✎</button><button class="btn btn-sm btn-ghost" onclick="delFacturaIntrare(${idx})">×</button></td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>`}
@@ -9874,6 +9874,7 @@ function facturaForm(f, idx) {
   const isEdit = idx >= 0;
   const cur = f || { data: todayISO(), furnizor:'Erdotex B.V.', invoiceNo:'', reference:'', debNo:'', kgTotal:'', pretPerKg:'', transport:0, valuta:'EUR', observatii:'', truck:'', status:'în sortare', articole: [] };
   window._facturaArticole = cur.articole && cur.articole.length ? JSON.parse(JSON.stringify(cur.articole)) : [];
+  window._facturaFile = null;
   const hasArticole = window._facturaArticole.length > 0;
   return `
     <h3>${isEdit?'Editează':'Adaugă'} factură intrare ${cur.invoiceNo?`(${cur.invoiceNo})`:''}</h3>
@@ -9889,7 +9890,15 @@ function facturaForm(f, idx) {
       </div>
       <div style="font-size:10px;opacity:.75;margin-top:6px">Acceptă fișiere .pdf și .xlsx. Toate datele se citesc direct în browser, fără upload.</div>
     </div>` : ''}
-    
+
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:8px 10px;background:#f8faf9;border:1px solid var(--border);border-radius:8px">
+      <input type="file" id="fi_fisierInput" accept=".pdf,.xlsx,.xls,image/*" style="display:none" onchange="_captureFacturaFile(event.target.files[0])">
+      <button type="button" class="btn btn-sm" onclick="document.getElementById('fi_fisierInput').click()" style="cursor:pointer">📎 Atașează factura (fișier)</button>
+      <span id="fi_fisierNume" style="font-size:12px;color:var(--text-muted)">${cur.fisier?('📎 '+escapeHtml(cur.fisier.name||'fișier atașat')):'niciun fișier atașat'}</span>
+      ${isEdit && cur.fisier && _poateVedeaFactura() ? `<button type="button" class="btn btn-sm btn-ghost" onclick="veziFacturaFisier('${cur.id}')">📄 Vezi</button>` : ''}
+      <span style="font-size:10px;color:var(--text-muted);margin-left:auto">se păstrează în cloud, vizibilă lângă factură</span>
+    </div>
+
     <div class="form-row">
       <div class="form-field"><label>Invoice nr</label><input type="text" id="fi_inv" autocomplete="off" value="${(cur.invoiceNo||'').replace(/"/g,'&quot;')}" placeholder="ex. 20241015"></div>
       <div class="form-field"><label>Data factură</label><input type="date" id="fi_data" value="${cur.data}"></div>
@@ -10011,6 +10020,7 @@ async function importErdotexPDF(evt) {
     return;
   }
   console.log('📄 Importing PDF:', file.name, file.size, 'bytes');
+  _captureFacturaFile(file);
   if (typeof pdfjsLib === 'undefined') {
     toast('⚠ pdf.js nu s-a încărcat — verifică internet');
     console.error('pdfjsLib is undefined');
@@ -10221,6 +10231,7 @@ function applyParsedToForm(parsed) {
 async function importErdotexXLSX(evt) {
   const file = evt.target.files[0];
   if (!file) return;
+  _captureFacturaFile(file);
   console.log('📊 Importing XLSX:', file.name);
   if (typeof XLSX === 'undefined') {
     toast('⚠ SheetJS nu s-a încărcat — verifică conexiunea internet');
@@ -10316,6 +10327,39 @@ function newFacturaIntrare() {
   }, 50);
 }
 function editFacturaIntrare(idx) { openModal(facturaForm(DB.facturiIntrare[idx], idx)); }
+// ===== Fișier original factură (stocat în cloud, deschis la cerere — nu în memoria locală) =====
+function _captureFacturaFile(file){
+  if(!file){ return; }
+  try{
+    if(file.size > 6*1024*1024){ toast('Fișier prea mare (>6MB) — nu îl atașez'); return; }
+    const r=new FileReader();
+    r.onload=()=>{ window._facturaFile={name:file.name, type:file.type||'application/octet-stream', data:r.result}; try{ const el=document.getElementById('fi_fisierNume'); if(el) el.textContent='📎 '+file.name; }catch(e){} };
+    r.readAsDataURL(file);
+  }catch(e){ console.error(e); }
+}
+async function _storeFacturaFile(id){
+  if(!window._facturaFile || !window.FB || !window.FB.db) return false;
+  try{ await window.FB.db.ref('facturiFiles/'+id).set({name:window._facturaFile.name, type:window._facturaFile.type, data:window._facturaFile.data, savedAt:nowISO()}); return true; }
+  catch(e){ console.error('store factura file', e); return false; }
+}
+function _poateVedeaFactura(){ return ['admin','owner','manager-depozit','operator'].includes((DB.session&&DB.session.role)||'') || (typeof isAdmin==='function' && isAdmin()); }
+async function veziFacturaFisier(id){
+  try{
+    if(!_poateVedeaFactura()){ toast('Nu ai acces la factura originală'); return; }
+    if(!window.FB || !window.FB.db){ toast('Fără conexiune — nu pot deschide factura'); return; }
+    toast('Deschid factura...');
+    let token=''; try{ if(window.FB.auth && window.FB.auth.currentUser) token=await window.FB.auth.currentUser.getIdToken(); }catch(e){}
+    const base='https://rejoes-op-default-rtdb.europe-west1.firebasedatabase.app/facturiFiles/'+id+'.json';
+    const resp=await fetch(base+(token?('?auth='+encodeURIComponent(token)):''),{cache:'no-store'});
+    if(!resp.ok){ toast('Nu am găsit fișierul facturii'); return; }
+    const v=await resp.json();
+    if(!v || !v.data){ toast('Fișierul facturii nu e disponibil'); return; }
+    const isPdf=/pdf/i.test(v.type||'')||/\.pdf$/i.test(v.name||'');
+    const isImg=/image/i.test(v.type||'')||/\.(jpe?g|png|gif|webp)$/i.test(v.name||'');
+    if(isPdf||isImg){ const w=window.open(''); if(w){ w.document.write('<title>'+(v.name||'Factura')+'</title><body style="margin:0;background:#222">'+(isPdf?'<embed src="'+v.data+'" type="application/pdf" style="width:100%;height:100vh">':'<img src="'+v.data+'" style="max-width:100%;display:block;margin:auto">')+'</body>'); w.document.close(); } else { toast('Permite pop-up ca să vezi factura'); } }
+    else { const a=document.createElement('a'); a.href=v.data; a.download=v.name||'factura'; document.body.appendChild(a); a.click(); a.remove(); }
+  }catch(e){ console.error(e); toast('Eroare la deschiderea facturii'); }
+}
 function saveFacturaIntrare(idx) {
   const articole = window._facturaArticole || [];
   const kg = parseFloat(document.getElementById('fi_kg').value);
@@ -10345,7 +10389,8 @@ function saveFacturaIntrare(idx) {
     transport: parseFloat(document.getElementById('fi_transp').value)||0,
     observatii: document.getElementById('fi_obs').value,
     status: idx>=0 ? DB.facturiIntrare[idx].status : 'în sortare',
-    salvatLa: idx>=0 ? DB.facturiIntrare[idx].salvatLa : nowISO()
+    salvatLa: idx>=0 ? DB.facturiIntrare[idx].salvatLa : nowISO(),
+    fisier: window._facturaFile ? {name:window._facturaFile.name, type:window._facturaFile.type} : (idx>=0 ? DB.facturiIntrare[idx].fisier : undefined)
   };
   // Auto-add furnizor if new
   if (f.furnizor && !DB.furnizori.find(fr=>fr.nume===f.furnizor)) {
@@ -10371,7 +10416,8 @@ function saveFacturaIntrare(idx) {
   }
   
   if (idx>=0) DB.facturiIntrare[idx] = f; else DB.facturiIntrare.push(f);
-  
+  if (window._facturaFile) { _storeFacturaFile(f.id); window._facturaFile = null; }
+
   if (recalcSortari) {
     let updated = 0;
     DB.sortari.filter(s => s.facturaId === f.id).forEach(s => {
