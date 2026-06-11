@@ -10239,10 +10239,11 @@ async function importErdotexXLSX(evt) {
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i].map(c => String(c).toLowerCase().trim());
       // Header may say "art", "art.no.", "cod", etc. + "kg" somewhere
-      const hasArt = r.some(c => c === 'art' || c === 'art.no.' || c === 'cod' || c === 'cod articol');
-      const hasKg = r.some(c => c === 'kg' || c.includes('kg total') || c.includes('greutate'));
+      const hasArt = r.some(c => c === 'art' || c === 'art.no.' || c === 'art. no.' || c === 'cod' || c === 'cod articol' || c.includes('art.no') || c.includes('art. no'));
+      const hasKg = r.some(c => c === 'kg' || c.includes('kg total') || c.includes('greutate') || c === 'weight' || c.includes('weight'));
       const hasDesc = r.some(c => c.includes('descrier') || c.includes('description'));
-      if (hasArt && (hasKg || hasDesc)) { headerRow = i; break; }
+      const hasAmt = r.some(c => c === 'amount' || c.includes('amount') || c.includes('pret achizit'));
+      if (hasArt && (hasKg || hasDesc || hasAmt)) { headerRow = i; break; }
     }
     if (headerRow < 0) {
       console.warn('XLSX header not found. Available sheet names:', wb.SheetNames);
@@ -10253,7 +10254,11 @@ async function importErdotexXLSX(evt) {
     console.log('XLSX header found at row', headerRow, ':', rows[headerRow]);
     const headers = rows[headerRow].map(c => String(c).toLowerCase().trim());
     const idx = (k) => headers.findIndex(h => h.includes(k.toLowerCase()));
-    const iArt = idx('art'), iDesc = idx('descriere'), iKg = idx('kg'), iAmb = idx('ambalaj'), iReb = idx('rebut'), iNet = idx('marfa kg'), iPret = idx('pret achizit'), iPretKg = idx('pret (mediu)');
+    const findH=(...ks)=>{ for(const k of ks){ const i=headers.findIndex(h=>h===k); if(i>=0) return i; } for(const k of ks){ const i=headers.findIndex(h=>h.includes(k)); if(i>=0) return i; } return -1; };
+    const iArt = findH('art','art.no.','art. no.','cod');
+    const iDesc = findH('descriere','description');
+    const iKg = findH('kg','loaded kg','weight','greutate','standard kg');
+    const iAmb = findH('ambalaj'), iReb = findH('rebut'), iNet = findH('marfa kg'), iPret = findH('pret achizit','amount'), iPretKg = findH('pret (mediu)','unit price');
     const articole = [];
     for (let r = headerRow+1; r < rows.length; r++) {
       const row = rows[r];
@@ -10273,10 +10278,15 @@ async function importErdotexXLSX(evt) {
         articole.push({qty:0, cod, descriere: desc, uom:'PB', kg, unitPrice, amount, ambalaj: parseFloat(row[iAmb])||0, rebut: parseFloat(row[iReb])||0, kgNet: parseFloat(row[iNet])||kg});
       }
     }
+    // Dacă fișierul are doar kg, fără prețuri (ex. packing list S-collect), cere un preț unic €/kg
+    if(articole.length && articole.every(a=>!a.amount)){
+      const p=parseFloat(String(prompt('Fișierul conține doar kg, fără prețuri.\nIntrodu prețul unic €/kg pentru toată marfa (ex. 3.42):','')||'').replace(',','.'));
+      if(p>0){ articole.forEach(a=>{ a.unitPrice=p; a.amount=Math.round(a.kg*p*100)/100; }); }
+    }
     window._facturaArticole = articole;
     document.getElementById('fi_furnizor').value = 'Erdotex B.V.';
     showFacturaInline();
-    toast(`✓ Import XLSX: ${articole.length} articole`);
+    toast(`✓ Import XLSX: ${articole.length} articole${articole.length&&articole[0].amount?'':' (completează prețul)'}`);
   } catch (err) {
     console.error(err); toast('Eroare xlsx: ' + err.message);
   }
