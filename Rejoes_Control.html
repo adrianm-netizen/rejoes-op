@@ -11216,7 +11216,7 @@ function renderMiscari() {
 }
 
 // ===== COMENZI =====
-let comenziFilter = 'toate';
+let comenziFilter = 'deschise';
 function renderComenzi(body) {
   const _grpC = {deschise:['emisă','recepționată','în pregătire'], expediate:['expediată'], inchise:['recepționată la magazin','completă']};
   let comenzi = [...(DB.comenzi||[])].sort((a,b)=>(b.salvatLa||b.creatLa||'').localeCompare(a.salvatLa||a.creatLa||''));
@@ -11235,7 +11235,7 @@ function renderComenzi(body) {
     <div style="margin-bottom:12px"><select class="btn" onchange="comenziFilter=this.value;renderMiscari()">
       ${[['toate','Toate comenzile'],['deschise','Deschise (de pregătit)'],['expediate','Expediate (de validat)'],['inchise','Validate / închise']].map(o=>`<option value="${o[0]}" ${comenziFilter===o[0]?'selected':''}>${o[1]}</option>`).join('')}
     </select></div>
-    ${comenzi.length===0 ? `<div class="empty"><h4>Nicio comandă încă</h4><p>Creează prima comandă pentru un magazin.</p></div>` :
+    ${comenzi.length===0 ? `<div class="empty"><h4>${(DB.comenzi||[]).length?'Nicio comandă în această categorie':'Nicio comandă încă'}</h4><p>${(DB.comenzi||[]).length?'Schimbă filtrul de mai sus (ex. „Toate comenzile" sau „Validate / închise") pentru a vedea restul.':'Creează prima comandă pentru un magazin.'}</p></div>` :
     `<div style="display:grid;gap:12px">${comenzi.map((c,i)=>{
       const idx = DB.comenzi.indexOf(c);
       const isPush = c.tip==='push' || !(c.articole||[]).length;
