@@ -1797,7 +1797,7 @@ function renderInventarRezumate(){
   body.innerHTML=`
     <div class="card">
       <div class="section-head"><h3>📊 Rezumate inventare</h3>
-        <div class="toolbar"><button class="btn btn-sm btn-primary" style="background:#1b7a3d;border-color:#1b7a3d" onclick="exportInventarFrumos()">📥 Descarcă Excel frumos</button></div>
+        <div class="toolbar">${isAdmin()?`<button class="btn btn-sm" style="background:#37618a;border-color:#37618a;color:#fff" onclick="document.getElementById('invImpFile').click()">📥 Import inventar din Excel</button><input type="file" id="invImpFile" accept=".xlsx,.xls" multiple style="display:none" onchange="importInventarExcel(this.files)">`:''}<button class="btn btn-sm btn-primary" style="background:#1b7a3d;border-color:#1b7a3d" onclick="exportInventarFrumos()">📥 Descarcă Excel frumos</button></div>
       </div>
       ${ses.length===0?'<div class="empty"><h4>Niciun inventar încă</h4><p>Aici apar rezumatele după ce se introduc inventare.</p></div>':`
       <div class="form-row" style="gap:10px;margin-bottom:14px">
@@ -1871,6 +1871,48 @@ async function exportInventarFrumos(){
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='Inventar_Rejoes_'+todayISO()+'.xlsx'; document.body.appendChild(a); a.click(); a.remove();
     toast('✓ Excel descărcat');
   }catch(e){ console.error(e); toast('Eroare export — folosesc varianta simplă'); try{exportInv();}catch(_){} }
+}
+// ===== Import inventar din Excel (consolidare independentă de sync) =====
+async function importInventarExcel(files){
+  try{
+    if(!files||!files.length) return;
+    if(typeof XLSX==='undefined'){ toast('XLSX indisponibil'); return; }
+    const resolveMag=(raw)=>{ const s=String(raw||'').trim(); let m=DB.magazine.find(x=>x.id===s); if(m) return m.id; m=DB.magazine.find(x=>(x.id+' '+x.nume)===s); if(m) return m.id; const tok=s.split(/\s+/)[0]; m=DB.magazine.find(x=>x.id===tok); if(m) return m.id; m=DB.magazine.find(x=>x.nume&&s.indexOf(x.nume)>=0); return m?m.id:(tok||s); };
+    const num=v=>{ if(v===''||v==null) return 0; const n=parseFloat(String(v).replace(/\s/g,'').replace(',','.')); return isNaN(n)?0:n; };
+    const truthy=v=> v===true||v===1||['true','da','baseline','1','yes'].indexOf(String(v).toLowerCase())>=0;
+    let rows=[];
+    for(const f of files){
+      try{ const buf=await f.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]]; rows=rows.concat(XLSX.utils.sheet_to_json(ws,{defval:''})); }
+      catch(e){ console.error('Fișier eșuat:',f.name,e); }
+    }
+    if(!rows.length){ toast('Niciun rând citit din fișiere'); return; }
+    const _key=it=> it.idGen || ((it.data||'')+'|'+(it.magazin||'')+'|'+(it.sku||'')+'|'+(it.stocReal||''));
+    const have={}; (DB.inventar||[]).forEach(it=>{ have[_key(it)]=1; });
+    let add=0,skip=0; const news=[];
+    rows.forEach((r,i)=>{
+      const g=(...ns)=>{ for(const n of ns){ if(r[n]!==undefined&&r[n]!=='') return r[n]; } return ''; };
+      const data=String(g('data','Data')).slice(0,10);
+      const magR=g('magazin','Magazin','MAGAZIN');
+      const sku=g('sku','SKU','SKU/Produs','Produs / SKU','produs');
+      if(!data||!magR||!sku) return;
+      const it={ data, magazin:resolveMag(magR), sku:String(sku),
+        stocDeclarat:num(g('stocDeclarat')), stocReal:num(g('stocReal','Bucăți','bucati')),
+        diferenta:num(g('diferenta')), valUnit:num(g('valUnit','Preț/buc','pret')), impact:num(g('impact')),
+        status:String(g('status'))||'baseline', momentZero:truthy(g('momentZero','baseline'))||String(g('status')).toLowerCase()==='baseline',
+        tip:String(g('tip'))||'', autor:String(g('autor','Făcut de','Autor')),
+        salvatLa:String(g('salvatLa'))||nowISO(), idGen:String(g('idGen'))||('INV-IMP-'+Date.now()+'-'+i) };
+      const k=_key(it);
+      if(have[k]){ skip++; return; }
+      have[k]=1; news.push(it); add++;
+    });
+    if(!add){ toast('Toate cele '+skip+' rânduri existau deja (fără dubluri).'); return; }
+    if(!confirm('Import inventar din Excel: '+add+' articole noi, '+skip+' sărite (există deja). Se face backup automat. Continui?')){ return; }
+    try{ createBackup('pre-import-inventar-excel-'+todayISO()); }catch(e){}
+    if(!DB.inventar) DB.inventar=[];
+    news.forEach(it=>DB.inventar.push(it));
+    save(); try{ renderInventar(); }catch(e){}
+    toast('✓ Import inventar: '+add+' adăugate, '+skip+' sărite.');
+  }catch(e){ console.error(e); toast('Eroare la import inventar'); }
 }
 
 // ===== Inventar „moment-zero" — introducere rapidă pe locații (Etapa 17) =====
