@@ -11221,41 +11221,52 @@ function renderComenzi(body) {
   body.innerHTML = `
     <div class="section-head">
       <h3>Comenzi marfă (${comenzi.length})</h3>
-      <button class="btn btn-primary btn-sm" onclick="newComanda()">+ Comandă nouă</button>
+      <div class="toolbar">
+        <button class="btn btn-primary btn-sm" onclick="newComanda()">+ Comandă nouă</button>
+        ${(DB.session.role==='manager-depozit'||isAdmin()) ? `<button class="btn btn-sm" style="background:#6b3fa0;border-color:#6b3fa0;color:#fff" onclick="newExpediereDepozit()">📤 Expediere din depozit (inițiativă)</button>` : ''}
+      </div>
     </div>
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
-      Ana sau Adrian creează comanda → Gabi vede, confirmă recepția, începe pregătirea (alege sac nr., articole, bucăți). Status se actualizează automat. La final, raport copiabil cu cerut vs pregătit.
+      Flux: <strong>comandă</strong> (Ana/Adrian) → <strong>recepție</strong> (Gabi confirmă) → <strong>pregătire</strong> (saci/articole) → <strong>expediere</strong> → <strong>validare recepție</strong> la magazin (cu diferențe). Sau „📤 Expediere din depozit" = Gabi trimite din inițiativă, fără comandă prealabilă.
     </p>
     ${comenzi.length===0 ? `<div class="empty"><h4>Nicio comandă încă</h4><p>Creează prima comandă pentru un magazin.</p></div>` :
     `<div style="display:grid;gap:12px">${comenzi.map((c,i)=>{
       const idx = DB.comenzi.indexOf(c);
+      const isPush = c.tip==='push' || !(c.articole||[]).length;
       const totalCerut = (c.articole||[]).reduce((s,a)=>s+(a.bucCerute||0),0);
-      const totalPregatit = (c.articole||[]).reduce((s,a)=>s+(a.bucPregatite||0),0);
-      const pct = totalCerut>0 ? Math.round(totalPregatit/totalCerut*100) : 0;
-      const statusClass = c.status==='completă'?'badge-ok':c.status==='emisă'?'badge-warn':'badge-info';
+      const totalPregatit = isPush ? (c.saciPregatiti||[]).reduce((s,sc)=>s+(sc.articole||[]).reduce((x,a)=>x+(+a.buc||0),0),0)
+                                   : (c.articole||[]).reduce((s,a)=>s+(a.bucPregatite||0),0);
+      const pct = totalCerut>0 ? Math.round(totalPregatit/totalCerut*100) : (totalPregatit>0?100:0);
+      const st = c.status||'emisă';
+      const statusClass = (st==='recepționată la magazin'||st==='completă')?'badge-ok':(st==='expediată'||st==='emisă')?'badge-warn':'badge-info';
       const m = DB.magazine.find(x=>x.id===c.catreMagazin);
-      return `<div class="card" style="background:#f8fdf9;border-left:4px solid var(--accent);padding:14px;margin:0">
+      const canValidate = (st==='expediată') && (isAdmin()||DB.session.role==='operator'||DB.session.role==='owner');
+      const rec = c.receptie;
+      const detItems = isPush ? (c.saciPregatiti||[]).flatMap(sc=>sc.articole||[]) : (c.articole||[]);
+      return `<div class="card" style="background:#f8fdf9;border-left:4px solid ${isPush?'#6b3fa0':'var(--accent)'};padding:14px;margin:0">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
           <div>
             <strong style="font-size:14px">${c.id}</strong> · <span style="color:var(--text-muted);font-size:12px">${c.data}</span>
             <div style="margin-top:3px;font-size:13px">📦 ${m?m.id+' '+m.nume:c.catreMagazin}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">creată de ${(DB.users[c.autor]||{}).nume||c.autor||'—'}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${isPush?'📤 Expediere din inițiativă · ':''}creată de ${(DB.users[c.autor]||{}).nume||c.autor||'—'}</div>
           </div>
           <div style="text-align:right">
-            <span class="badge ${statusClass}">${c.status||'emisă'}</span>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${totalPregatit} / ${totalCerut} buc (${pct}%)</div>
+            <span class="badge ${statusClass}">${st}</span>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${isPush?('Expediat: '+totalPregatit+' buc'):(totalPregatit+' / '+totalCerut+' buc ('+pct+'%)')}</div>
           </div>
         </div>
         <div style="margin-top:10px;height:6px;background:#e0e6e2;border-radius:3px;overflow:hidden">
-          <div style="height:100%;background:var(--accent);width:${pct}%;transition:width .3s"></div>
+          <div style="height:100%;background:${isPush?'#6b3fa0':'var(--accent)'};width:${pct}%;transition:width .3s"></div>
         </div>
         <div style="margin-top:10px;font-size:12px;color:var(--text-muted)">
-          ${(c.articole||[]).slice(0,3).map(a=>{const p=DB.nomenclator.find(x=>x.id===a.produsId);return `${a.bucCerute}× ${p?p.denumire:a.denumire||'?'}`}).join(' · ')}${(c.articole||[]).length>3?' …':''}
+          ${detItems.slice(0,3).map(a=>{const p=DB.nomenclator.find(x=>x.id===a.produsId);return `${a.bucCerute||a.buc||0}× ${p?p.denumire:a.denumire||'?'}`}).join(' · ')}${detItems.length>3?' …':''}
         </div>
+        ${rec ? `<div style="margin-top:8px;font-size:12px;padding:6px 10px;border-radius:8px;background:${(rec.diferente&&rec.diferente.length)?'#fff7e6':'#eef7f0'}">✓ Recepție validată de ${(DB.users[rec.validatDe]||{}).nume||rec.validatDe||'—'}${(rec.diferente&&rec.diferente.length)?` · <strong style="color:#a06a00">${rec.diferente.length} diferențe</strong>: `+rec.diferente.map(d=>`${d.den} ${d.dif>0?'+':''}${d.dif}`).join(', ')+(rec.mentiune?(' · '+escapeHtml(rec.mentiune)):''):' · fără diferențe'}</div>`:''}
         <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-          ${c.status==='emisă' ? `<button class="btn btn-sm" onclick="confirmaComanda(${idx})">✓ Confirmă recepția</button>` : ''}
-          ${(c.status==='recepționată'||c.status==='în pregătire') ? `<button class="btn btn-primary btn-sm" onclick="pregatesteComanda(${idx})">⚙️ Continuă pregătirea</button>` : ''}
-          ${c.status==='completă' ? `<button class="btn btn-sm" onclick="copiazaRaportComanda(${idx})">📋 Copiază raport</button>` : ''}
+          ${st==='emisă' ? `<button class="btn btn-sm" onclick="confirmaComanda(${idx})">✓ Confirmă recepția</button>` : ''}
+          ${(st==='recepționată'||st==='în pregătire') ? `<button class="btn btn-primary btn-sm" onclick="pregatesteComanda(${idx})">⚙️ Continuă pregătirea</button>` : ''}
+          ${canValidate ? `<button class="btn btn-primary btn-sm" onclick="valideazaReceptie(${idx})">✅ Validează recepția</button>` : ''}
+          ${(st==='expediată'||st==='recepționată la magazin'||st==='completă') ? `<button class="btn btn-sm" onclick="copiazaRaportComanda(${idx})">📋 Copiază raport</button>` : ''}
           <button class="btn btn-sm btn-ghost" onclick="viewComanda(${idx})">👁 Detalii</button>
           ${DB.session.role==='admin' || c.autor===DB.session.user ? `<button class="btn btn-sm btn-ghost" onclick="delComanda(${idx})">×</button>` : ''}
         </div>
@@ -11271,6 +11282,30 @@ function newComanda() {
   const articole = [{produsId:'', denumire:'', bucCerute:1}];
   let current = { catreMagazin: '', articole };
   showComandaForm(current, -1);
+}
+
+function newExpediereDepozit(){
+  openModal(`
+    <h3>📤 Expediere din depozit (din inițiativă)</h3>
+    <p style="font-size:12.5px;color:var(--text-muted)">Trimiți marfă către un magazin fără o comandă prealabilă. Alegi magazinul, apoi pregătești sacii (alegi produse și bucăți). La sfârșit, magazinul validează recepția.</p>
+    <div class="form-row">
+      <div class="form-field"><label>Data</label><input type="date" id="ed_data" value="${todayISO()}"></div>
+      <div class="form-field" style="flex:2"><label>Către magazin</label>
+        <select id="ed_mag"><option value="">— alege magazin —</option>${DB.magazine.filter(m=>m.status==='Activ'&&m.id.startsWith('MAG-')).map(m=>`<option value="${m.id}">${m.id} ${m.nume}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn" onclick="closeModal()">Anulează</button>
+      <button class="btn btn-primary" onclick="creeazaExpediere()">Începe pregătirea →</button>
+    </div>
+  `);
+}
+function creeazaExpediere(){
+  const mag=document.getElementById('ed_mag').value; if(!mag){ toast('Alege un magazin'); return; }
+  const c={ id:'CMD-'+Date.now(), data:document.getElementById('ed_data').value, catreMagazin:mag, articole:[], saciPregatiti:[], observatii:'', tip:'push', status:'în pregătire', autor:DB.session.user, creatLa:nowISO(), mesajFinal:'' };
+  if(!DB.comenzi) DB.comenzi=[]; DB.comenzi.push(c); save();
+  const idx=DB.comenzi.length-1; closeModal(); renderMiscari();
+  setTimeout(()=>pregatesteComanda(idx),150);
 }
 
 function showComandaForm(cur, idx) {
@@ -11391,8 +11426,8 @@ function showPregatireSacForm() {
   openModal(`
     <h3>⚙️ Pregătire — Sac nr. <input type="number" id="ps_nr" value="${sac.nr}" min="1" style="width:60px;padding:2px 6px;font-size:14px"></h3>
     <div style="background:#f8fdf9;padding:10px;border-radius:8px;margin-bottom:10px">
-      <strong style="font-size:13px">Comandă pentru: ${(DB.magazine.find(m=>m.id===c.catreMagazin)||{}).nume||c.catreMagazin}</strong>
-      <div style="margin-top:6px;font-size:12px;color:var(--text-muted)">Cerere completă:</div>
+      <strong style="font-size:13px">${(c.tip==='push'||!(c.articole||[]).length)?'📤 Expediere din inițiativă către':'Comandă pentru'}: ${(DB.magazine.find(m=>m.id===c.catreMagazin)||{}).nume||c.catreMagazin}</strong>
+      ${(c.articole||[]).length ? `<div style="margin-top:6px;font-size:12px;color:var(--text-muted)">Cerere completă:</div>
       <div style="margin-top:4px;font-size:12px">
         ${c.articole.map(a => {
           const p = DB.nomenclator.find(x=>x.id===a.produsId);
@@ -11402,7 +11437,7 @@ function showPregatireSacForm() {
           const ramas = a.bucCerute - pregatit;
           return `<span style="display:inline-block;margin:2px 4px;padding:3px 8px;background:#fff;border-radius:10px;border:1px solid ${ramas<=0?'#d6ebe0':'var(--border)'}">${den}: <strong>${pregatit}/${a.bucCerute}</strong> ${ramas>0?`(${ramas} de pus)`:'<span style="color:var(--success)">✓</span>'}</span>`;
         }).join('')}
-      </div>
+      </div>` : `<div style="margin-top:6px;font-size:12px;color:var(--text-muted)">Fără cerere prealabilă — adaugi liber produsele și bucățile pe care le trimiți.</div>`}
     </div>
 
     <div style="background:#fff;padding:10px;border-radius:8px;border:1px solid var(--border)">
@@ -11415,11 +11450,8 @@ function showPregatireSacForm() {
           <div class="form-row" style="margin-bottom:6px" data-sac-art="${i}">
             <div class="form-field" style="flex:3"><label>Articol</label>
               <select onchange="window._pregSac.articole[${i}].produsId=this.value">
-                ${c.articole.map(orig => {
-                  const p = DB.nomenclator.find(x=>x.id===orig.produsId);
-                  const val = orig.produsId || orig.denumire;
-                  return `<option value="${val}" ${val===a.produsId||val===a.denumire?'selected':''}>${p?p.denumire:orig.denumire||'?'}</option>`;
-                }).join('')}
+                <option value="">— alege produs —</option>
+                ${((c.articole&&c.articole.length)?c.articole.map(orig=>({val:orig.produsId||orig.denumire,label:(DB.nomenclator.find(x=>x.id===orig.produsId)||{}).denumire||orig.denumire||'?'})):DB.nomenclator.map(p=>({val:p.id,label:p.denumire}))).map(o=>`<option value="${o.val}" ${o.val===a.produsId||o.val===a.denumire?'selected':''}>${o.label}</option>`).join('')}
               </select>
             </div>
             <div class="form-field"><label>Buc</label><input type="number" min="0" value="${a.buc||0}" onchange="window._pregSac.articole[${i}].buc=parseInt(this.value)||0"></div>
@@ -11488,12 +11520,49 @@ function saveSacAndFinish() {
   if (_sacAreArticole()) { if (!captureSacAndSave()) return; }
   const c = DB.comenzi[window._pregComandaIdx];
   if (!(c.saciPregatiti && c.saciPregatiti.length)) { toast('Nu ai pregătit niciun sac cu articole — adaugă cel puțin unul.'); return; }
-  c.status = 'completă';
-  c.finalizatLa = nowISO();
-  c.finalizatDe = DB.session.user;
+  c.status = 'expediată';
+  c.expediatLa = nowISO();
+  c.expediatDe = DB.session.user;
+  c.finalizatLa = c.expediatLa; c.finalizatDe = c.expediatDe;
   c.mesajFinal = genRaportComanda(c);
   save(); closeModal(); renderMiscari();
   setTimeout(()=>showRaportComanda(window._pregComandaIdx), 200);
+}
+
+function valideazaReceptie(idx){
+  const c=DB.comenzi[idx]; if(!c) return;
+  const agg={};
+  (c.saciPregatiti||[]).forEach(s=>(s.articole||[]).forEach(a=>{ const k=a.produsId||a.denumire; if(k) agg[k]=(agg[k]||0)+(+a.buc||0); }));
+  const rows=Object.entries(agg).map(([k,exp])=>{ const p=DB.nomenclator.find(x=>x.id===k); return {key:k, den:p?p.denumire:k, exp}; });
+  if(!rows.length){ toast('Nu există articole expediate de validat'); return; }
+  window._recComandaIdx=idx;
+  const m=DB.magazine.find(x=>x.id===c.catreMagazin);
+  openModal(`
+    <h3>✅ Validare recepție — ${c.id}</h3>
+    <p style="font-size:12.5px;color:var(--text-muted)">Confirmi ce a ajuns efectiv la <strong>${m?m.nume:c.catreMagazin}</strong>. Implicit = cât s-a expediat; modifică doar unde diferă.</p>
+    <div class="table-wrap"><table><thead><tr><th>Produs</th><th class="num">Expediat</th><th class="num">Primit</th></tr></thead><tbody>
+      ${rows.map((r,i)=>`<tr><td>${escapeHtml(r.den)}</td><td class="num">${r.exp}</td><td class="num"><input type="number" min="0" id="rec_${i}" value="${r.exp}" data-key="${escapeHtml(r.key)}" data-exp="${r.exp}" data-den="${escapeHtml(r.den)}" style="width:84px;text-align:right;padding:3px 6px"></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="form-field" style="margin-top:10px"><label>Mențiune (opțional)</label><input type="text" id="rec_ment" placeholder="ex: 2 tricouri lipsă, 1 deteriorat"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn" onclick="closeModal()">Anulează</button>
+      <button class="btn btn-primary" onclick="saveReceptieComanda()">✅ Confirmă recepția</button>
+    </div>
+  `);
+}
+function saveReceptieComanda(){
+  const c=DB.comenzi[window._recComandaIdx]; if(!c) return;
+  const primite={}, diferente=[];
+  document.querySelectorAll('input[id^="rec_"]').forEach(inp=>{
+    if(inp.id==='rec_ment') return;
+    const k=inp.dataset.key, exp=+inp.dataset.exp||0, pr=parseInt(inp.value)||0;
+    primite[k]=pr; if(pr!==exp) diferente.push({key:k, den:inp.dataset.den, exp, primit:pr, dif:pr-exp});
+  });
+  const ment=(document.getElementById('rec_ment').value||'').trim();
+  c.receptie={ validatLa:nowISO(), validatDe:DB.session.user, primite, diferente, mentiune:ment };
+  c.status='recepționată la magazin';
+  save(); closeModal(); renderMiscari();
+  toast(diferente.length?('Recepție validată — '+diferente.length+' diferențe notate'):'✓ Recepție validată, fără diferențe');
 }
 
 function genRaportComanda(c) {
