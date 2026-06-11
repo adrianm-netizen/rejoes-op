@@ -7624,7 +7624,51 @@ async function exportPontajIndividual(){
   await dwnXLSX(wb, `Pontaj_Individual_${lunaNume}_${an}.xlsx`);
   toast('✓ Pontaj individual descărcat');
 }
-function exportRap(){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(DB.raportari), 'Raportare'); dwn(wb,`Raportare_${todayISO()}.xlsx`); }
+async function exportRap(){
+  try{
+    if(typeof ExcelJS==='undefined'){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(DB.raportari), 'Raportare'); dwn(wb,`Raportare_${todayISO()}.xlsx`); return; }
+    const _n=v=>{ const x=parseFloat(v); return isNaN(x)?0:x; };
+    const wb=new ExcelJS.Workbook(); wb.creator='Rejoes';
+    const ws=wb.addWorksheet('Raportare zilnică');
+    [12,24,22,14,14,14,15,9,12,9,9,11].forEach((w,i)=>{ ws.getColumn(i+1).width=w; });
+    const _img=async(u)=>{ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.arrayBuffer(); }catch(e){ return null; } };
+    const [logoSC,logoRJ]=await Promise.all([_img('logo_scolect.png'),_img('logo_rejoes.png')]);
+    let cc=ws.getCell('A1'); ws.mergeCells('A1:L1'); cc.value='S COLECT REC SRL'; cc.font={bold:true,size:14,color:{argb:'FF1B7A3D'}}; cc.alignment={horizontal:'center'};
+    cc=ws.getCell('A2'); ws.mergeCells('A2:L2'); cc.value='Raportare zilnică — încasări · Magazine REJOES'; cc.font={size:10,italic:true,color:{argb:'FF555555'}}; cc.alignment={horizontal:'center'};
+    cc=ws.getCell('A3'); ws.mergeCells('A3:L3'); cc.value='CIF RO 38513453 · Reg. Com. J2017004459354 · Str. Republicii 20, 305400 Jimbolia, jud. Timiș · info@tm-res.com'; cc.font={size:9,color:{argb:'FF777777'}}; cc.alignment={horizontal:'center'};
+    ws.getRow(1).height=20; ws.getRow(2).height=14; ws.getRow(3).height=14; ws.getRow(4).height=8;
+    if(logoSC){ try{ const id=wb.addImage({buffer:logoSC,extension:'png'}); ws.addImage(id,{tl:{col:0.1,row:0.1},ext:{width:80,height:80}}); }catch(e){} }
+    if(logoRJ){ try{ const id=wb.addImage({buffer:logoRJ,extension:'png'}); ws.addImage(id,{tl:{col:9.3,row:0.55},ext:{width:165,height:51}}); }catch(e){} }
+    const data=(DB.raportari||[]).slice();
+    const perMag={}; data.forEach(r=>{ const m=r.magazin||'—'; (perMag[m]=perMag[m]||{v:0,b:0}); perMag[m].v+=_n(r.vanzari); perMag[m].b+=_n(r.bonuri); });
+    let row=5;
+    ws.getCell('A'+row).value='SUMAR PE MAGAZIN'; ws.getCell('A'+row).font={bold:true,size:11}; row++;
+    const sh=ws.getRow(row); ['Magazin','Vânzări (lei)','Bonuri','Bon mediu (lei)'].forEach((t,i)=>{ const c=sh.getCell(i+1); c.value=t; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1B7A3D'}}; c.font={bold:true,color:{argb:'FFFFFFFF'},size:10}; c.alignment={horizontal:'center'}; }); row++;
+    let tV=0,tB=0;
+    Object.entries(perMag).map(([m,o])=>({m,v:o.v,b:o.b})).sort((a,b)=>b.v-a.v).forEach(o=>{ const r=ws.getRow(row); r.getCell(1).value=mag(o.m); r.getCell(2).value=Math.round(o.v*100)/100; r.getCell(3).value=o.b; r.getCell(4).value=o.b>0?Math.round(o.v/o.b*100)/100:0; r.eachCell(c=>{c.font={size:10};}); r.getCell(2).numFmt='#,##0.00'; r.getCell(4).numFmt='#,##0.00'; tV+=o.v; tB+=o.b; row++; });
+    const tr=ws.getRow(row); tr.getCell(1).value='TOTAL'; tr.getCell(2).value=Math.round(tV*100)/100; tr.getCell(3).value=tB; tr.getCell(4).value=tB>0?Math.round(tV/tB*100)/100:0; tr.eachCell(c=>{c.font={bold:true,size:10}; c.border={top:{style:'medium'}};}); tr.getCell(2).numFmt='#,##0.00'; tr.getCell(4).numFmt='#,##0.00'; row+=2;
+    ws.getCell('A'+row).value='DETALIU ZILNIC'; ws.getCell('A'+row).font={bold:true,size:11}; row++;
+    const HDR=['Data','Magazin','Casier','Vânzări (lei)','Card/POS (lei)','Numerar (lei)','Diferență casă','Bonuri','Bon mediu','Anulări','Retururi','Alertă'];
+    const hr=ws.getRow(row); HDR.forEach((t,i)=>{ const c=hr.getCell(i+1); c.value=t; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1B7A3D'}}; c.font={bold:true,color:{argb:'FFFFFFFF'},size:10}; c.alignment={horizontal:'center',vertical:'middle'}; }); hr.height=16; row++;
+    data.sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));
+    data.forEach((r,idx)=>{
+      const bon=_n(r.bonuri), v=_n(r.vanzari); const rr=ws.getRow(row);
+      rr.getCell(1).value=_dmy(r.data); rr.getCell(2).value=mag(r.magazin); rr.getCell(3).value=r.casier||'';
+      rr.getCell(4).value=Math.round(v*100)/100; rr.getCell(5).value=(r.pos===''||r.pos==null)?'':_n(r.pos); rr.getCell(6).value=(r.numerarPredat===''||r.numerarPredat==null)?'':_n(r.numerarPredat);
+      rr.getCell(7).value=Math.round(_n(r.diferenta)*100)/100; rr.getCell(8).value=bon; rr.getCell(9).value=bon>0?Math.round(v/bon*100)/100:0;
+      rr.getCell(10).value=_n(r.anulari); rr.getCell(11).value=_n(r.retururi); rr.getCell(12).value=r.alerta||'OK';
+      rr.eachCell(c=>{c.font={size:10};});
+      if(idx%2){ rr.eachCell(c=>{ c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF4F8F5'}}; }); }
+      [4,5,6,7,9].forEach(ci=>{ rr.getCell(ci).numFmt='#,##0.00'; });
+      if(Math.abs(_n(r.diferenta))>0.001){ rr.getCell(7).font={size:10,bold:true,color:{argb:'FFB91C1C'}}; }
+      row++;
+    });
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='Raportare_Rejoes_'+todayISO()+'.xlsx'; document.body.appendChild(a); a.click(); a.remove();
+    toast('✓ Excel descărcat');
+  }catch(e){ console.error(e); toast('Eroare export — folosesc varianta simplă'); try{ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(DB.raportari), 'Raportare'); dwn(wb,`Raportare_${todayISO()}.xlsx`); }catch(_){} }
+}
 function exportDif(){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(DB.diferente.map(d=>({...d,magazin:mag(d.magazin)}))), 'Diferente'); dwn(wb,`Diferente_${todayISO()}.xlsx`); }
 function exportInv(){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(DB.inventar.map(it=>({...it,magazin:mag(it.magazin)}))), 'Inventar'); dwn(wb,`Inventar_${todayISO()}.xlsx`); }
 function exportAlerte(){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(generateAlerts(DB.raportari).map(a=>({...a,magazin:mag(a.magazin)}))), 'Alerte'); dwn(wb,`Alerte_${todayISO()}.xlsx`); }
