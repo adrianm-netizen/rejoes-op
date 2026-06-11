@@ -13352,6 +13352,25 @@ async function safeCheckBeforePush(col) {
   return true;
 }
 
+// 🛡 PLASĂ DE SIGURANȚĂ PUSH (11 iun): pentru colecțiile cu unire (facturi/comenzi/etc.),
+// înainte de a SCRIE în cloud absoarbe întâi înregistrările din cloud care lipsesc local,
+// astfel încât scrierea să conțină REUNIUNEA — niciun device nu mai poate șterge factura
+// introdusă pe alt device, chiar dacă acel device rulează încă versiunea veche.
+async function _mergeCloudBeforePush(col) {
+  if (!_MERGE_COLLECTIONS[col] || !window.FB) return;
+  try {
+    const snap = await window.FB.db.ref(col).once('value');
+    const val = snap.val();
+    if (val === null || val === undefined) return;
+    const cloudArr = Array.isArray(val) ? val : Object.values(val);
+    const merged = _mergeArrById(DB[col] || [], cloudArr, _MERGE_COLLECTIONS[col]);
+    if (JSON.stringify(merged) !== JSON.stringify(DB[col] || [])) {
+      console.log(`[push-merge] ${col}: absorbit din cloud (local ${(DB[col]||[]).length} + cloud ${cloudArr.length} → ${merged.length})`);
+      DB[col] = merged;
+      try { _origSave(); } catch(e){}
+    }
+  } catch(e) { console.error('[push-merge] '+col, e); }
+}
 function scheduleAutoPush() {
   if (_autoSyncTimer) clearTimeout(_autoSyncTimer);
   setSyncStatus('pending');
@@ -13363,6 +13382,7 @@ function scheduleAutoPush() {
         try {
           const canPush = await safeCheckBeforePush(col);
           if (!canPush) { blocked++; continue; }
+          await _mergeCloudBeforePush(col);
           await window.FB.db.ref(col).set(DB[col]||[]);
           ok++;
         } catch(e){ console.error('AutoPush '+col+' failed:', e); fail++; }
@@ -13542,6 +13562,7 @@ async function manualSyncNow() {
       try {
         const canPush = await safeCheckBeforePush(col);
         if (!canPush) { blocked++; blockedList.push(col); continue; }
+        await _mergeCloudBeforePush(col);
         await window.FB.db.ref(col).set(DB[col]||[]);
         ok++;
       } catch(e){ console.error(e); }
