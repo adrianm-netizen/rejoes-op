@@ -10259,6 +10259,7 @@ async function importErdotexXLSX(evt) {
     const iDesc = findH('descriere','description');
     const iKg = findH('kg','loaded kg','weight','greutate','standard kg');
     const iAmb = findH('ambalaj'), iReb = findH('rebut'), iNet = findH('marfa kg'), iPret = findH('pret achizit','amount'), iPretKg = findH('pret (mediu)','unit price');
+    const iQty = findH('qty','cantitate','saci','nr saci','colete');
     const articole = [];
     for (let r = headerRow+1; r < rows.length; r++) {
       const row = rows[r];
@@ -10275,7 +10276,7 @@ async function importErdotexXLSX(evt) {
         const found = Object.keys(ERDOTEX_CODES).find(c => c.replace(/-/g,'').toLowerCase() === art.replace(/-/g,'').toLowerCase()) ||
                       Object.keys(ERDOTEX_CODES).find(c => c.replace(/-/g,'').toLowerCase().includes(art.replace(/-/g,'').toLowerCase()));
         if (found) cod = found;
-        articole.push({qty:0, cod, descriere: desc, uom:'PB', kg, unitPrice, amount, ambalaj: parseFloat(row[iAmb])||0, rebut: parseFloat(row[iReb])||0, kgNet: parseFloat(row[iNet])||kg});
+        articole.push({qty: parseFloat(row[iQty])||0, cod, descriere: desc, uom:'PB', kg, unitPrice, amount, ambalaj: parseFloat(row[iAmb])||0, rebut: parseFloat(row[iReb])||0, kgNet: parseFloat(row[iNet])||kg});
       }
     }
     // Dacă fișierul are doar kg, fără prețuri (ex. packing list S-collect), cere un preț unic €/kg
@@ -11449,13 +11450,17 @@ function sacAddArt() {
   showPregatireSacForm();
 }
 
-function captureSacAndSave() {
+function _captureSacFromDOM() {
   document.querySelectorAll('#sacArticole [data-sac-art]').forEach((row,i)=>{
     if (!window._pregSac.articole[i]) return;
     const sel = row.querySelector('select'); if (sel) window._pregSac.articole[i].produsId = sel.value;
     const num = row.querySelector('input[type=number]'); if (num) window._pregSac.articole[i].buc = parseInt(num.value)||0;
   });
-  window._pregSac.nr = parseInt(document.getElementById('ps_nr').value)||window._pregSac.nr;
+  const nrEl=document.getElementById('ps_nr'); if(nrEl) window._pregSac.nr = parseInt(nrEl.value)||window._pregSac.nr;
+}
+function _sacAreArticole(){ return (window._pregSac && (window._pregSac.articole||[]).some(a=>a.produsId && a.buc>0)); }
+function captureSacAndSave() {
+  _captureSacFromDOM();
   const sac = window._pregSac;
   sac.articole = sac.articole.filter(a => a.produsId && a.buc > 0);
   if (sac.articole.length === 0) { toast('Sacul e gol — adaugă cel puțin un articol'); return false; }
@@ -11478,8 +11483,11 @@ function saveSacAndContinue() {
 }
 
 function saveSacAndFinish() {
-  if (!captureSacAndSave()) return;
+  _captureSacFromDOM();
+  // Sacul curent se salvează DOAR dacă are articole; dacă e gol, îl ignorăm și finalizăm.
+  if (_sacAreArticole()) { if (!captureSacAndSave()) return; }
   const c = DB.comenzi[window._pregComandaIdx];
+  if (!(c.saciPregatiti && c.saciPregatiti.length)) { toast('Nu ai pregătit niciun sac cu articole — adaugă cel puțin unul.'); return; }
   c.status = 'completă';
   c.finalizatLa = nowISO();
   c.finalizatDe = DB.session.user;
