@@ -1714,7 +1714,12 @@ function inventarFiltrat() {
       !it.momentZero
     )) &&
     (!q || (it.sku||'').toLowerCase().includes(q))
-  );
+  ).sort((a,b)=>{
+    const da=String(a.data||''), db=String(b.data||'');
+    if(db!==da) return db.localeCompare(da);   // cele mai noi primele
+    const aB=(a.idGen||'').startsWith('INV-BASE-')?1:0, bB=(b.idGen||'').startsWith('INV-BASE-')?1:0;
+    return aB-bB;                               // numărat recent înaintea importului aprilie
+  });
 }
 
 function editInv(idx) {
