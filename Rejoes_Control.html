@@ -11216,8 +11216,11 @@ function renderMiscari() {
 }
 
 // ===== COMENZI =====
+let comenziFilter = 'toate';
 function renderComenzi(body) {
-  const comenzi = [...(DB.comenzi||[])].sort((a,b)=>(b.creatLa||'').localeCompare(a.creatLa||''));
+  const _grpC = {deschise:['emisă','recepționată','în pregătire'], expediate:['expediată'], inchise:['recepționată la magazin','completă']};
+  let comenzi = [...(DB.comenzi||[])].sort((a,b)=>(b.salvatLa||b.creatLa||'').localeCompare(a.salvatLa||a.creatLa||''));
+  if (comenziFilter!=='toate') { const allow=_grpC[comenziFilter]||[]; comenzi = comenzi.filter(c=>allow.includes(c.status||'emisă')); }
   body.innerHTML = `
     <div class="section-head">
       <h3>Comenzi marfă (${comenzi.length})</h3>
@@ -11229,6 +11232,9 @@ function renderComenzi(body) {
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
       Flux: <strong>comandă</strong> (Ana/Adrian) → <strong>recepție</strong> (Gabi confirmă) → <strong>pregătire</strong> (saci/articole) → <strong>expediere</strong> → <strong>validare recepție</strong> la magazin (cu diferențe). Sau „📤 Expediere din depozit" = Gabi trimite din inițiativă, fără comandă prealabilă.
     </p>
+    <div style="margin-bottom:12px"><select class="btn" onchange="comenziFilter=this.value;renderMiscari()">
+      ${[['toate','Toate comenzile'],['deschise','Deschise (de pregătit)'],['expediate','Expediate (de validat)'],['inchise','Validate / închise']].map(o=>`<option value="${o[0]}" ${comenziFilter===o[0]?'selected':''}>${o[1]}</option>`).join('')}
+    </select></div>
     ${comenzi.length===0 ? `<div class="empty"><h4>Nicio comandă încă</h4><p>Creează prima comandă pentru un magazin.</p></div>` :
     `<div style="display:grid;gap:12px">${comenzi.map((c,i)=>{
       const idx = DB.comenzi.indexOf(c);
@@ -11267,6 +11273,7 @@ function renderComenzi(body) {
           ${(st==='recepționată'||st==='în pregătire') ? `<button class="btn btn-primary btn-sm" onclick="pregatesteComanda(${idx})">⚙️ Continuă pregătirea</button>` : ''}
           ${canValidate ? `<button class="btn btn-primary btn-sm" onclick="valideazaReceptie(${idx})">✅ Validează recepția</button>` : ''}
           ${(st==='expediată'||st==='recepționată la magazin'||st==='completă') ? `<button class="btn btn-sm" onclick="copiazaRaportComanda(${idx})">📋 Copiază raport</button>` : ''}
+          <button class="btn btn-sm" onclick="exportComandaExcel(${idx})">📥 Excel</button>
           <button class="btn btn-sm btn-ghost" onclick="viewComanda(${idx})">👁 Detalii</button>
           ${DB.session.role==='admin' || c.autor===DB.session.user ? `<button class="btn btn-sm btn-ghost" onclick="delComanda(${idx})">×</button>` : ''}
         </div>
@@ -11302,7 +11309,7 @@ function newExpediereDepozit(){
 }
 function creeazaExpediere(){
   const mag=document.getElementById('ed_mag').value; if(!mag){ toast('Alege un magazin'); return; }
-  const c={ id:'CMD-'+Date.now(), data:document.getElementById('ed_data').value, catreMagazin:mag, articole:[], saciPregatiti:[], observatii:'', tip:'push', status:'în pregătire', autor:DB.session.user, creatLa:nowISO(), mesajFinal:'' };
+  const c={ id:'CMD-'+Date.now(), data:document.getElementById('ed_data').value, catreMagazin:mag, articole:[], saciPregatiti:[], observatii:'', tip:'push', status:'în pregătire', autor:DB.session.user, creatLa:nowISO(), salvatLa:nowISO(), mesajFinal:'' };
   if(!DB.comenzi) DB.comenzi=[]; DB.comenzi.push(c); save();
   const idx=DB.comenzi.length-1; closeModal(); renderMiscari();
   setTimeout(()=>pregatesteComanda(idx),150);
@@ -11394,6 +11401,7 @@ function saveComanda(idx) {
     status: idx>=0 ? DB.comenzi[idx].status : 'emisă',
     autor: idx>=0 ? DB.comenzi[idx].autor : DB.session.user,
     creatLa: idx>=0 ? DB.comenzi[idx].creatLa : nowISO(),
+    salvatLa: nowISO(),
     mesajFinal: idx>=0 ? DB.comenzi[idx].mesajFinal : ''
   };
   if (!DB.comenzi) DB.comenzi = [];
@@ -11406,6 +11414,7 @@ function confirmaComanda(idx) {
   DB.comenzi[idx].status = 'recepționată';
   DB.comenzi[idx].confirmatLa = nowISO();
   DB.comenzi[idx].confirmatDe = DB.session.user;
+  DB.comenzi[idx].salvatLa = nowISO();
   save(); renderMiscari(); toast('Recepție confirmată');
 }
 
@@ -11505,6 +11514,7 @@ function captureSacAndSave() {
     a.bucPregatite = (c.saciPregatiti||[]).reduce((s,sc)=>s+(sc.articole||[]).filter(x=>(x.produsId||x.denumire)===key).reduce((ss,x)=>ss+(x.buc||0),0), 0);
   });
   c.status = 'în pregătire';
+  c.salvatLa = nowISO();
   return true;
 }
 
@@ -11524,6 +11534,7 @@ function saveSacAndFinish() {
   c.expediatLa = nowISO();
   c.expediatDe = DB.session.user;
   c.finalizatLa = c.expediatLa; c.finalizatDe = c.expediatDe;
+  c.salvatLa = c.expediatLa;
   c.mesajFinal = genRaportComanda(c);
   save(); closeModal(); renderMiscari();
   setTimeout(()=>showRaportComanda(window._pregComandaIdx), 200);
@@ -11561,8 +11572,61 @@ function saveReceptieComanda(){
   const ment=(document.getElementById('rec_ment').value||'').trim();
   c.receptie={ validatLa:nowISO(), validatDe:DB.session.user, primite, diferente, mentiune:ment };
   c.status='recepționată la magazin';
+  c.salvatLa=nowISO();
   save(); closeModal(); renderMiscari();
   toast(diferente.length?('Recepție validată — '+diferente.length+' diferențe notate'):'✓ Recepție validată, fără diferențe');
+}
+
+async function exportComandaExcel(idx){
+  try{
+    const c=DB.comenzi[idx]; if(!c) return;
+    if(typeof ExcelJS==='undefined'){ copiazaRaportComanda(idx); return; }
+    const wb=new ExcelJS.Workbook(); const ws=wb.addWorksheet('Comandă');
+    [10,32,12,12,12].forEach((w,i)=>ws.getColumn(i+1).width=w);
+    const _img=async(u)=>{ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok)return null; return await r.arrayBuffer(); }catch(e){ return null; } };
+    const [logoSC,logoRJ]=await Promise.all([_img('logo_scolect.png'),_img('logo_rejoes.png')]);
+    let cc=ws.getCell('A1'); ws.mergeCells('A1:E1'); cc.value='S COLECT REC SRL'; cc.font={bold:true,size:14,color:{argb:'FF1B7A3D'}}; cc.alignment={horizontal:'center'};
+    cc=ws.getCell('A2'); ws.mergeCells('A2:E2'); cc.value='Aviz comandă marfă · Magazine REJOES'; cc.font={size:10,italic:true,color:{argb:'FF555555'}}; cc.alignment={horizontal:'center'};
+    cc=ws.getCell('A3'); ws.mergeCells('A3:E3'); cc.value='CIF RO 38513453 · J2017004459354 · Str. Republicii 20, 305400 Jimbolia, jud. Timiș · info@tm-res.com'; cc.font={size:9,color:{argb:'FF777777'}}; cc.alignment={horizontal:'center'};
+    ws.getRow(1).height=20; ws.getRow(2).height=14; ws.getRow(3).height=14; ws.getRow(4).height=8;
+    if(logoSC){ try{ const id=wb.addImage({buffer:logoSC,extension:'png'}); ws.addImage(id,{tl:{col:0.1,row:0.1},ext:{width:78,height:78}}); }catch(e){} }
+    if(logoRJ){ try{ const id=wb.addImage({buffer:logoRJ,extension:'png'}); ws.addImage(id,{tl:{col:3.05,row:0.55},ext:{width:150,height:46}}); }catch(e){} }
+    const m=DB.magazine.find(x=>x.id===c.catreMagazin); const isPush=c.tip==='push'||!(c.articole||[]).length;
+    let row=5;
+    const info=(k,v)=>{ ws.getCell('A'+row).value=k; ws.getCell('A'+row).font={bold:true,size:10}; ws.getCell('B'+row).value=v; ws.getCell('B'+row).font={size:10}; row++; };
+    info('Comandă:', c.id); info('Data:', _dmy(c.data)); info('Magazin:', m?(m.id+' '+m.nume):c.catreMagazin);
+    info('Tip:', isPush?'Expediere din inițiativă (depozit)':'Comandă magazin'); info('Status:', c.status||'emisă');
+    info('Creată de:', (DB.users[c.autor]||{}).nume||c.autor||'—');
+    if(c.expediatDe) info('Expediat de:', (DB.users[c.expediatDe]||{}).nume||c.expediatDe);
+    row++;
+    const hdr=(arr)=>{ const r=ws.getRow(row); arr.forEach((t,i)=>{ const x=r.getCell(i+1); x.value=t; if(t){ x.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1B7A3D'}}; x.font={bold:true,color:{argb:'FFFFFFFF'},size:10}; x.alignment={horizontal:i?'center':'left'}; } }); row++; };
+    if(!isPush && (c.articole||[]).length){
+      ws.getCell('A'+row).value='CERERE (cerut vs expediat)'; ws.getCell('A'+row).font={bold:true,size:11}; row++;
+      hdr(['Cod','Produs','Cerut','Expediat','Dif']);
+      (c.articole||[]).forEach(a=>{ const p=DB.nomenclator.find(x=>x.id===a.produsId); const r=ws.getRow(row); r.getCell(1).value=a.produsId||''; r.getCell(2).value=p?p.denumire:a.denumire||''; r.getCell(3).value=a.bucCerute||0; r.getCell(4).value=a.bucPregatite||0; r.getCell(5).value=(a.bucPregatite||0)-(a.bucCerute||0); r.eachCell(x=>x.font={size:10}); row++; });
+      row++;
+    }
+    ws.getCell('A'+row).value='SACI EXPEDIAȚI ('+((c.saciPregatiti||[]).length)+')'; ws.getCell('A'+row).font={bold:true,size:11}; row++;
+    let totBuc=0;
+    (c.saciPregatiti||[]).forEach(s=>{
+      ws.getCell('A'+row).value='Sac nr. '+s.nr; ws.getCell('A'+row).font={bold:true,size:10,color:{argb:'FF6B3FA0'}}; row++;
+      hdr(['','Produs','Bucăți','','']);
+      (s.articole||[]).forEach(a=>{ const p=DB.nomenclator.find(x=>x.id===(a.produsId||a.denumire)); const r=ws.getRow(row); r.getCell(2).value=p?p.denumire:(a.denumire||a.produsId||''); r.getCell(3).value=+a.buc||0; r.getCell(2).font={size:10}; r.getCell(3).font={size:10}; r.getCell(3).alignment={horizontal:'center'}; totBuc+=+a.buc||0; row++; });
+    });
+    const tr=ws.getRow(row); tr.getCell(2).value='TOTAL EXPEDIAT'; tr.getCell(3).value=totBuc; tr.getCell(2).font={bold:true,size:10}; tr.getCell(3).font={bold:true,size:10}; tr.getCell(3).alignment={horizontal:'center'}; tr.getCell(2).border={top:{style:'medium'}}; tr.getCell(3).border={top:{style:'medium'}}; row+=2;
+    if(c.receptie){
+      ws.getCell('A'+row).value='VALIDARE RECEPȚIE LA MAGAZIN'; ws.getCell('A'+row).font={bold:true,size:11}; row++;
+      info('Validat de:', (DB.users[c.receptie.validatDe]||{}).nume||c.receptie.validatDe||'—');
+      if((c.receptie.diferente||[]).length){
+        hdr(['','Produs','Expediat','Primit','Dif']);
+        c.receptie.diferente.forEach(d=>{ const r=ws.getRow(row); r.getCell(2).value=d.den; r.getCell(3).value=d.exp; r.getCell(4).value=d.primit; r.getCell(5).value=d.dif; r.eachCell(x=>x.font={size:10}); r.getCell(3).alignment={horizontal:'center'}; r.getCell(4).alignment={horizontal:'center'}; r.getCell(5).font={size:10,bold:true,color:{argb:d.dif<0?'FFB91C1C':'FF1B7A3D'}}; r.getCell(5).alignment={horizontal:'center'}; row++; });
+      } else { info('Diferențe:', 'fără diferențe'); }
+      if(c.receptie.mentiune) info('Mențiune:', c.receptie.mentiune);
+    }
+    const buf=await wb.xlsx.writeBuffer(); const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='Comanda_'+(c.id||'')+'.xlsx'; document.body.appendChild(a); a.click(); a.remove();
+    toast('✓ Excel comandă descărcat');
+  }catch(e){ console.error(e); toast('Eroare export comandă'); }
 }
 
 function genRaportComanda(c) {
@@ -13308,7 +13372,11 @@ const _MERGE_COLLECTIONS = {
   pontaj:    r => (r.data||'') + '|' + (r.angajat||''),
   raportari: r => (r.data||'') + '|' + (r.magazin||'') + '|' + (r.casier||''),
   inventar:  r => r.idGen || ((r.data||'') + '|' + (r.magazin||'') + '|' + (r.sku||'') + '|' + (r.stocReal||'')),
-  sortari:   r => r.idGen || r.id || ((r.facturaId||'') + '|' + (r.data||'') + '|' + (r.articolCod||''))
+  sortari:   r => r.idGen || r.id || ((r.facturaId||'') + '|' + (r.data||'') + '|' + (r.articolCod||'')),
+  comenzi:   r => r.id,
+  retururi:  r => r.id,
+  transferuri: r => r.id,
+  facturiIntrare: r => r.id
 };
 function _mergeArrById(local, incoming, keyFn) {
   const map = new Map();
