@@ -1999,13 +1999,41 @@ function mzAdd(){
   setTimeout(()=>{ const s=document.getElementById('mzSku'); if(s) s.focus(); }, 30);
 }
 function mzDelBatch(i){ mzBatch.splice(i,1); renderInventarMomentZero(); }
+// Cuvinte-cheie de magazin pentru potrivirea task-urilor de inventar (din numele magazinului).
+function _invStoreKeywords(magId){
+  const m=(DB.magazine||[]).find(x=>x.id===magId);
+  const words=[];
+  if(m && m.nume){ String(m.nume).toLowerCase().replace(/[^a-zăâîșț ]/gi,' ').split(/\s+/).forEach(x=>{ if(x.length>=3 && x!=='magazin') words.push(x); }); }
+  if(magId==='DEP-001'){ words.push('depozit','warehouse'); }
+  return words;
+}
+// Închide automat task-urile deschise de tip „inventar [magazin]" la salvarea inventarului acelui magazin.
+function autoCloseInventarTask(magId){
+  if(!Array.isArray(DB.tasks)) return 0;
+  const kws=_invStoreKeywords(magId);
+  const m=(DB.magazine||[]).find(x=>x.id===magId);
+  const magNume=(m&&m.nume)?String(m.nume).toLowerCase():'';
+  let closed=0;
+  DB.tasks.forEach(t=>{
+    if(t.done) return;
+    const tit=String(t.titlu||'').toLowerCase();
+    if(tit.indexOf('inventar')<0) return;
+    if(/toate|all\b/.test(tit)) return; // task „toate locațiile" rămâne manual
+    const locF=String(t.locatie||'').toLowerCase();
+    const matchTitle = kws.some(k=>tit.indexOf(k)>=0);
+    const matchLoc = !!locF && (locF===String(magId).toLowerCase() || (magNume && (locF.indexOf(magNume)>=0 || magNume.indexOf(locF)>=0)) || kws.some(k=>locF.indexOf(k)>=0));
+    if(matchTitle || matchLoc){ t.done=true; t.doneLa=nowISO(); t.autoInchis=true; closed++; }
+  });
+  return closed;
+}
 function mzSave(){
   if(!mzBatch.length){ toast('Nimic de salvat'); return; }
   const loc=mzLoc, data=mzData; const tip = loc==='DEP-001'?'depozit':'magazin';
   if(!confirm(`Salvez ${mzBatch.length} articole ca inventar moment-zero pentru ${mag(loc)}, la data ${data}? (cele existente rămân; acestea se adaugă)`)) return;
   if(!DB.inventar) DB.inventar=[];
   let i=0; mzBatch.forEach(b=>{ DB.inventar.push({ data, magazin:loc, sku:b.sku, stocDeclarat:b.buc, stocReal:b.buc, diferenta:0, valUnit:b.val||0, impact:0, status:'baseline', momentZero:true, tip, autor:DB.session.user, salvatLa:nowISO(), idGen:'INV-MZ-'+Date.now()+'-'+(i++) }); });
-  save(); const n=mzBatch.length; mzBatch=[]; renderInventarMomentZero(); toast(`✓ ${n} articole salvate pentru ${mag(loc)} (moment-zero)`);
+  const _ac=autoCloseInventarTask(loc);
+  save(); const n=mzBatch.length; mzBatch=[]; renderInventarMomentZero(); toast(`✓ ${n} articole salvate pentru ${mag(loc)} (moment-zero)`+(_ac?` · ${_ac} task inventar bifat automat`:''));
 }
 function mzDelSaved(idGen){
   const i=(DB.inventar||[]).findIndex(it=>it.idGen===idGen);
@@ -7761,7 +7789,6 @@ function logout() {
     }
     msgGlobalListener = null;
     _msgViewListener = null;
-    msgGlobalInit = false;
     knownMsgIds = new Set();
   } catch(e){}
   DB.session = { user: null, role: null };
@@ -11123,6 +11150,8 @@ function renderMessages(msgs) {
   _msgById = {}; const _need=[];
   msgs.forEach(m=>{ _msgById[m.id]=m.text||''; if(m.media && m.media.id && !_mediaCache[m.media.id] && _need.indexOf(m.media.id)<0) _need.push(m.media.id); });
   _need.forEach(id=>fetchMedia(id));
+  // Ești pe ecranul Mesaje → marchează cele mai noi ca văzute (pragul de notificare avansează).
+  if (typeof _markMsgSeen === 'function') { let _mx = 0; msgs.forEach(m => { if ((m.ts||0) > _mx) _mx = m.ts; }); _markMsgSeen(_mx); }
 }
 
 function escapeHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -11253,7 +11282,11 @@ function deleteMessage(id){
 // Listen for new messages globally (to toast + notify when not on Mesaje view)
 let msgGlobalListener = null;
 let knownMsgIds = new Set();
-let msgGlobalInit = false;
+// Prag persistat: notificăm DOAR mesaje mai noi decât ultimul văzut. Rezistent la reconectări
+// Firebase (care re-livrează toate mesajele vechi ca child_added) și la reîncărcări pe rețea lentă.
+let _msgSeenTs = parseInt((typeof localStorage !== 'undefined' && localStorage.getItem('msgSeenTs')) || '0', 10) || 0;
+if (!_msgSeenTs) { _msgSeenTs = Date.now(); try { localStorage.setItem('msgSeenTs', String(_msgSeenTs)); } catch(e){} }
+function _markMsgSeen(ts) { ts = +ts || 0; if (ts > _msgSeenTs) { _msgSeenTs = ts; try { localStorage.setItem('msgSeenTs', String(ts)); } catch(e){} } }
 function startGlobalMessageListener() {
   if (!window.FB || !window.FB.db) {
     console.warn('startGlobalMessageListener: Firebase not ready, retrying in 2s');
@@ -11263,24 +11296,25 @@ function startGlobalMessageListener() {
   if (msgGlobalListener) return;
   console.log('📡 Starting global message listener...');
   msgGlobalListener = window.FB.db.ref('messages').on('child_added', snap => {
-    const m = snap.val(); const id = snap.key;
+    const m = snap.val() || {}; const id = snap.key;
     if (knownMsgIds.has(id)) return;
     knownMsgIds.add(id);
-    if (!msgGlobalInit) return;
+    const ts = +m.ts || 0;
     const me = DB.session.user;
-    if (m.from === me) return;
-    if (currentView !== 'mesaje') {
-      const fromName = (DB.users[m.from]||{}).nume || m.fromName || m.from;
-      toast(`💬 ${fromName}: ${(m.text||'').slice(0,60)}`);
-      DB._unreadMsg = (DB._unreadMsg||0) + 1;
-      if ('Notification' in window && Notification.permission === 'granted') {
-        try { new Notification(`💬 ${fromName}`, { body: m.text||'' }); } catch(e){}
-      }
+    // Mesaj deja văzut (vechi sau re-livrat la reconectare) ori scris de mine → nu notifica.
+    if (ts <= _msgSeenTs || m.from === me) { _markMsgSeen(ts); return; }
+    // Sunt pe ecranul Mesaje → îl văd oricum, doar marchez ca văzut.
+    if (currentView === 'mesaje') { _markMsgSeen(ts); return; }
+    const fromName = (DB.users[m.from]||{}).nume || m.fromName || m.from;
+    toast(`💬 ${fromName}: ${(m.text||'').slice(0,60)}`);
+    DB._unreadMsg = (DB._unreadMsg||0) + 1;
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(`💬 ${fromName}`, { body: m.text||'' }); } catch(e){}
     }
+    _markMsgSeen(ts);
   }, (err) => {
     console.error('📡 Global listener error:', err);
   });
-  setTimeout(()=>{ msgGlobalInit = true; console.log('📡 Global listener init done'); }, 1500);
 }
 
 // ---------- MIȘCĂRI MARFĂ (comenzi, retururi, transferuri) ----------
@@ -13480,7 +13514,7 @@ function setAutoSync(enable) {
 // introduse pe un device de a fi șterse de altul cu date mai vechi/divergente.
 const _MERGE_COLLECTIONS = {
   pontaj:    r => (r.data||'') + '|' + (r.angajat||''),
-  raportari: r => (r.data||'') + '|' + (r.magazin||'') + '|' + (r.casier||''),
+  raportari: r => (r.data||'') + '|' + String(r.magazin||'').trim().split(/\s+/)[0], // un raport/magazin/zi (magazin normalizat la codul MAG-00x; casierul nu mai face cheie)
   inventar:  r => r.idGen || ((r.data||'') + '|' + (r.magazin||'') + '|' + (r.sku||'') + '|' + (r.stocReal||'')),
   sortari:   r => r.idGen || r.id || ((r.facturaId||'') + '|' + (r.data||'') + '|' + (r.articolCod||'')),
   comenzi:   r => r.id,
