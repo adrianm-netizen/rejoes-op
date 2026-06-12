@@ -7876,10 +7876,14 @@ function logout() {
   } catch(e){}
   DB.session = { user: null, role: null };
   save();
+  try { toggleSidebar(false); } catch(e){}              // închide sertarul mobil (altfel acoperă login-ul)
+  try { document.body.classList.remove('simple'); } catch(e){}  // ascunde bara de jos
   showLoginScreen();
 }
 function showLoginScreen() {
-  document.getElementById('loginScreen').style.display = 'flex';
+  const ls = document.getElementById('loginScreen');
+  ls.style.zIndex = '3000';   // deasupra sertarului (1200) și a barei de jos (1000)
+  ls.style.display = 'flex';
   backToUserPick();
 }
 
