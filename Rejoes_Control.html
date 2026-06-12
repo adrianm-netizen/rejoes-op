@@ -229,7 +229,7 @@ td.center { text-align: center; }
   display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
 .modal-bg.open { display: flex; }
 .modal { background: var(--surface); border-radius: var(--radius);
-  padding: 24px; min-width: 320px; max-width: 700px; width: 100%; max-height: 90vh; overflow-y: auto;
+  padding: 24px; min-width: 0; max-width: 700px; width: 100%; max-height: 90vh; overflow-y: auto;
   box-shadow: var(--shadow-lg); }
 .modal h3 { font-size: 16px; margin-bottom: 14px; font-weight: 600; }
 
@@ -288,11 +288,14 @@ textarea.csv-paste { width: 100%; min-height: 140px; padding: 10px; font-family:
     background: linear-gradient(180deg, var(--sidebar) 0%, var(--sidebar-2) 100%);
     border-top: 1px solid rgba(255,255,255,.08);
     padding: 6px 4px calc(8px + env(safe-area-inset-bottom, 0px));
-    justify-content: space-around; box-shadow: 0 -3px 16px rgba(0,0,0,.28);
+    justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap;
+    scrollbar-width: none; box-shadow: 0 -3px 16px rgba(0,0,0,.28);
   }
-  body.simple .bn-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
-    color: #cbe0d4; font-size: 10px; font-weight: 500; padding: 6px 2px; border-radius: 12px;
-    cursor: pointer; min-width: 0; text-align: center; transition: background .15s; }
+  body.simple .bottom-nav::-webkit-scrollbar { display: none; }
+  body.simple .menu-toggle { display: none; } /* în modul simplu, toate secțiunile sunt în bara de jos */
+  body.simple .bn-item { flex: 1 0 auto; min-width: 58px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    color: #cbe0d4; font-size: 10px; font-weight: 500; padding: 6px 6px; border-radius: 12px;
+    cursor: pointer; text-align: center; transition: background .15s; scroll-snap-align: center; }
   body.simple .bn-item.active { color: #fff; background: var(--accent); box-shadow: 0 4px 12px rgba(45,134,89,.35); }
   body.simple .bn-item svg { width: 22px; height: 22px; flex-shrink: 0; }
   body.simple .bn-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
@@ -683,28 +686,22 @@ function toggleSidebar(force){
 // ===== Mod simplificat (mobil/tabletă) pentru roluri non-admin: bară de jos =====
 function _shortLabel(label){ return String(label||'').replace(/[^\p{L}\p{N}\/ ]/gu,'').trim(); }
 function _bottomNavItems(){
-  const pref = ['raportare','pontaj','mesaje','inventar','miscari','depozit','tasks','raportzilnic','profit','analize','cashbanca','preturi','dosare','rh','edenred'];
+  // Toate secțiunile rolului, ordonate după prioritate de uz zilnic (restul după).
+  const pref = ['raportare','pontaj','mesaje','inventar','miscari','depozit','tasks','raportzilnic','dashboard','briefing','profit','analize','cashbanca','preturi','dosare','rh','edenred','alerte','diferente','import','setari'];
   const avail = (VIEWS||[]).map(v=>v.id);
   const ordered = pref.filter(id=>avail.includes(id)).concat(avail.filter(id=>!pref.includes(id)));
-  const primary = ordered.slice(0,4).map(id=>VIEWS_ALL.find(v=>v.id===id)).filter(Boolean);
-  return { primary, hasMore: ordered.length > primary.length };
+  return ordered.map(id=>VIEWS_ALL.find(v=>v.id===id)).filter(Boolean);
 }
 function renderBottomNav(){
   const el = document.getElementById('bottomNav'); if(!el) return;
-  const { primary, hasMore } = _bottomNavItems();
-  let html = primary.map(v=>`
+  const items = _bottomNavItems();
+  el.innerHTML = items.map(v=>`
     <div class="bn-item ${currentView===v.id?'active':''}" onclick="go('${v.id}')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${v.icon}"/></svg>
       <span>${_shortLabel(v.label)}</span>
     </div>`).join('');
-  if(hasMore){
-    html += `
-    <div class="bn-item" onclick="toggleSidebar(true)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
-      <span>Mai mult</span>
-    </div>`;
-  }
-  el.innerHTML = html;
+  // Adu secțiunea activă în centrul barei (utile când sunt multe și se derulează).
+  try { const a = el.querySelector('.bn-item.active'); if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch(e){}
 }
 function applyMobileMode(){
   const role = DB.session && DB.session.role;
