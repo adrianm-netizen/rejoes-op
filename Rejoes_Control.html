@@ -279,6 +279,30 @@ textarea.csv-paste { width: 100%; min-height: 140px; padding: 10px; font-family:
   .topbar { padding: 12px 14px; }
   .table-wrap { -webkit-overflow-scrolling: touch; }
 }
+
+/* ===== Mod simplificat (mobil/tabletă, pentru roluri non-admin): bară de jos + aspect prietenos ===== */
+.bottom-nav { display: none; }
+@media (max-width: 700px) {
+  body.simple .bottom-nav {
+    display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+    background: linear-gradient(180deg, var(--sidebar) 0%, var(--sidebar-2) 100%);
+    border-top: 1px solid rgba(255,255,255,.08);
+    padding: 6px 4px calc(8px + env(safe-area-inset-bottom, 0px));
+    justify-content: space-around; box-shadow: 0 -3px 16px rgba(0,0,0,.28);
+  }
+  body.simple .bn-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    color: #cbe0d4; font-size: 10px; font-weight: 500; padding: 6px 2px; border-radius: 12px;
+    cursor: pointer; min-width: 0; text-align: center; transition: background .15s; }
+  body.simple .bn-item.active { color: #fff; background: var(--accent); box-shadow: 0 4px 12px rgba(45,134,89,.35); }
+  body.simple .bn-item svg { width: 22px; height: 22px; flex-shrink: 0; }
+  body.simple .bn-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  body.simple .content { padding: 16px 14px calc(82px + env(safe-area-inset-bottom, 0px)); }
+  body.simple .topbar h2 { font-size: 17px; }
+  /* aspect mai prietenos */
+  body.simple .card { border-radius: 16px; box-shadow: 0 6px 18px rgba(10,30,20,.08); }
+  body.simple .card-value { font-size: 30px; }
+  body.simple .btn { border-radius: 12px; }
+}
 </style>
 </head>
 <body>
@@ -346,6 +370,7 @@ textarea.csv-paste { width: 100%; min-height: 140px; padding: 10px; font-family:
   </main>
   <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar(false)"></div>
 </div>
+<nav class="bottom-nav" id="bottomNav"></nav>
 
 <div class="modal-bg" id="modal"><div class="modal" id="modalContent"></div></div>
 <div class="toast" id="toast"></div>
@@ -644,6 +669,7 @@ function renderNav() {
       userInfo.style.display = 'none';
     }
   }
+  try { applyMobileMode(); } catch(e){}
 }
 
 function toggleSidebar(force){
@@ -653,6 +679,41 @@ function toggleSidebar(force){
   sb.classList.toggle('open', open);
   if(bd) bd.classList.toggle('show', open);
 }
+
+// ===== Mod simplificat (mobil/tabletă) pentru roluri non-admin: bară de jos =====
+function _shortLabel(label){ return String(label||'').replace(/[^\p{L}\p{N}\/ ]/gu,'').trim(); }
+function _bottomNavItems(){
+  const pref = ['raportare','pontaj','mesaje','inventar','miscari','depozit','tasks','raportzilnic','profit','analize','cashbanca','preturi','dosare','rh','edenred'];
+  const avail = (VIEWS||[]).map(v=>v.id);
+  const ordered = pref.filter(id=>avail.includes(id)).concat(avail.filter(id=>!pref.includes(id)));
+  const primary = ordered.slice(0,4).map(id=>VIEWS_ALL.find(v=>v.id===id)).filter(Boolean);
+  return { primary, hasMore: ordered.length > primary.length };
+}
+function renderBottomNav(){
+  const el = document.getElementById('bottomNav'); if(!el) return;
+  const { primary, hasMore } = _bottomNavItems();
+  let html = primary.map(v=>`
+    <div class="bn-item ${currentView===v.id?'active':''}" onclick="go('${v.id}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${v.icon}"/></svg>
+      <span>${_shortLabel(v.label)}</span>
+    </div>`).join('');
+  if(hasMore){
+    html += `
+    <div class="bn-item" onclick="toggleSidebar(true)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      <span>Mai mult</span>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+function applyMobileMode(){
+  const role = DB.session && DB.session.role;
+  const simple = (window.innerWidth <= 700) && !!role && role !== 'admin';
+  document.body.classList.toggle('simple', simple);
+  if(simple) renderBottomNav();
+}
+let _mmTimer=null;
+window.addEventListener('resize', ()=>{ clearTimeout(_mmTimer); _mmTimer=setTimeout(applyMobileMode, 150); });
 function go(view) {
   currentView = view;
   if (window.innerWidth <= 700) toggleSidebar(false); // închide sertarul pe mobil la navigare
@@ -13657,7 +13718,22 @@ async function manualSyncNow() {
     for (const col of CLOUD_COLLECTIONS) {
       try {
         const canPush = await safeCheckBeforePush(col);
-        if (!canPush) { blocked++; blockedList.push(col); continue; }
+        if (!canPush) {
+          // Local gol dar cloud are date → aducem din cloud (sigur, nu pierdem nimic) în loc să blocăm + avertizăm.
+          try {
+            const _ll = Array.isArray(DB[col]) ? DB[col].length : (DB[col] && typeof DB[col]==='object' ? Object.keys(DB[col]).length : 0);
+            if (_ll === 0) {
+              const _snap = await window.FB.db.ref(col).once('value');
+              const _v = _snap.val();
+              if (_v !== null && _v !== undefined) {
+                DB[col] = Array.isArray(_v) ? _v : Object.values(_v);
+                if (typeof _origSave === 'function') _origSave();
+                ok++; continue;
+              }
+            }
+          } catch(e){ console.error('auto-pull '+col, e); }
+          blocked++; blockedList.push(col); continue;
+        }
         await _mergeCloudBeforePush(col);
         await window.FB.db.ref(col).set(DB[col]||[]);
         ok++;
