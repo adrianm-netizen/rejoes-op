@@ -280,32 +280,36 @@ textarea.csv-paste { width: 100%; min-height: 140px; padding: 10px; font-family:
   .table-wrap { -webkit-overflow-scrolling: touch; }
 }
 
-/* ===== Mod simplificat (mobil/tabletă, pentru roluri non-admin): bară de jos + aspect prietenos ===== */
+/* ===== Mod simplificat (telefon/tabletă, roluri non-admin): bară de jos + aspect prietenos =====
+   Controlat de JS prin clasa body.simple — NU depinde de lățimea ecranului, ca să nu „comute" la rotire. */
 .bottom-nav { display: none; }
-@media (max-width: 700px) {
-  body.simple .bottom-nav {
-    display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
-    background: linear-gradient(180deg, var(--sidebar) 0%, var(--sidebar-2) 100%);
-    border-top: 1px solid rgba(255,255,255,.08);
-    padding: 6px 4px calc(8px + env(safe-area-inset-bottom, 0px));
-    justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap;
-    scrollbar-width: none; box-shadow: 0 -3px 16px rgba(0,0,0,.28);
-  }
-  body.simple .bottom-nav::-webkit-scrollbar { display: none; }
-  body.simple .menu-toggle { display: none; } /* în modul simplu, toate secțiunile sunt în bara de jos */
-  body.simple .bn-item { flex: 1 0 auto; min-width: 58px; display: flex; flex-direction: column; align-items: center; gap: 3px;
-    color: #cbe0d4; font-size: 10px; font-weight: 500; padding: 6px 6px; border-radius: 12px;
-    cursor: pointer; text-align: center; transition: background .15s; scroll-snap-align: center; }
-  body.simple .bn-item.active { color: #fff; background: var(--accent); box-shadow: 0 4px 12px rgba(45,134,89,.35); }
-  body.simple .bn-item svg { width: 22px; height: 22px; flex-shrink: 0; }
-  body.simple .bn-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  body.simple .content { padding: 16px 14px calc(82px + env(safe-area-inset-bottom, 0px)); }
-  body.simple .topbar h2 { font-size: 17px; }
-  /* aspect mai prietenos */
-  body.simple .card { border-radius: 16px; box-shadow: 0 6px 18px rgba(10,30,20,.08); }
-  body.simple .card-value { font-size: 30px; }
-  body.simple .btn { border-radius: 12px; }
+body.simple .bottom-nav {
+  display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+  background: linear-gradient(180deg, var(--sidebar) 0%, var(--sidebar-2) 100%);
+  border-top: 1px solid rgba(255,255,255,.08);
+  padding: 6px 4px calc(8px + env(safe-area-inset-bottom, 0px));
+  justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap;
+  scrollbar-width: none; box-shadow: 0 -3px 16px rgba(0,0,0,.28);
 }
+body.simple .bottom-nav::-webkit-scrollbar { display: none; }
+body.simple .bn-item { flex: 1 0 auto; min-width: 58px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  color: #cbe0d4; font-size: 10px; font-weight: 500; padding: 6px 6px; border-radius: 12px;
+  cursor: pointer; text-align: center; transition: background .15s; scroll-snap-align: center; }
+body.simple .bn-item.active { color: #fff; background: var(--accent); box-shadow: 0 4px 12px rgba(45,134,89,.35); }
+body.simple .bn-item svg { width: 22px; height: 22px; flex-shrink: 0; }
+body.simple .bn-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+body.simple .content { padding: 16px 14px calc(82px + env(safe-area-inset-bottom, 0px)); }
+body.simple .topbar { padding: 12px 14px; }
+body.simple .topbar h2 { font-size: 17px; }
+body.simple .card { border-radius: 16px; box-shadow: 0 6px 18px rgba(10,30,20,.08); }
+body.simple .card-value { font-size: 30px; }
+body.simple .btn { border-radius: 12px; }
+/* În modul simplu, meniul lateral devine sertar (deschis cu ☰ — pentru Deconectare + acces extra), la ORICE lățime */
+body.simple .sidebar { position: fixed; left: 0; top: 0; height: 100vh; width: 250px; z-index: 1200;
+  transform: translateX(-100%); transition: transform .25s ease; box-shadow: 2px 0 18px rgba(0,0,0,.35); }
+body.simple .sidebar.open { transform: translateX(0); }
+body.simple .menu-toggle { display: inline-flex; align-items: center; }
+body.simple .sidebar-backdrop.show { display: block; }
 </style>
 </head>
 <body>
@@ -705,7 +709,10 @@ function renderBottomNav(){
 }
 function applyMobileMode(){
   const role = DB.session && DB.session.role;
-  const simple = (window.innerWidth <= 700) && !!role && role !== 'admin';
+  // Atingere = telefon/tabletă. Folosim asta (nu lățimea) ca să NU comute la rotire.
+  const touch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
+    || ('ontouchstart' in window) || ((navigator.maxTouchPoints||0) > 0);
+  const simple = !!role && role !== 'admin' && (touch || window.innerWidth <= 700);
   document.body.classList.toggle('simple', simple);
   if(simple) renderBottomNav();
 }
