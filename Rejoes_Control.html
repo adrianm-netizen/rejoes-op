@@ -708,13 +708,9 @@ function renderBottomNav(){
   try { const a = el.querySelector('.bn-item.active'); if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch(e){}
 }
 function applyMobileMode(){
-  const role = DB.session && DB.session.role;
-  // Atingere = telefon/tabletă. Folosim asta (nu lățimea) ca să NU comute la rotire.
-  const touch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
-    || ('ontouchstart' in window) || ((navigator.maxTouchPoints||0) > 0);
-  const simple = !!role && role !== 'admin' && (touch || window.innerWidth <= 700);
-  document.body.classList.toggle('simple', simple);
-  if(simple) renderBottomNav();
+  // Decizie 12 iun: TOȚI utilizatorii folosesc același layout pe mobil/tabletă ca adminul
+  // (hamburger ☰ sus + sertar lateral). Bara de jos a fost dezactivată (instabilă la rotire/atingere).
+  document.body.classList.remove('simple');
 }
 let _mmTimer=null;
 window.addEventListener('resize', ()=>{ clearTimeout(_mmTimer); _mmTimer=setTimeout(applyMobileMode, 150); });
