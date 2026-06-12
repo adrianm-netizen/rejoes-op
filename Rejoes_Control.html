@@ -3722,8 +3722,10 @@ function renderImport() {
         <button class="btn" onclick="exportInv()">Inventar</button>
         <button class="btn btn-primary" onclick="exportBackup()" style="background:#0a7d3b;border-color:#0a7d3b" title="Salvează TOT: pontaj, e:Corg, extrase bancare, facturi — backupul complet pentru siguranță">💾 Backup JSON (COMPLET — pentru siguranță)</button>
         <label class="btn" style="cursor:pointer">📤 Restaurează backup<input type="file" accept=".json" style="display:none" onchange="importBackup(event)"></label>
+        <button class="btn" onclick="exportMesaje()" title="Salvează istoricul conversațiilor din Mesaje (acestea NU intră în Backup JSON — sunt stocate separat)">💬 Export mesaje (istoric)</button>
       </div>
       <p style="margin-top:8px;font-size:12px;color:#0a7d3b">✅ <strong>Acesta</strong> e backupul de siguranță complet — salvează absolut toate datele (inclusiv e:Corg și extrasele bancare). Fă-l periodic și mută fișierul în folderul OneDrive Pontaj.</p>
+      <p style="margin-top:4px;font-size:12px;color:var(--text-muted)">💬 <strong>Export mesaje</strong> = istoricul conversațiilor (data, expeditor, oră, text), separat de Backup JSON.</p>
     </div>
   `;
 }
@@ -11124,6 +11126,48 @@ function renderMessages(msgs) {
 }
 
 function escapeHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Export istoric mesaje (nod Firebase separat) ca fișier HTML lizibil + date brute incluse.
+async function exportMesaje() {
+  try {
+    toast('Pregătesc istoricul mesajelor...');
+    let token = '';
+    try { if (window.FB && window.FB.auth && window.FB.auth.currentUser) token = await window.FB.auth.currentUser.getIdToken(); } catch(e){}
+    const url = MSG_REST_BASE + (token ? ('?auth=' + encodeURIComponent(token)) : '');
+    const resp = await fetch(url, { cache: 'no-store' });
+    if (!resp.ok) { toast('Nu am putut citi mesajele (HTTP ' + resp.status + ')'); return; }
+    const data = await resp.json();
+    const msgs = [];
+    if (data && typeof data === 'object') Object.keys(data).forEach(k => { const v = data[k] || {}; msgs.push({ id: k, ...v }); });
+    msgs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    if (!msgs.length) { toast('Niciun mesaj de exportat'); return; }
+    let lastDate = '', rows = '';
+    msgs.forEach(m => {
+      const d = new Date(m.ts || 0);
+      const dStr = d.toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      if (dStr !== lastDate) { rows += '<div class="day">' + dStr + '</div>'; lastDate = dStr; }
+      const name = (DB.users[m.from] && DB.users[m.from].nume) || m.fromName || m.from || '?';
+      const time = d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
+      const media = m.media ? ('<span class="media">📎 ' + escapeHtml(m.media.name || 'fișier') + '</span>') : '';
+      const txt = m.text ? escapeHtml(m.text) : '';
+      rows += '<div class="msg"><span class="t">' + time + '</span> <span class="from">' + escapeHtml(name) + ':</span> <span class="txt">' + txt + '</span> ' + media + (m.edited ? ' <span class="ed">(editat)</span>' : '') + '</div>';
+    });
+    const now = new Date();
+    const html = '<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Istoric mesaje Rejoes</title>' +
+      '<style>body{font-family:system-ui,Arial,sans-serif;max-width:760px;margin:24px auto;padding:0 16px;color:#0f1d17}h1{font-size:18px;margin-bottom:2px}.meta{color:#777;font-size:12px;margin-bottom:14px}.day{text-align:center;background:#e8ede9;border-radius:10px;padding:4px 10px;margin:16px 0 8px;font-size:12px;color:#555}.msg{padding:3px 0;font-size:14px;line-height:1.55}.t{color:#aaa;font-size:11px;margin-right:4px}.from{font-weight:600;color:#2d8659}.media{color:#0a7d3b;font-size:12px;margin-left:4px}.ed{color:#aaa;font-size:11px}</style></head><body>' +
+      '<h1>Istoric mesaje — Rejoes Op. Management</h1>' +
+      '<div class="meta">Export: ' + now.toLocaleString('ro-RO') + ' · ' + msgs.length + ' mesaje</div>' +
+      rows +
+      '<script type="application/json" id="rawMessages">' + JSON.stringify(msgs).replace(/</g, '\\u003c') + '<\/script></body></html>';
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Rejoes_Mesaje_' + now.toISOString().slice(0, 10) + '.html';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast('✅ Istoric mesaje exportat (' + msgs.length + ')');
+  } catch (e) { console.error('exportMesaje', e); toast('Eroare la export mesaje'); }
+}
 
 function sendMessage() {
   const inp = document.getElementById('msgInput');
