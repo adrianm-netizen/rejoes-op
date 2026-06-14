@@ -417,11 +417,11 @@ function onFunctie(){
   const isExec = fn && !isCond && fn !== 'alt post' && fn !== '';
   if (isCond) {
     document.getElementById('cbPrev45').checked = true;
-    document.getElementById('proba').value = '90 zile';
+    document.getElementById('proba').value = '120 zile';
     document.getElementById('proba-badge').textContent = 'conducere';
   } else if (isExec) {
     document.getElementById('cbPrev20').checked = true;
-    document.getElementById('proba').value = '30 zile';
+    document.getElementById('proba').value = '90 zile';
     document.getElementById('proba-badge').textContent = 'execuție';
   } else {
     document.getElementById('proba').value = '';
@@ -779,6 +779,27 @@ async function generateDoc(){
 
     // 2) Update document.xml — opțional: prepend fragmentul Informării prealabile, apoi bifează casetele
     let doc = await zip.file('word/document.xml').async('string');
+
+    // === Art. 2 pe durată NEDETERMINATĂ + probă după funcție (90 execuție / 120 conducere) — 12 iun 2026 ===
+    try {
+      const _esc = (typeof escXml === 'function') ? escXml : (s)=>String(s||'');
+      const _ds = _esc(fields.dataStart || '____');
+      const _pr = _esc(fields.proba || '90');
+      const _T = (t,b)=>'<w:r><w:rPr>'+(b?'<w:b/><w:bCs/>':'')+'<w:lang w:val="ro-RO"/></w:rPr><w:t xml:space="preserve">'+t+'</w:t></w:r>';
+      const _P = (r)=>'<w:p><w:pPr><w:spacing w:before="60" w:after="60"/><w:ind w:left="360"/><w:jc w:val="both"/><w:rPr><w:lang w:val="ro-RO"/></w:rPr></w:pPr>'+r+'</w:p>';
+      const _art2 =
+        _P(_T('(1) Prezentul contract individual de muncă se încheie pe durată ')+_T('nedeterminată',1)+_T(', începând cu data de ')+_T(_ds,1)+_T(', în temeiul ')+_T('art. 12 alin. (1) din Codul muncii',1)+_T('.'))+
+        _P(_T('(2) Contractul cuprinde o ')+_T('perioadă de probă de '+_pr+' de zile calendaristice',1)+_T(', stabilită pentru verificarea aptitudinilor Salariatului, în conformitate cu art. 31 alin. (1) din Codul muncii (maximum 90 de zile pentru funcțiile de execuție și 120 de zile pentru funcțiile de conducere).'))+
+        _P(_T('(3) Pe durata perioadei de probă, contractul poate înceta, la inițiativa oricăreia dintre părți, printr-o ')+_T('notificare scrisă, fără preaviz și fără a fi necesară motivarea',1)+_T(', conform art. 31 alin. (3) din Codul muncii.'))+
+        _P(_T('(4) Dacă, până la expirarea perioadei de probă, niciuna dintre părți nu a notificat încetarea în condițiile alin. (3), contractul ')+_T('își continuă efectele pe durată nedeterminată',1)+_T(', fără a fi necesar vreun act adițional sau vreo altă formalitate.'));
+      const _a2 = doc.indexOf('Durata contractului');
+      const _a3 = doc.indexOf('Locul muncii');
+      if (_a2 > -1 && _a3 > _a2) {
+        const _hend = doc.indexOf('</w:p>', _a2) + 6;
+        const _a3p = doc.lastIndexOf('<w:p ', _a3);
+        doc = doc.slice(0, _hend) + _art2 + doc.slice(_a3p);
+      }
+    } catch(e){ console.error('Art.2 CDI:', e); }
 
     const modeInformare = document.getElementById('modeInformare').checked;
     if (modeInformare) {
