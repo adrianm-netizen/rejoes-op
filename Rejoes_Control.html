@@ -9865,20 +9865,21 @@ function calcStocDepozit() {
   return stoc;
 }
 
-function calcKgRamasiFactura(facturaId) {
+function calcKgRamasiFactura(facturaId, exclId) {
   const f = DB.facturiIntrare.find(x => x.id === facturaId);
   if (!f) return 0;
-  const kgConsumati = DB.sortari.filter(s => s.facturaId === facturaId).reduce((s,r)=>s+(r.kgConsumati||0), 0);
+  // Sortările RESPINSE eliberează kg înapoi; la editare, excludem sortarea curentă (exclId) ca să nu-și blocheze propriii kg.
+  const kgConsumati = DB.sortari.filter(s => s.facturaId === facturaId && s.statusAprobare !== 'rejected' && s.id !== exclId).reduce((s,r)=>s+(r.kgConsumati||0), 0);
   return (f.kgTotal||0) - kgConsumati;
 }
 
-function calcKgRamasiArticol(facturaId, articolCod) {
+function calcKgRamasiArticol(facturaId, articolCod, exclId) {
   const f = DB.facturiIntrare.find(x => x.id === facturaId);
   if (!f || !f.articole) return 0;
   const art = f.articole.find(a => a.cod === articolCod);
   if (!art) return 0;
   const kgConsumati = DB.sortari
-    .filter(s => s.facturaId === facturaId && s.articolErdotexCod === articolCod)
+    .filter(s => s.facturaId === facturaId && s.articolErdotexCod === articolCod && s.statusAprobare !== 'rejected' && s.id !== exclId)
     .reduce((s,r) => s + (r.kgConsumati||0), 0);
   return (art.kg||0) - kgConsumati;
 }
@@ -10592,10 +10593,12 @@ function renderSortare(body) {
           <td>${s.data} ${stBadge}</td>
           <td>${f?f.furnizor+' '+f.data:'—'}</td>
           <td class="num">${fmt(s.kgConsumati,1)}</td>
-          <td><small>${articole||'—'}</small></td>
+          <td><small>${articole||'—'}</small>${stAprob==='rejected'&&s.motivRespingere?`<div style="color:var(--danger);font-size:11px;margin-top:3px">⛔ Respins: ${escapeHtml(s.motivRespingere)}</div>`:''}</td>
           <td class="num">${s.rebuturi||0}</td>
           <td><small>${s.locatie||'—'}</small></td>
-          <td><button class="btn btn-sm btn-ghost" onclick="delSortare(${idx})">×</button></td>
+          <td style="white-space:nowrap">${stAprob!=='approved'
+            ? `<button class="btn btn-sm" onclick="editSortare(${idx})" title="Modifică / re-propune (revine la aprobare)">✎ Modifică</button> <button class="btn btn-sm btn-ghost" onclick="delSortare(${idx})" title="Anulează — eliberează kg înapoi în factură">🗑</button>`
+            : '<span class="badge badge-ok" style="font-size:9px" title="Aprobată — blocată">🔒 aprobat</span>'}</td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>`}
@@ -10620,13 +10623,22 @@ function startSortare() {
   };
   openSortareModal();
 }
+function editSortare(idx) {
+  const s = DB.sortari[idx];
+  if (!s) return;
+  if (s.statusAprobare === 'approved') { toast('Sortarea e aprobată — nu mai poate fi modificată.'); return; }
+  sortareCurenta = JSON.parse(JSON.stringify(s)); // copie cu id (editare aceeași înregistrare) + motivRespingere
+  if (!sortareCurenta.articoleRezultate || !sortareCurenta.articoleRezultate.length) sortareCurenta.articoleRezultate = [{ produsId:'', buc:0 }];
+  openSortareModal();
+}
 function openSortareModal() {
-  const facturi = DB.facturiIntrare.filter(f => calcKgRamasiFactura(f.id) > 0);
+  const _eid = (sortareCurenta && sortareCurenta.id) ? sortareCurenta.id : undefined; // editare: exclude propria sortare din kg consumați
+  const facturi = DB.facturiIntrare.filter(f => calcKgRamasiFactura(f.id, _eid) > 0);
   const f = DB.facturiIntrare.find(x => x.id === sortareCurenta.facturaId);
   const hasArticole = f && f.articole && f.articole.length > 0;
-  const articoleActive = hasArticole ? f.articole.filter(a => calcKgRamasiArticol(f.id, a.cod) > 0.01) : [];
+  const articoleActive = hasArticole ? f.articole.filter(a => calcKgRamasiArticol(f.id, a.cod, _eid) > 0.01) : [];
   const artCurent = hasArticole ? f.articole.find(a => a.cod === sortareCurenta.articolErdotexCod) : null;
-  const kgRamasi = artCurent ? calcKgRamasiArticol(f.id, artCurent.cod) : (f ? calcKgRamasiFactura(f.id) : 0);
+  const kgRamasi = artCurent ? calcKgRamasiArticol(f.id, artCurent.cod, _eid) : (f ? calcKgRamasiFactura(f.id, _eid) : 0);
   const erdotexInfo = artCurent ? ERDOTEX_CODES[artCurent.cod] : null;
   // Build product suggestions for the selected Erdotex code
   let sugestii = [];
@@ -10637,15 +10649,15 @@ function openSortareModal() {
   const usedIds = new Set(sortareCurenta.articoleRezultate.map(a => a.produsId).filter(Boolean));
 
   openModal(`
-    <h3>⚙️ Sortare nouă</h3>
-    
+    <h3>⚙️ ${_eid ? 'Modifică sortarea' : 'Sortare nouă'}</h3>
+    ${_eid && sortareCurenta.motivRespingere ? `<div style="margin:0 0 12px;padding:10px 12px;background:#fdecea;border:1px solid #f5c6cb;border-radius:8px;font-size:13px;color:#8a1c1c">⛔ <strong>Respinsă de admin:</strong> ${escapeHtml(sortareCurenta.motivRespingere)}<br><span style="font-size:12px;color:#a05a5a">Operează modificările cerute și salvează — revine la aprobare.</span></div>` : ''}
     <div class="form-row">
       <div class="form-field" style="flex:2"><label>Factura</label>
         <select id="so_factura" onchange="sortareCurenta.facturaId=this.value;sortareCurenta.articolErdotexCod='';openSortareModal()">
-          ${facturi.map(fc=>`<option value="${fc.id}" ${fc.id===sortareCurenta.facturaId?'selected':''}>${(fc.invoiceNo?'#'+fc.invoiceNo+' · ':'')}${fc.data} · ${fc.furnizor} · ${fmt(calcKgRamasiFactura(fc.id),1)} kg rămași</option>`).join('')}
+          ${facturi.map(fc=>`<option value="${fc.id}" ${fc.id===sortareCurenta.facturaId?'selected':''}>${(fc.invoiceNo?'#'+fc.invoiceNo+' · ':'')}${fc.data} · ${fc.furnizor} · ${fmt(calcKgRamasiFactura(fc.id, _eid),1)} kg rămași</option>`).join('')}
         </select>
       </div>
-      <div class="form-field"><label>Data sortării</label><input type="date" id="so_data" value="${todayISO()}"></div>
+      <div class="form-field"><label>Data sortării</label><input type="date" id="so_data" value="${sortareCurenta.data || todayISO()}"></div>
     </div>
 
     ${hasArticole ? `
@@ -10654,7 +10666,7 @@ function openSortareModal() {
         <select id="so_artErdotex" onchange="sortareCurenta.articolErdotexCod=this.value;sortareCurenta.articoleRezultate=[{produsId:'',buc:0}];openSortareModal()">
           <option value="">— sortare globală pe factură —</option>
           ${articoleActive.map(a => {
-            const kgRam = calcKgRamasiArticol(f.id, a.cod);
+            const kgRam = calcKgRamasiArticol(f.id, a.cod, _eid);
             return `<option value="${a.cod}" ${a.cod===sortareCurenta.articolErdotexCod?'selected':''}>${a.cod} · ${a.descriere||(ERDOTEX_CODES[a.cod]?ERDOTEX_CODES[a.cod].descriere:'')} · ${fmt(kgRam,1)} kg rămași</option>`;
           }).join('')}
         </select>
@@ -10686,8 +10698,8 @@ function openSortareModal() {
     </div>` : ''}
 
     <div class="form-row" style="margin-top:10px">
-      <div class="form-field"><label>Kg consumați acum</label><input type="number" step="0.01" id="so_kg" max="${kgRamasi}" placeholder="max ${fmt(kgRamasi,1)}"></div>
-      <div class="form-field"><label>Rebuturi (buc)</label><input type="number" id="so_rebut" value="0"></div>
+      <div class="form-field"><label>Kg consumați acum</label><input type="number" step="0.01" id="so_kg" max="${kgRamasi}" placeholder="max ${fmt(kgRamasi,1)}" value="${sortareCurenta.kgConsumati!=null?sortareCurenta.kgConsumati:''}"></div>
+      <div class="form-field"><label>Rebuturi (buc)</label><input type="number" id="so_rebut" value="${sortareCurenta.rebuturi||0}"></div>
     </div>
 
     <div style="margin-top:8px;padding:10px;background:#f8fdf9;border-radius:8px">
@@ -10713,7 +10725,7 @@ function openSortareModal() {
     </div>
 
     <div class="form-row">
-      <div class="form-field" style="flex:3"><label>Locație fizică (ex: rândul lateral stânga, între genți și pantofi)</label><input type="text" id="so_loc"></div>
+      <div class="form-field" style="flex:3"><label>Locație fizică (ex: rândul lateral stânga, între genți și pantofi)</label><input type="text" id="so_loc" value="${(sortareCurenta.locatie||'').replace(/"/g,'&quot;')}"></div>
     </div>
 
     <div style="margin-top:10px;padding:10px;background:#fef9f0;border-radius:8px;font-size:11px;color:var(--text-muted)">
@@ -10799,7 +10811,8 @@ function saveSortare() {
   if (artCod && f.articole) {
     articolErdotex = f.articole.find(a => a.cod === artCod);
   }
-  const kgRamasiPool = articolErdotex ? calcKgRamasiArticol(f.id, artCod) : calcKgRamasiFactura(f.id);
+  const editId = (sortareCurenta && sortareCurenta.id) ? sortareCurenta.id : null;
+  const kgRamasiPool = articolErdotex ? calcKgRamasiArticol(f.id, artCod, editId) : calcKgRamasiFactura(f.id, editId);
   if (kg > kgRamasiPool + 0.01) {
     toast('Kg consumați depășesc kg rămași în '+(articolErdotex?articolErdotex.cod:'factură')+' ('+fmt(kgRamasiPool,1)+')');
     return;
@@ -10837,8 +10850,7 @@ function saveSortare() {
     a.pretAprobat = null;
     a.pretMagazin = null;
   });
-  const s = {
-    id: 'SOR-'+Date.now(),
+  const fields = {
     facturaId: sortareCurenta.facturaId,
     articolErdotexCod: artCod,
     data: document.getElementById('so_data').value || todayISO(),
@@ -10849,14 +10861,22 @@ function saveSortare() {
     articoleRezultate: articole,
     rebuturi: parseInt(document.getElementById('so_rebut').value)||0,
     locatie: document.getElementById('so_loc').value,
-    statusAprobare: 'pending',
+    statusAprobare: 'pending',   // (re)intră la aprobare
     aprobatDe: null,
     aprobatLa: null,
     motivRespingere: null,
-    autor: DB.session.user,
     salvatLa: nowISO()
   };
-  DB.sortari.push(s);
+  if (editId) {
+    // EDITARE / RE-PROPUNERE: actualizăm aceeași înregistrare (păstrăm id + autor) → kg numărați o singură dată, fără dublare.
+    const ex = DB.sortari.find(x => x.id === editId);
+    if (ex) Object.assign(ex, fields);
+    else { fields.id = 'SOR-'+Date.now(); fields.autor = DB.session.user; DB.sortari.push(fields); }
+  } else {
+    fields.id = 'SOR-'+Date.now();
+    fields.autor = DB.session.user;
+    DB.sortari.push(fields);
+  }
   
   // Update factura status if fully sorted (all articles + general)
   const kgRamasiTotalDupa = calcKgRamasiFactura(f.id);
