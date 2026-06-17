@@ -10846,7 +10846,7 @@ function saveSortare() {
   
   // Each result gets pretRecomandat = pretMinim initially (admin can override later)
   articole.forEach(a => {
-    a.pretRecomandat = a.pretRecomandat || a.pretMinim;
+    a.pretRecomandat = a.pretMinim;
     a.pretAprobat = null;
     a.pretMagazin = null;
   });
@@ -12627,6 +12627,8 @@ function renderSortareCard(s, isAdmin) {
   const isPending = (s.statusAprobare||'pending') === 'pending';
   const isApproved = s.statusAprobare === 'approved';
   const isRejected = s.statusAprobare === 'rejected';
+  // FIX preț recomandat „înghețat": pt sortările neaprobate, prețul recomandat reflectă mereu pretMinim recalculat
+  if (s.statusAprobare !== 'approved') { (s.articoleRezultate||[]).forEach(a => { if (a.pretMinim != null) a.pretRecomandat = a.pretMinim; }); }
   const borderColor = isPending ? 'var(--warning)' : isApproved ? 'var(--success)' : 'var(--danger)';
   const bgColor = isPending ? '#fef9f0' : isApproved ? '#f8fdf9' : '#fdecea';
   
@@ -13886,63 +13888,4 @@ setTimeout(() => { try { autoRestoreIfEmpty(); } catch(e){} }, 2000);
 // Orice dată afișată ca text în format ISO (2026-06-08) sau ISO+oră devine 08/06/2026.
 // Calendarele <input type=date> își iau formatul din limba browserului (nu se poate schimba din cod) —
 // de aceea punem lângă fiecare un indiciu „🗓️ dd/mm/yyyy" ca să nu fie confuzie.
-function _fmtDateNode(n){ if(n && n.nodeValue && /\d{4}-\d{2}-\d{2}/.test(n.nodeValue)){ n.nodeValue = n.nodeValue.replace(/(\d{4})-(\d{2})-(\d{2})/g,'$3/$2/$1'); } }
-function formatDatesIn(root){
-  if(!root) return;
-  if(root.nodeType===3){ _fmtDateNode(root); return; }
-  if(!root.querySelectorAll) return;
-  try{
-    const walker=document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode(n){
-      const p=n.parentNode; if(!p) return NodeFilter.FILTER_REJECT;
-      const t=p.nodeName; if(t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||t==='INPUT'||t==='OPTION') return NodeFilter.FILTER_REJECT;
-      return /\d{4}-\d{2}-\d{2}/.test(n.nodeValue)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_REJECT;
-    }});
-    const hits=[]; let nd; while(nd=walker.nextNode()) hits.push(nd);
-    hits.forEach(_fmtDateNode);
-  }catch(e){}
-}
-function addDateHints(root){
-  if(!root || !root.querySelectorAll) return;
-  try{
-    root.querySelectorAll('input[type=date]').forEach(inp=>{
-      if(inp.dataset.roHint) return;
-      inp.dataset.roHint='1';
-      const span=document.createElement('span');
-      span.className='ro-date-hint';
-      span.style.cssText='font-size:11px;color:#1b7a3d;font-weight:600;margin-left:6px;white-space:nowrap';
-      const upd=()=>{ span.textContent = inp.value ? ('🗓️ '+_dmy(inp.value)) : ''; };
-      upd(); inp.addEventListener('change',upd); inp.addEventListener('input',upd);
-      if(inp.parentNode) inp.parentNode.insertBefore(span, inp.nextSibling);
-    });
-  }catch(e){}
-}
-(function setupDateRoFormatter(){
-  try{
-    const targets=['content','modal'].map(id=>document.getElementById(id)).filter(Boolean);
-    const obs=new MutationObserver(muts=>{
-      for(const m of muts){
-        m.addedNodes && m.addedNodes.forEach(node=>{
-          if(node.nodeType===1){ formatDatesIn(node); addDateHints(node); }
-          else if(node.nodeType===3){ _fmtDateNode(node); }
-        });
-      }
-    });
-    targets.forEach(t=>{ obs.observe(t,{childList:true,subtree:true}); formatDatesIn(t); addDateHints(t); });
-  }catch(e){}
-})();
-
-if (DB.session && DB.session.user && DB.users[DB.session.user]) {
-  document.getElementById('loginScreen').style.display = 'none';
-  currentView = DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : (DB.session.role === 'owner' ? 'analize' : 'dashboard'));
-  renderNav();
-  go(currentView);
-  // Etapa 12 — auto auth la reload (sesiune existentă)
-  try { if (typeof ensureFirebaseAuth === 'function') ensureFirebaseAuth(); } catch(e){}
-  setTimeout(checkReminders, 800);
-  setTimeout(startGlobalMessageListener, 1000);
-} else {
-  showLoginScreen();
-}
-</script>
-</body>
-</html>
+function _fmtDateNode(n){ if(n && n.nodeValue && /\d{4}-\d{2}-\d{2}/.test(n.nodeValue)){ n.nodeValue = n.nodeValue.replace(/(\d{4})-(\d{2})-(\d
