@@ -10587,13 +10587,15 @@ function renderSortare(body) {
           const p = DB.nomenclator.find(x=>x.id===ar.produsId);
           return `${ar.buc} × ${p?p.denumire:'?'} (${fmt(ar.pretMinim)} RON/buc)`;
         }).join('<br>');
+        const totalBuc = (s.articoleRezultate||[]).reduce((sum,ar)=>sum+(Number(ar.buc)||0),0);
+        const totalArt = `<div style="margin-top:4px;font-size:11px;font-weight:600;color:var(--accent,#2e7d32)">Total: ${fmt(totalBuc,0)} buc</div>`;
         const stAprob = s.statusAprobare||'pending';
         const stBadge = stAprob==='approved'?'<span class="badge badge-ok" style="font-size:9px">✓ aprobat</span>':stAprob==='rejected'?'<span class="badge badge-danger" style="font-size:9px">✗ respins</span>':'<span class="badge badge-warn" style="font-size:9px">⏳ pending</span>';
         return `<tr>
           <td>${s.data} ${stBadge}</td>
           <td>${f?f.furnizor+' '+f.data:'—'}</td>
           <td class="num">${fmt(s.kgConsumati,1)}</td>
-          <td><small>${articole||'—'}</small>${stAprob==='rejected'&&s.motivRespingere?`<div style="color:var(--danger);font-size:11px;margin-top:3px">⛔ Respins: ${escapeHtml(s.motivRespingere)}</div>`:''}</td>
+          <td><small>${articole||'—'}</small>${totalArt}${stAprob==='rejected'&&s.motivRespingere?`<div style="color:var(--danger);font-size:11px;margin-top:3px">⛔ Respins: ${escapeHtml(s.motivRespingere)}</div>`:''}</td>
           <td class="num">${s.rebuturi||0}</td>
           <td><small>${s.locatie||'—'}</small></td>
           <td style="white-space:nowrap">${stAprob!=='approved'
