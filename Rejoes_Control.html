@@ -325,7 +325,8 @@ body.simple .sidebar-backdrop.show { display: block; }
       <button class="btn btn-primary" style="padding:14px;font-size:15px" onclick="pickUser('ana')">👤 Ana — operator</button>
       <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#2d6a4f;border-color:#2d6a4f" onclick="pickUser('gabi')">📦 Gabi — manager depozit</button>
       <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#4577a8;border-color:#4577a8" onclick="pickUser('dana')">📊 Dana — contabil-șef</button>
-      <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#7e3b8a;border-color:#7e3b8a" onclick="pickUser('olga')">👑 Olga — owner</button>
+      <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#7e3b8a;border-color:#7e3b8a" onclick="pickUser('olga')">👸 Olga — Co-owner</button>
+      <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#9a5b2e;border-color:#9a5b2e" onclick="pickUser('ozan')">🤴 Ozan — Co-owner</button>
       <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#0a1e14;border-color:#0a1e14" onclick="pickUser('adrian')">🛡️ Adrian — admin</button>
     </div>
     <div id="loginPinForm" style="display:none">
@@ -465,7 +466,8 @@ const SEED = {
     adrian: { pin: "0000", role: "admin", nume: "Adrian" },
     gabi: { pin: "5555", role: "manager-depozit", nume: "Gabi" },
     dana: { pin: "9999", role: "contabil-sef", nume: "Dana" },
-    olga: { pin: "7777", role: "owner", nume: "Olga" }
+    olga: { pin: "7777", role: "owner", nume: "Olga" },
+    ozan: { pin: "8888", role: "owner", nume: "Ozan" }
   },
   session: { user: null, role: null },
   // — Depozit / WMS structures (Faza 1) —
@@ -568,7 +570,10 @@ function load() {
     if (s) {
       const parsed = JSON.parse(s);
       // Merge — păstrează seed pentru câmpuri lipsă
-      return { ...JSON.parse(JSON.stringify(SEED)), ...parsed };
+      const merged = { ...JSON.parse(JSON.stringify(SEED)), ...parsed };
+      // Merge utilizatori: adaugă useri noi din seed (ex. Ozan) fără să suprascrie PIN-urile salvate
+      merged.users = { ...JSON.parse(JSON.stringify(SEED.users)), ...(parsed.users || {}) };
+      return merged;
     }
   } catch(e){}
   return JSON.parse(JSON.stringify(SEED));
@@ -608,7 +613,7 @@ function isLunaSelectata(dateStr, an, luna) {
 }
 
 // Role display labels (intern: admin / operator / manager-depozit)
-const ROLE_LABEL = { admin: 'admin', owner: 'owner / co-admin', operator: 'manager op', 'manager-depozit': 'manager warehouse', 'contabil-sef': 'contabil-șef' };
+const ROLE_LABEL = { admin: 'admin', owner: 'Co-owner', operator: 'manager op', 'manager-depozit': 'manager warehouse', 'contabil-sef': 'contabil-șef' };
 const roleLabel = (r) => ROLE_LABEL[r] || r || '—';
 
 // ---------- NAV ----------
@@ -8557,7 +8562,7 @@ let _rhLastDoc = null;// {fname, html}
 
 const RH_FIRMA = {
   nume:'S-COLECT REC S.R.L.', cif:'RO 38513453', regcom:'J2017004459354',
-  sediu:'Com. Cenei nr. 86, 307100, Jud. Timiș', admin:'Olga Baraban'
+  sediu:'Str. Republicii nr. 20, 305400 Jimbolia, Jud. Timiș', admin:'Olga Baraban'
 };
 function _rhHeader(){
   return `<div style="text-align:center;border-bottom:2px solid #1b5e3a;padding-bottom:8px;margin-bottom:16px">
@@ -13945,6 +13950,74 @@ if (DB.session && DB.session.user && DB.users[DB.session.user]) {
 } else {
   showLoginScreen();
 }
+</script>
+<script>
+/* ===== i18n RO/EN translation layer (additive, non-destructive) ===== */
+(function(){
+  var LS='rejoes_lang';
+  function cur(){ try{return localStorage.getItem(LS)||'ro';}catch(e){return 'ro';} }
+  function setLang(l){
+    try{localStorage.setItem(LS,l);}catch(e){}
+    try{ if(window.DB&&DB.session&&DB.session.user&&DB.users[DB.session.user]){ DB.users[DB.session.user].lang=l; if(typeof save==='function') save(); } }catch(e){}
+    location.reload();
+  }
+  /* on login, honor the logged-in user's saved language */
+  try{
+    if(window.DB&&DB.session&&DB.session.user&&DB.users[DB.session.user]){
+      var ul=DB.users[DB.session.user].lang;
+      if(ul && ul!==cur()){ try{localStorage.setItem(LS,ul);}catch(e){} location.reload(); return; }
+    }
+  }catch(e){}
+
+  var DICT={
+  'Analize':'Analytics','Dashboard':'Dashboard','Briefing':'Briefing','Profit':'Profit','Raport zilnic':'Daily report','Dosare magazine':'Store files','RH / Personal':'HR / Staff','Cash vs Bancă':'Cash vs Bank','Pontaj':'Timesheet','Raportare zilnică':'Daily reporting','Tasks':'Tasks','Diferențe casă':'Cash differences','Inventar':'Inventory','Alerte':'Alerts','Import / Export':'Import / Export','Depozit':'Warehouse','Mișcări marfă':'Goods movements','Mesaje':'Messages','Prețuri produse':'Product prices','Edenred':'Edenred','Setări':'Settings',
+  'Op. Management':'Op. Management','operator':'operator','manager depozit':'warehouse manager','manager op':'op manager','manager warehouse':'warehouse manager','contabil-șef':'chief accountant','contabil șef':'chief accountant','Co-owner':'Co-owner','Înapoi':'Back','Intră':'Enter','Prima oară?':'First time?','PIN implicit:':'Default PIN:','Schimbă-le din Setări.':'Change them in Settings.','Conectat ca':'Logged in as','Deconectare':'Log out','sync oprit':'sync off','Meniu':'Menu',
+  'Angajați':'Employees','Magazine':'Stores','Date HR':'HR data','Praguri alerte':'Alert thresholds','Cont & PIN':'Account & PIN','Despre date':'About data','Backup':'Backup','Cheltuieli':'Expenses','Sumar lunar':'Monthly summary','Per magazin':'Per store','Per angajat':'Per employee','Fixe globale':'Global fixed','Balanță provizorie':'Provisional balance',
+  'Adaugă task':'Add task','Adaugă angajat':'Add employee','Adaugă magazin':'Add store','Adaugă primul task.':'Add the first task.','Adaugă':'Add','Salvează modificările':'Save changes','Salvează':'Save','Salvat':'Saved','Anulează':'Cancel','Șterge':'Delete','Ștergi':'Delete','Editează':'Edit','Modifică':'Edit','Caută':'Search','Căutare':'Search','Închide':'Close','Confirmă':'Confirm','Trimite':'Send','Re-autentifică':'Re-authenticate','Re-propune':'Re-propose','Propune':'Propose','Aprobă':'Approve','Respinge':'Reject','Activează':'Enable','Resetează':'Reset','Schimbă PIN':'Change PIN',
+  'Titlu':'Title','Descriere':'Description','Responsabil':'Responsible','Locație':'Location','Locatie':'Location','Termen':'Deadline','Reminder':'Reminder','Prioritate':'Priority','Dată':'Date','Data':'Date','Status':'Status','Nume':'Name','Prenume':'First name','Observații':'Notes','Observatii':'Notes','Motiv':'Reason','Total':'Total','Sumă':'Amount','Suma':'Amount','Cantitate':'Quantity','Detalii':'Details','Notă':'Note','oricine':'anyone','Selectează magazin':'Select store','Selectează angajat':'Select employee','Selectează':'Select','Toate magazinele':'All stores','Toate':'All','Toți':'All','Tip':'Type','Acțiuni':'Actions','Parolă':'Password','Notificări browser':'Browser notifications','Notificări':'Notifications',
+  'Normală':'Normal','Medie':'Medium','Înaltă':'High','Activ':'Active','Activă':'Active','Inactiv':'Inactive','De făcut':'To do','În lucru':'In progress','Gata':'Done','active':'active','completate':'completed','Niciun task':'No tasks','În așteptare':'Pending','Aprobat':'Approved','Respins':'Rejected',
+  'Tichete de masă':'Meal vouchers','Tichete':'Vouchers','Bon mediu':'Avg. receipt','Magazin':'Store','Angajat':'Employee','Vânzări':'Sales','Vanzari':'Sales','Numerar':'Cash','Bonuri':'Receipts','Bon':'Receipt','Stocuri':'Stock','Stoc':'Stock','Facturi':'Invoices','Factură':'Invoice','Furnizori':'Suppliers','Furnizor':'Supplier','Casieri':'Cashiers','Casier':'Cashier','Diferențe':'Differences','Diferență':'Difference','Rapoarte':'Reports','Raportare':'Reporting','Raport':'Report','Anulări':'Cancellations','Retururi':'Returns','Retur':'Return','Costuri':'Costs','Cost':'Cost','Marjă':'Margin','Marja':'Margin','Vânzare':'Sale','Produse':'Products','Produs':'Product','Categorie':'Category','Prețuri':'Prices','Preț':'Price','Valoare':'Value','Încasări':'Receipts','Plăți':'Payments','Plată':'Payment','Sold':'Balance','Deschidere':'Opening','Închidere':'Closing',
+  'Ore lucrate':'Hours worked','Ore':'Hours','Concediu':'Leave','Prezent':'Present','Lună':'Month','Luna':'Month','Săptămână':'Week','Astăzi':'Today','Ieri':'Yesterday','Perioadă':'Period','Ianuarie':'January','Februarie':'February','Martie':'March','Aprilie':'April','Iunie':'June','Iulie':'July','Septembrie':'September','Octombrie':'October','Noiembrie':'November','Decembrie':'December','Luni':'Monday','Marți':'Tuesday','Miercuri':'Wednesday','Joi':'Thursday','Vineri':'Friday','Sâmbătă':'Saturday','Duminică':'Sunday'
+  };
+  var keys=Object.keys(DICT).sort(function(a,b){return b.length-a.length;});
+  function esc(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+  var RX;
+  try{ RX=new RegExp('(?<![\\p{L}\\p{N}])('+keys.map(esc).join('|')+')(?![\\p{L}\\p{N}])','gu'); }
+  catch(e){ RX=new RegExp('('+keys.map(esc).join('|')+')','g'); }
+  function tr(s){ try{return s.replace(RX,function(m){return DICT[m]||m;});}catch(e){return s;} }
+  var STOP={SCRIPT:1,STYLE:1,TEXTAREA:1,NOSCRIPT:1};
+  function walk(n){
+    if(!n) return;
+    if(n.nodeType===3){ var t=n.nodeValue; if(t&&/\S/.test(t)){ var nt=tr(t); if(nt!==t) n.nodeValue=nt; } return; }
+    if(n.nodeType!==1) return;
+    if(n.id==='i18nPill') return;
+    if(n.getAttribute){ var ph=n.getAttribute('placeholder'); if(ph){ var np=tr(ph); if(np!==ph) n.setAttribute('placeholder',np);} var ti=n.getAttribute('title'); if(ti){ var nti=tr(ti); if(nti!==ti) n.setAttribute('title',nti);} }
+    if(STOP[n.tagName]) return;
+    for(var c=n.firstChild;c;c=c.nextSibling) walk(c);
+  }
+  function translateAll(){ if(cur()!=='en') return; try{ walk(document.body); }catch(e){} }
+  function pill(){
+    if(document.getElementById('i18nPill')) return;
+    var d=document.createElement('div'); d.id='i18nPill';
+    d.style.cssText='position:fixed;bottom:12px;left:12px;z-index:5000;background:#14352a;color:#fff;border-radius:20px;padding:6px 12px;font:600 12px system-ui,Arial;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25);user-select:none';
+    var l=cur(); d.innerHTML='🌐 <span style="opacity:'+(l==='ro'?1:.45)+'">RO</span> | <span style="opacity:'+(l==='en'?1:.45)+'">EN</span>';
+    d.onclick=function(){ setLang(cur()==='en'?'ro':'en'); };
+    document.body.appendChild(d);
+  }
+  function start(){
+    pill(); translateAll();
+    try{
+      var mo=new MutationObserver(function(muts){
+        if(cur()!=='en') return;
+        mo.disconnect();
+        try{ muts.forEach(function(m){ if(m.type==='childList'){ for(var i=0;i<m.addedNodes.length;i++) walk(m.addedNodes[i]); } else if(m.type==='characterData'){ walk(m.target); } }); }catch(e){}
+        mo.observe(document.body,{childList:true,subtree:true,characterData:true});
+      });
+      mo.observe(document.body,{childList:true,subtree:true,characterData:true});
+    }catch(e){}
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+})();
 </script>
 </body>
 </html>
