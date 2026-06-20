@@ -8904,7 +8904,7 @@ function rhActForm(kind, presetNume){
       <div class="form-row"><div class="form-field" style="flex:3"><label>Fapta imputată</label><textarea id="ra_fapta" rows="2" style="width:100%"></textarea></div></div>
       <div class="form-row"><div class="form-field"><label>Data cercetării</label><input type="date" id="ra_data"></div>
         <div class="form-field"><label>Ora</label><input id="ra_ora" placeholder="ex: 10:00"></div>
-        <div class="form-field" style="flex:2"><label>Locul</label><input id="ra_loc" placeholder="ex: sediu / punctul de lucru..."></div></div>
+        <div class="form-field" style="flex:2"><label>Locul</label>${_rhLocSel('ra_loc')}</div></div>
       <div class="form-row"><div class="form-field" style="flex:2"><label>Persoana/comisia împuternicită</label><input id="ra_comisie" placeholder="nume/funcție"></div></div>`;
   } else if(kind==='cercetare'){
     body=`
@@ -8964,13 +8964,24 @@ function rhActForm(kind, presetNume){
       <button class="btn btn-primary" onclick="rhGenAct('${kind}')">✨ Generează</button>
     </div></div>`);
   if(presetNume){ var s=document.getElementById('ra_ang'); if(s){ s.value=presetNume; rhFillAng(); } }
+  var _nr=document.getElementById('ra_nr'); if(_nr && !_nr.value) _nr.value=rhNextDocNo(kind);
 }
 function rhFillAng(){
   const nume=document.getElementById('ra_ang').value;
   const a=DB.angajati.find(x=>x.nume===nume); if(!a) return;
   const set=(id,v)=>{ const el=document.getElementById(id); if(el&&v!=null) el.value=v; };
   set('ra_cnp', a.cnp||''); set('ra_functie', a.rol||''); set('ra_cim', a.nrContract||'');
+  var _m=(DB.magazine.find(x=>x.id===a.magazin)||{}); set('ev_loc', _m.nume||a.magazin||'');
 }
+/* === Auto-numerotare documente RH: an(2) + inițiale + 3 cifre (ex. 26AS001), contor separat pe tip === */
+function rhDocIni(kind){ return ({adeverinta:'AS',adeverintaVechime:'AV',actaditional:'AA',incetare:'DI',sesizare:'RS',convocare:'CD',cercetare:'PV',sanctiune:'DS',evaluare:'FE'})[kind]||'XX'; }
+function rhDocKey(kind){ return String(new Date().getFullYear()).slice(-2)+rhDocIni(kind); }
+function rhNextDocNo(kind){ if(!DB.docCounters) DB.docCounters={}; const k=rhDocKey(kind); return k+String((DB.docCounters[k]||0)+1).padStart(3,'0'); }
+function rhCommitDocNo(kind,used){ if(!DB.docCounters) DB.docCounters={}; const k=rhDocKey(kind); const m=used&&String(used).match(new RegExp('^'+k+'0*(\\d+)')); if(m){ const n=parseInt(m[1],10); if(n>(DB.docCounters[k]||0)){ DB.docCounters[k]=n; save(); } } }
+/* Câmp locație reutilizabil: dropdown magazine active + opțiune scriere liberă (orice act) */
+function _rhLocSel(id,sel){ return `<select id="${id}" onchange="rhLocToggle('${id}')"><option value="">— alege —</option>`+DB.magazine.filter(m=>m.status==='Activ').map(m=>`<option value="${escapeHtml(m.nume)}" ${m.nume===sel?'selected':''}>${escapeHtml((m.id?m.id+' ':'')+m.nume)}</option>`).join('')+`<option value="__other__">✏️ Altă locație…</option></select><input id="${id}_other" placeholder="scrie locația" style="display:none;margin-top:6px">`; }
+function rhLocToggle(id){ var s=document.getElementById(id), o=document.getElementById(id+'_other'); if(o){ o.style.display=(s&&s.value==='__other__')?'block':'none'; if(s&&s.value==='__other__') o.focus(); } }
+function rhLocVal(id){ var s=document.getElementById(id); if(!s) return ''; if(s.value==='__other__'){ var o=document.getElementById(id+'_other'); return o?(o.value||''):''; } return s.value||''; }
 function rhSanctScore(){
   const v=id=>{const e=document.getElementById(id);return e?+e.value:0;};
   const s=v('sg_a')+v('sg_b')+v('sg_c')+v('sg_d')+v('sg_e');
@@ -8987,6 +8998,7 @@ function rhPickMotivare(){ const s=document.getElementById('ra_motivareSel'),t=d
 function rhGenAct(kind){
   const g=_gv, S=_slot;
   const ang=g('ra_ang');
+  try{ rhCommitDocNo(kind, g('ra_nr')); }catch(e){}
   const sediuLine=`${RH_FIRMA.nume}, cu sediul social în ${RH_FIRMA.sediu}, C.I.F. ${RH_FIRMA.cif}, Nr. Reg. Com. ${RH_FIRMA.regcom}, reprezentată legal prin administrator ${RH_FIRMA.admin}`;
   let titlu='', inner='', fname='Act';
   if(kind==='adeverinta'){
@@ -9035,7 +9047,7 @@ function rhGenAct(kind){
       <p style="text-align:center">la cercetarea disciplinară prealabilă</p>
       <p>Către: ${S(ang,'nume salariat')}, funcția ${S(g('ra_functie'),'funcția')}, CIM nr. ${S(g('ra_cim'),'___')}.</p>
       <p>În temeiul art. 251 alin. (2) din Legea nr. 53/2003 — Codul muncii și al art. 70 din Regulamentul Intern, ${RH_FIRMA.nume}, prin ${RH_FIRMA.admin}, vă convoacă în vederea efectuării cercetării disciplinare prealabile cu privire la fapta: <b>${S(g('ra_fapta'),'fapta imputată')}</b>.</p>
-      <p>Cercetarea va avea loc la data de <b>${S(g('ra_data'),'data')}</b>, ora <b>${S(g('ra_ora'),'ora')}</b>, la <b>${S(g('ra_loc'),'locul')}</b>, în fața ${S(g('ra_comisie'),'persoanei/comisiei împuternicite')}.</p>
+      <p>Cercetarea va avea loc la data de <b>${S(g('ra_data'),'data')}</b>, ora <b>${S(g('ra_ora'),'ora')}</b>, la <b>${S(rhLocVal('ra_loc'),'locul')}</b>, în fața ${S(g('ra_comisie'),'persoanei/comisiei împuternicite')}.</p>
       <p>În cadrul cercetării aveți dreptul să formulați și să susțineți toate apărările în favoarea dumneavoastră, să oferiți probele și motivațiile pe care le considerați necesare și să fiți asistat(ă), la cerere, de către un reprezentant. </p>
       <p>Neprezentarea la convocare, fără un motiv obiectiv, dă dreptul angajatorului să dispună sancționarea fără efectuarea cercetării disciplinare prealabile (art. 251 alin. (3) Codul muncii).</p>`;
   } else if(kind==='cercetare'){
@@ -9102,8 +9114,9 @@ function rhEvalForm(presetNume){
     <h3 style="margin-top:0">🧮 Fișă de evaluare profesională</h3>
     <p style="color:var(--text-muted);font-size:12.5px;margin-top:-4px">Notezi fiecare criteriu de la 0 la 5. Totalul și calificativul se calculează singure. La final poți pune un reminder pentru următoarea evaluare.</p>
     <div class="form-row"><div class="form-field" style="flex:2"><label>Angajat</label><select id="ra_ang" onchange="rhFillAng()">${_rhAngOptions(presetNume)}</select></div>
-      <div class="form-field"><label>Funcția</label><input id="ra_functie"></div></div>
-    <div class="form-row"><div class="form-field"><label>Punct de lucru</label><input id="ev_loc"></div>
+      <div class="form-field"><label>Funcția</label><input id="ra_functie"></div>
+      <div class="form-field"><label>Nr. fișă</label><input id="ev_nr"></div></div>
+    <div class="form-row"><div class="form-field"><label>Punct de lucru</label>${_rhLocSel('ev_loc')}</div>
       <div class="form-field"><label>Perioada: de la</label><input type="date" id="ev_de"></div>
       <div class="form-field"><label>până la</label><input type="date" id="ev_pana"></div>
       <div class="form-field"><label>Data evaluării</label><input type="date" id="ev_data" value="${todayISO()}"></div></div>
@@ -9122,6 +9135,7 @@ function rhEvalForm(presetNume){
       <button class="btn btn-primary" onclick="rhGenEval()">✨ Generează fișa</button>
     </div></div>`);
   if(presetNume){ var s=document.getElementById('ra_ang'); if(s){ s.value=presetNume; rhFillAng(); } }
+  var _en=document.getElementById('ev_nr'); if(_en && !_en.value) _en.value=rhNextDocNo('evaluare');
   rhEvalSum();
 }
 function rhEvalSum(){
@@ -9135,13 +9149,14 @@ function rhEvalSum(){
 }
 function rhGenEval(){
   const g=_gv, ang=g('ra_ang');
+  try{ rhCommitDocNo('evaluare', g('ev_nr')); }catch(e){}
   const r=rhEvalSum();
   const rows=RH_EVAL_CRIT.map(c=>{const sc=_gv('ev_'+c[0])||'0'; return `<tr><td>${c[0]})</td><td>${c[1]}</td><td style="text-align:center">0–5</td><td style="text-align:center"><b>${sc}</b></td></tr>`;}).join('');
-  const inner=`<h2 style="text-align:center;margin:0 0 2px">FIȘĂ DE EVALUARE PROFESIONALĂ</h2>
+  const inner=`<p style="text-align:right;margin:0">Nr. ${_slot(g('ev_nr'),'___')} / ${escapeHtml(g('ev_data')||todayISO())}</p><h2 style="text-align:center;margin:0 0 2px">FIȘĂ DE EVALUARE PROFESIONALĂ</h2>
     <p style="text-align:center;font-style:italic;color:#444;font-size:11.5px">Întocmită în temeiul art. 74–79 din Regulamentul Intern și al art. 17 alin. (3) lit. e) din Legea nr. 53/2003</p>
     <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:10px">
       <tr><td style="padding:3px">Salariat: <b>${escapeHtml(ang||'____')}</b></td><td style="padding:3px">Funcția: <b>${escapeHtml(g('ra_functie'))}</b></td></tr>
-      <tr><td style="padding:3px">Punct de lucru: ${escapeHtml(g('ev_loc'))}</td><td style="padding:3px">Perioada: ${escapeHtml(g('ev_de'))} – ${escapeHtml(g('ev_pana'))}</td></tr>
+      <tr><td style="padding:3px">Punct de lucru: ${escapeHtml(rhLocVal('ev_loc'))}</td><td style="padding:3px">Perioada: ${escapeHtml(g('ev_de'))} – ${escapeHtml(g('ev_pana'))}</td></tr>
       <tr><td style="padding:3px">Data evaluării: ${escapeHtml(g('ev_data'))}</td><td style="padding:3px">Evaluator: ${escapeHtml(g('ev_evnume'))} (${escapeHtml(g('ev_evfunc'))})</td></tr>
     </table>
     <table style="width:100%;border-collapse:collapse;font-size:12px" border="1" cellpadding="4">
