@@ -461,6 +461,7 @@ const SEED = {
   diferente: [],     // {data, magazin, responsabil, tip, suma, cauza, masura, status, auto}
   inventar: [],
   tasks: [],           // {id, titlu, descriere, responsabil, locatie, termen, prioritate, reminder, done, creatLa, doneLa}
+  disponibilitate: {},   // { [weekMondayISO]: { [angajatId]: { d:[7 statuses ''|'D'|'I'|'P'], obs, updatedLa } } } — centralizat (Ana)
   users: {
     ana: { pin: "1234", role: "operator", nume: "Ana" },
     adrian: { pin: "0000", role: "admin", nume: "Adrian" },
@@ -627,6 +628,7 @@ const VIEWS_ALL = [
   {id:'rh', label:'📋 RH / Personal', icon:'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', roles:['admin','operator']},
   {id:'cashbanca', label:'💵 Cash vs Bancă', icon:'M3 6h18v12H3z M3 10h18 M7 15h2', roles:['admin','operator']},
   {id:'pontaj', label:'Pontaj', icon:'M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', roles:['admin','owner','operator','contabil-sef']},
+  {id:'disponibilitate', label:'🗓️ Disponibilitate', icon:'M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 16l2 2 4-4', roles:['admin','operator']},
   {id:'raportare', label:'Raportare zilnică', icon:'M9 17v-6h6v6M3 7l9-4 9 4M5 7v14h14V7', roles:['admin','owner','operator','contabil-sef']},
   {id:'tasks', label:'Tasks', icon:'M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z', roles:['admin','owner','operator','manager-depozit']},
   {id:'diferente', label:'Diferențe casă', icon:'M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6', roles:['admin','owner']},
@@ -723,7 +725,7 @@ function go(view) {
   currentView = view;
   if (window.innerWidth <= 700) toggleSidebar(false); // închide sertarul pe mobil la navigare
   renderNav();
-  const titles = {analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', cashbanca:'💵 Cash încasat vs Depuneri bancă', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
+  const titles = {analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', disponibilitate:'🗓️ Disponibilitate', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', cashbanca:'💵 Cash încasat vs Depuneri bancă', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
     diferente:'Diferențe casă', inventar:'Inventar', alerte:'Alerte automate',
     import:'Import / Export date', setari:'Setări'};
   document.getElementById('pageTitle').textContent = titles[view];
@@ -736,7 +738,7 @@ function go(view) {
     renderNav();
     return go(currentView);
   }
-  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, cashbanca:renderCashBanca, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
+  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, disponibilitate:renderDisponibilitate, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, cashbanca:renderCashBanca, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
     diferente:renderDiferente, inventar:renderInventar, alerte:renderAlerte, import:renderImport, setari:renderSetari})[view]();
 }
 
@@ -7899,6 +7901,47 @@ function showLoginScreen() {
 }
 
 // ---------- TASKS ----------
+// ===== Disponibilitate (centralizat — gestionat de Ana) =====
+function _dispMonday(d){ const x=new Date(d); const day=(x.getDay()+6)%7; x.setDate(x.getDate()-day); x.setHours(0,0,0,0); return x.toISOString().slice(0,10); }
+function _dispNextWeek(){ const d=new Date(); d.setDate(d.getDate()+7); return d; }
+let _dispWeek=_dispMonday(_dispNextWeek());
+function _dispWeekDates(mondayISO){ const out=[]; const d=new Date(mondayISO); for(let i=0;i<7;i++){ const x=new Date(d); x.setDate(d.getDate()+i); out.push(x);} return out; }
+const _DISP_ZILE=['Lu','Ma','Mi','Jo','Vi','Sâ','Du'];
+const _DISP_CYCLE=['','D','I','P'];
+const _DISP_META={ '':{t:'—',bg:'#f2f2f2',fg:'#888'}, 'D':{t:'D',bg:'#1f6b4c',fg:'#fff'}, 'I':{t:'I',bg:'#c0392b',fg:'#fff'}, 'P':{t:'P',bg:'#e08a1e',fg:'#fff'} };
+function _dispEnsure(week){ if(!DB.disponibilitate||Array.isArray(DB.disponibilitate)) DB.disponibilitate={}; if(!DB.disponibilitate[week]) DB.disponibilitate[week]={}; return DB.disponibilitate[week]; }
+function _dispRow(week,angId){ const w=_dispEnsure(week); if(!w[angId]||!Array.isArray(w[angId].d)||w[angId].d.length!==7) w[angId]={d:['','','','','','',''],obs:(w[angId]&&w[angId].obs)||''}; return w[angId]; }
+function dispCanEdit(){ return DB.session.role==='admin'||DB.session.role==='operator'; }
+function dispShiftWeek(n){ const d=new Date(_dispWeek); d.setDate(d.getDate()+n*7); _dispWeek=_dispMonday(d); renderDisponibilitate(); }
+function dispThisNext(){ _dispWeek=_dispMonday(_dispNextWeek()); renderDisponibilitate(); }
+function dispCycle(angId,day){ if(!dispCanEdit()) return; const r=_dispRow(_dispWeek,angId); const cur=r.d[day]||''; r.d[day]=_DISP_CYCLE[(_DISP_CYCLE.indexOf(cur)+1)%_DISP_CYCLE.length]; r.updatedLa=nowISO(); save(); renderDisponibilitate(); }
+function dispObs(angId,val){ const r=_dispRow(_dispWeek,angId); r.obs=val; r.updatedLa=nowISO(); save(); }
+function dispReset(){ if(!dispCanEdit())return; if(!confirm('Golești disponibilitatea pentru această săptămână?'))return; DB.disponibilitate[_dispWeek]={}; save(); renderDisponibilitate(); }
+function renderDisponibilitate(){
+  const week=_dispWeek, dates=_dispWeekDates(week);
+  const fmtD=d=>d.toLocaleDateString('ro-RO',{day:'2-digit',month:'2-digit'});
+  const angs=DB.angajati.filter(a=>a.status==='Activ');
+  const ed=dispCanEdit();
+  const head=`<tr><th style="text-align:left;min-width:150px">Angajat</th>${dates.map((d,i)=>`<th>${_DISP_ZILE[i]}<br><small style="font-weight:normal;color:var(--text-muted)">${fmtD(d)}</small></th>`).join('')}<th>Disp.</th><th style="min-width:130px">Observație</th></tr>`;
+  const rows=angs.map(a=>{ const r=_dispRow(week,a.id); const cnt=r.d.filter(x=>x==='D').length;
+    const cells=r.d.map((s,i)=>{const m=_DISP_META[s]||_DISP_META[''];return `<td style="padding:3px"><button onclick="dispCycle('${a.id}',${i})" ${ed?'':'disabled'} title="Click: D→I→P→gol" style="width:34px;height:30px;border:1px solid #cfd8e3;border-radius:6px;cursor:${ed?'pointer':'default'};background:${m.bg};color:${m.fg};font-weight:bold">${m.t}</button></td>`;}).join('');
+    return `<tr><td style="text-align:left"><strong>${a.nume}</strong><br><small style="color:var(--text-muted)">${a.program||''}</small></td>${cells}<td><span class="badge badge-info">${cnt}</span></td><td><input type="text" value="${(r.obs||'').replace(/"/g,'&quot;')}" ${ed?'':'disabled'} onchange="dispObs('${a.id}',this.value)" placeholder="ex. doar dimineața" style="width:120px"></td></tr>`;
+  }).join('');
+  document.getElementById('content').innerHTML=`
+   <div class="card">
+     <div class="section-head">
+       <h3>🗓️ Disponibilitate — ${fmtD(dates[0])}–${fmtD(dates[6])}</h3>
+       <div class="toolbar">
+         <button class="btn btn-sm" onclick="dispShiftWeek(-1)">◀ Săpt.</button>
+         <button class="btn btn-sm" onclick="dispThisNext()">Săpt. viitoare</button>
+         <button class="btn btn-sm" onclick="dispShiftWeek(1)">Săpt. ▶</button>
+         ${ed?'<button class="btn btn-sm btn-ghost" onclick="dispReset()">Golește</button>':''}
+       </div>
+     </div>
+     <p style="font-size:12px;color:var(--text-muted);margin:4px 0 10px">Apasă pe o zi pentru a comuta: <b style="color:#1f6b4c">D</b>=Disponibil, <b style="color:#c0392b">I</b>=Indisponibil, <b style="color:#e08a1e">P</b>=Parțial, gol=nesetat. „Disp." = zile disponibile.${ed?'':' (doar vizualizare)'}</p>
+     <div class="table-wrap"><table style="text-align:center"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
+   </div>`;
+}
 function renderTasks() {
   const tasks = [...DB.tasks].sort((a,b) => {
     if (a.done !== b.done) return a.done ? 1 : -1;
