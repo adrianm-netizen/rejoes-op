@@ -618,7 +618,7 @@ const roleLabel = (r) => ROLE_LABEL[r] || r || '—';
 
 // ---------- NAV ----------
 const VIEWS_ALL = [
-  {id:'analize', label:'📊 Analize', icon:'M3 3v18h18 M7 15l3-3 3 3 5-6', roles:['admin','owner']},
+  {id:'analize', label:'📊 Analize', icon:'M3 3v18h18 M7 15l3-3 3 3 5-6', roles:['admin','owner','operator']},
   {id:'dashboard', label:'Dashboard', icon:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', roles:['admin','owner']},
   {id:'briefing', label:'Briefing', icon:'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8', roles:['admin','owner']},
   {id:'profit', label:'Profit', icon:'M3 3v18h18 M7 14l4-4 4 4 5-5', roles:['admin','owner']},
@@ -7740,7 +7740,17 @@ async function exportPontajIndividual(){
 }
 async function exportRap(){
   try{
-    if(typeof ExcelJS==='undefined'){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(DB.raportari), 'Raportare'); dwn(wb,`Raportare_${todayISO()}.xlsx`); return; }
+    // —— respectă filtrul de perioadă + magazin selectat în pagină (la fel ca afișarea) ——
+    const _t2=new Date(); _t2.setHours(0,0,0,0); const _isoD=d=>d.toISOString().slice(0,10);
+    let _fromE='0000-01-01', _toE='9999-12-31', _perLabel='Toată perioada';
+    if(rapPMode==='7'){const f=new Date(_t2);f.setDate(f.getDate()-6);_fromE=_isoD(f);_toE=_isoD(_t2);_perLabel='Ultimele 7 zile';}
+    else if(rapPMode==='30'){const f=new Date(_t2);f.setDate(f.getDate()-29);_fromE=_isoD(f);_toE=_isoD(_t2);_perLabel='Ultimele 30 zile';}
+    else if(rapPMode==='luna'){_fromE=_isoD(new Date(_t2.getFullYear(),_t2.getMonth(),1));_toE=_isoD(_t2);_perLabel='Luna curentă ('+LUNI_RO[_t2.getMonth()]+' '+_t2.getFullYear()+')';}
+    else if(rapPMode==='lunaTrecuta'){const lm=new Date(_t2.getFullYear(),_t2.getMonth()-1,1);_fromE=_isoD(lm);_toE=_isoD(new Date(_t2.getFullYear(),_t2.getMonth(),0));_perLabel='Luna trecută ('+LUNI_RO[lm.getMonth()]+' '+lm.getFullYear()+')';}
+    else if(rapPMode==='custom'){_fromE=rapPFrom||_fromE;_toE=rapPTo||_toE;_perLabel='Interval '+_fromE+' – '+_toE;}
+    const _magIdE=s=>String(s||'').trim().split(/\s+/)[0];
+    const _rapFiltrat=(DB.raportari||[]).filter(r=>{ if(!r.data||r.data<_fromE||r.data>_toE) return false; if(typeof rapFMag!=='undefined' && rapFMag!=='TOATE' && _magIdE(r.magazin)!==rapFMag) return false; return true; });
+    if(typeof ExcelJS==='undefined'){ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromRows(_rapFiltrat), 'Raportare'); dwn(wb,`Raportare_${todayISO()}.xlsx`); return; }
     const _n=v=>{ const x=parseFloat(v); return isNaN(x)?0:x; };
     const wb=new ExcelJS.Workbook(); wb.creator='Rejoes';
     const ws=wb.addWorksheet('Raportare zilnică');
@@ -7748,12 +7758,12 @@ async function exportRap(){
     const _img=async(u)=>{ try{ const r=await fetch(u,{cache:'no-store'}); if(!r.ok) return null; return await r.arrayBuffer(); }catch(e){ return null; } };
     const [logoSC,logoRJ]=await Promise.all([_img('logo_scolect.png'),_img('logo_rejoes.png')]);
     let cc=ws.getCell('A1'); ws.mergeCells('A1:L1'); cc.value='S COLECT REC SRL'; cc.font={bold:true,size:14,color:{argb:'FF1B7A3D'}}; cc.alignment={horizontal:'center'};
-    cc=ws.getCell('A2'); ws.mergeCells('A2:L2'); cc.value='Raportare zilnică — încasări · Magazine REJOES'; cc.font={size:10,italic:true,color:{argb:'FF555555'}}; cc.alignment={horizontal:'center'};
+    cc=ws.getCell('A2'); ws.mergeCells('A2:L2'); cc.value='Raportare zilnică — încasări · Magazine REJOES · '+_perLabel+(typeof rapFMag!=='undefined'&&rapFMag!=='TOATE'?(' · '+rapFMag):''); cc.font={size:10,italic:true,color:{argb:'FF555555'}}; cc.alignment={horizontal:'center'};
     cc=ws.getCell('A3'); ws.mergeCells('A3:L3'); cc.value='CIF RO 38513453 · Reg. Com. J2017004459354 · Str. Republicii 20, 305400 Jimbolia, jud. Timiș · info@tm-res.com'; cc.font={size:9,color:{argb:'FF777777'}}; cc.alignment={horizontal:'center'};
     ws.getRow(1).height=20; ws.getRow(2).height=14; ws.getRow(3).height=14; ws.getRow(4).height=8;
     if(logoSC){ try{ const id=wb.addImage({buffer:logoSC,extension:'png'}); ws.addImage(id,{tl:{col:0.1,row:0.1},ext:{width:80,height:80}}); }catch(e){} }
     if(logoRJ){ try{ const id=wb.addImage({buffer:logoRJ,extension:'png'}); ws.addImage(id,{tl:{col:9.3,row:0.55},ext:{width:165,height:51}}); }catch(e){} }
-    const data=(DB.raportari||[]).slice();
+    const data=_rapFiltrat.slice();
     const perMag={}; data.forEach(r=>{ const m=r.magazin||'—'; (perMag[m]=perMag[m]||{v:0,b:0}); perMag[m].v+=_n(r.vanzari); perMag[m].b+=_n(r.bonuri); });
     let row=5;
     ws.getCell('A'+row).value='SUMAR PE MAGAZIN'; ws.getCell('A'+row).font={bold:true,size:11}; row++;
