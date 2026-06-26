@@ -8879,6 +8879,9 @@ function renderRHActe(){
       {k:'actaditional', h:'rhActForm', t:'📝 Act adițional la CIM', d:'modificare salariu, funcție, program...'},
       {k:'incetare', h:'rhActForm', t:'📕 Decizie de încetare CIM', d:'demisie, acordul părților, perioadă de probă...'}
     ]},
+    {titlu:'📋 Document de personal', items:[
+      {k:'fisapost', h:'rhActForm', t:'📋 Fișă de post (lucrător comercial)', d:'versiunea actuală — generată pentru angajatul ales'}
+    ]},
     {titlu:'📊 Evaluare', items:[
       {k:'evaluare', h:'rhEvalForm', t:'🧮 Fișă de evaluare profesională', d:'17 criterii, calcul automat, calificativ + reminder pt. următoarea'}
     ]},
@@ -9007,7 +9010,16 @@ function rhActForm(kind, presetNume){
         <div class="form-field" style="flex:2"><label>Motivele înlăturării apărărilor</label><input id="ra_motive" placeholder="sau: salariatul nu s-a prezentat la cercetare"></div></div>
       <div class="form-row"><div class="form-field" style="flex:3"><label>Motivarea deciziei</label><textarea id="ra_motivare" rows="3" style="width:100%" placeholder="alege un model mai sus sau scrie aici"></textarea></div></div>`;
   }
-  const titluri={adeverinta:'Adeverință de salariat', adeverintaVechime:'Adeverință de vechime', incetare:'Decizie de încetare CIM', actaditional:'Act adițional la CIM', sesizare:'Referat de sesizare', convocare:'Convocare la cercetare disciplinară', cercetare:'Proces-verbal de cercetare disciplinară', sanctiune:'Decizie de sancționare disciplinară'};
+  if(kind==='fisapost'){
+    body=`<div class="form-row"><div class="form-field" style="flex:2"><label>Angajat</label><select id="ra_ang" onchange="rhFillAng()">${_rhAngOptions(presetNume)}</select></div>
+        <div class="form-field"><label>Nr. / data</label><input id="ra_nr"></div></div>
+      <div class="form-row"><div class="form-field"><label>CNP</label><input id="ra_cnp"></div>
+        <div class="form-field"><label>Funcția</label><input id="ra_functie" value="Lucrător comercial"></div>
+        <div class="form-field"><label>Nr. CIM</label><input id="ra_cim"></div></div>
+      <div class="form-row"><div class="form-field" style="flex:2"><label>Punct de lucru</label>${_rhLocSel('ra_loc')}</div>
+        <div class="form-field"><label>Data</label><input type="date" id="ra_data"></div></div>`;
+  }
+  const titluri={adeverinta:'Adeverință de salariat', adeverintaVechime:'Adeverință de vechime', incetare:'Decizie de încetare CIM', actaditional:'Act adițional la CIM', sesizare:'Referat de sesizare', convocare:'Convocare la cercetare disciplinară', cercetare:'Proces-verbal de cercetare disciplinară', sanctiune:'Decizie de sancționare disciplinară', fisapost:'Fișă de post — Lucrător comercial'};
   openModal(`<div style="max-height:74vh;overflow:auto;padding-right:6px">
     <h3 style="margin-top:0">${titluri[kind]||'Act'}</h3>
     <p style="color:var(--text-muted);font-size:12.5px;margin-top:-4px">Alege angajatul (se pre-completează din aplicație) și completează restul. Ce lași gol apare marcat în document.</p>
@@ -9027,7 +9039,7 @@ function rhFillAng(){
   var _m=(DB.magazine.find(x=>x.id===a.magazin)||{}); set('ev_loc', _m.nume||a.magazin||'');
 }
 /* === Auto-numerotare documente RH: an(2) + inițiale + 3 cifre (ex. 26AS001), contor separat pe tip === */
-function rhDocIni(kind){ return ({adeverinta:'AS',adeverintaVechime:'AV',actaditional:'AA',incetare:'DI',sesizare:'RS',convocare:'CD',cercetare:'PV',sanctiune:'DS',evaluare:'FE'})[kind]||'XX'; }
+function rhDocIni(kind){ return ({adeverinta:'AS',adeverintaVechime:'AV',actaditional:'AA',incetare:'DI',sesizare:'RS',convocare:'CD',cercetare:'PV',sanctiune:'DS',evaluare:'FE',fisapost:'FP'})[kind]||'XX'; }
 function rhDocKey(kind){ return String(new Date().getFullYear()).slice(-2)+rhDocIni(kind); }
 function rhNextDocNo(kind){ if(!DB.docCounters) DB.docCounters={}; const k=rhDocKey(kind); return k+String((DB.docCounters[k]||0)+1).padStart(3,'0'); }
 function rhCommitDocNo(kind,used){ if(!DB.docCounters) DB.docCounters={}; const k=rhDocKey(kind); const m=used&&String(used).match(new RegExp('^'+k+'0*(\\d+)')); if(m){ const n=parseInt(m[1],10); if(n>(DB.docCounters[k]||0)){ DB.docCounters[k]=n; save(); } } }
@@ -9129,6 +9141,53 @@ function rhGenAct(kind){
       <p><b>Art. 6.</b> Prezenta decizie poate fi contestată în termen de 30 de zile calendaristice de la data comunicării, la instanța judecătorească competentă în materia conflictelor de muncă (tribunalul).</p>
       <p><b>Art. 7.</b> Decizia se comunică salariatului în termen de cel mult 5 zile calendaristice de la emitere și produce efecte de la data comunicării. Sancțiunea se radiază de drept în 12 luni dacă nu intervine o nouă sancțiune (art. 73 ROI).</p>`;
   }
+  else if(kind==='fisapost'){
+    titlu='FIȘĂ DE POST'; fname='Fisa_post_'+(ang||'').replace(/[^\w]+/g,'_');
+    inner=`<p style="text-align:right">Nr. ${S(g('ra_nr'),'___')} / ${S(g('ra_data')||todayISO(),'data')}</p>
+      <h2 style="text-align:center;margin:2px 0">FIȘĂ DE POST</h2>
+      <p style="text-align:center;margin:0 0 8px">Lucrător comercial — Cod COR 522303</p>
+      <h3>I. Date de identificare</h3>
+      <p>Angajator: ${RH_FIRMA.nume}, sediu ${RH_FIRMA.sediu}, C.I.F. ${RH_FIRMA.cif}, Nr. Reg. Com. ${RH_FIRMA.regcom}, administrator ${RH_FIRMA.admin}.</p>
+      <p>Salariat: ${S(ang,'nume salariat')}, CNP ${S(g('ra_cnp'),'___')}, funcția ${S(g('ra_functie')||'Lucrător comercial','funcția')}, CIM nr. ${S(g('ra_cim'),'___')}. Departament: Comercial/Retail; nivel: execuție. Punct de lucru: ${S(rhLocVal('ra_loc'),'punctul de lucru')}. Subordonare: superiorul ierarhic direct (Team-Leader/Supervizor).</p>
+      <h3>II. Scopul postului</h3>
+      <p>Asigurarea activităților comerciale și operaționale în condiții de legalitate, eficiență, siguranță, rentabilitate și conformitate cu procedurile interne. Salariatul reprezintă imaginea societății și respectă valorile companiei: practicitate, responsabilitate, lucru în echipă și atitudine proactivă. Implicarea deschide oportunități de dezvoltare.</p>
+      <h3>III. Cerințele postului</h3>
+      <ul><li>studii generale sau medii;</li><li>experiența comercială constituie un avantaj;</li><li>cunoștințe de operare casă de marcat/POS;</li><li>capacitate de organizare și relaționare;</li><li>seriozitate, disciplină, orientare către client;</li><li>apt medical pentru desfășurarea activității;</li><li>disponibilitate pentru program în ture și inegal, conform Codului muncii.</li></ul>
+      <h3>IV. Superiorul ierarhic direct</h3>
+      <p>Fiecare unitate (magazin/depozit) sau grup de lucru are un superior ierarhic direct, care gestionează toate problemele zilnice în mod profesionist și se bucură de întreaga încredere a societății. Salariatul îi datorează respect și comunică în mod adecvat, deschis și constant; autoritatea superiorului direct nu trebuie desconsiderată. Adresarea directă către un alt superior, peste superiorul direct, se face doar în cazuri considerate extreme și, în astfel de situații, printr-o solicitare scrisă oficială (cerere înregistrată / scrisoare recomandată). Urgențele (112) fac excepție — se acționează imediat.</p>
+      <h3>V. Program, prezență și pontaj</h3>
+      <p>Magazinul se deschide la începutul turei și se închide la final, nu mai devreme. Pontarea la intrare/ieșire este obligatorie; întârzierile repetate constituie abatere. Programul și graficele de ture respectă planificarea internă și pot fi egale, inegale, în ture sau în sistem 2+2, conform Codului muncii, ROI și CIM. Evidența timpului se ține conform art. 119 Codul muncii.</p>
+      <h3>VI. Disponibilitate și schimb de ture</h3>
+      <p>Salariatul transmite disponibilitatea în aplicația internă, în termenul de preaviz. La indisponibilitate, caută un înlocuitor cu acordul superiorului; altfel rămâne obligat să efectueze tura. Neprezentarea nemotivată constituie abatere disciplinară.</p>
+      <h3>VII. Raportarea absenței / îmbolnăvirii</h3>
+      <p>Salariatul anunță telefonic superiorul direct înainte de deschiderea magazinului; absența neanunțată constituie abatere conform ROI.</p>
+      <h3>VIII. Comunicare zilnică</h3>
+      <p>Comunicarea zilnică are loc pe canalul intern (grupul magazinului): obiective, sarcini și actualizări, cu un raport de dimineață și unul de seară. Este necesar un telefon mobil funcțional.</p>
+      <h3>IX. Atribuții și responsabilități</h3>
+      <p>1. Întâmpină și deservește clienții profesionist. 2. Prezintă produsele și informațiile comerciale corecte. 3. Emite bon fiscal pentru toate operațiunile (OUG 28/1999). 4. Operează casa de marcat și POS-ul conform procedurilor. 5. Recepționează și verifică marfa; etichetare, prețuri și alarmare antifurt. 6. Planificare de dimineață, deschidere/închidere, chei/alarmă/iluminat. 7. Menține standardele de prezentare (categorizare, umerașe) și gestionează retururile. 8. Participă la inventare periodice și lunare. 9. Raportează imediat lipsuri, diferențe sau incidente. 10. Menține curățenia și ordinea. 11. Folosește bunurile societății exclusiv profesional și întreține sistemele. 12. Respectă procedurile operaționale și instrucțiunile interne. 13. Execută sarcini compatibile cu funcția și pregătirea, în limitele legii.</p>
+      <h3>X. Vânzare, încasări și numerar</h3>
+      <p>Plăți cash și card (terminal bancar). Cu Shopify POS, bonul fiscal se emite obligatoriu prin casa de marcat/AMEF. Numerarul se gestionează și se depune conform procedurii interne (reconciliere bancară a numerarului încasat cu depunerile), cu respectarea regulilor de casă (plafoane, fără schimb de bani neautorizat).</p>
+      <h3>XI. Conduită față de clienți și protocol furt</h3>
+      <p>Salariatul are o conduită civilizată în orice situație. În caz de suspiciune de furt, salariatul NU confruntă, NU acuză și NU reține clientul, chiar dacă are suspiciuni; păstrează înregistrările și raportează imediat superiorului. Sesizarea legală o face societatea. În situații periculoase se apelează 112.</p>
+      <h3>XII. Reguli interne</h3>
+      <p>Pontajul este obligatoriu; accesul persoanelor externe la casă/depozit este interzis. Discountul de personal este strict pentru angajați; cumpărăturile se fac conform regulilor interne. Deschidere la timp și respectarea procedurilor interne.</p>
+      <h3>XIII. Obligații privind disciplina și loialitatea</h3>
+      <p>Conform art. 39 alin. (2) Codul muncii: respectarea disciplinei muncii; fidelitate față de angajator; respectarea ROI și a procedurilor; confidențialitate; utilizarea cu grijă a bunurilor; conduită profesională și civilizată. Constituie abateri: întârzieri repetate, absențe nemotivate, neemiterea bonului fiscal, nerespectarea procedurilor de casă, divulgarea informațiilor confidențiale, prejudicierea imaginii societății, refuzul nejustificat de executare a atribuțiilor.</p>
+      <h3>XIV. Răspunderea patrimonială</h3>
+      <p>Conform art. 254–259 Codul muncii, salariatul răspunde patrimonial pentru prejudiciile produse din vina și în legătură cu munca sa: lipsuri imputabile; diferențe de casă; deteriorarea bunurilor; nerespectarea procedurilor; prejudicii din utilizarea necorespunzătoare a echipamentelor sau documentelor.</p>
+      <h3>XV. SSM / PSI / SU</h3>
+      <p>Salariatul respectă normele SSM și PSI, participă la instruirile obligatorii, utilizează corect echipamentele, raportează imediat incidentele și situațiile de risc și respectă procedurile de evacuare și prevenire a incendiilor.</p>
+      <h3>XVI. GDPR și confidențialitate</h3>
+      <p>Conform Regulamentului UE 2016/679 (GDPR), salariatul păstrează confidențialitatea datelor la care are acces. Este interzisă divulgarea datelor clienților, transmiterea informațiilor comerciale către terți, utilizarea neautorizată a sistemelor informatice și publicarea informațiilor interne pe rețele sociale fără aprobare.</p>
+      <h3>XVII. Monitorizarea activității</h3>
+      <p>Pentru protejarea patrimoniului și verificarea îndeplinirii atribuțiilor, activitatea poate fi monitorizată prin sisteme video, verificări ale operațiunilor comerciale, verificări ale documentelor, inventare și controale interne — cu respectarea legislației privind protecția datelor.</p>
+      <h3>XVIII. Evaluarea profesională</h3>
+      <p>Evaluarea se realizează periodic conform ROI, având în vedere: îndeplinirea atribuțiilor, respectarea procedurilor, relația cu clienții, disciplina muncii, rezultatele profesionale și implicarea (vezi Fișa de evaluare).</p>
+      <h3>XIX. Temeiuri legale</h3>
+      <p>Legea 53/2003 (Codul muncii); Legea 319/2006 (SSM); HG 1425/2006; Legea 307/2006 (incendii); OUG 28/1999 (aparate de marcat); OG 99/2000 (comercializare); Regulamentul UE 2016/679 (GDPR); Regulamentul Intern și procedurile interne.</p>
+      <h3>XX. Dispoziții finale</h3>
+      <p>Prezenta fișă face parte integrantă din Contractul Individual de Muncă. Salariatul declară că a luat la cunoștință conținutul, a înțeles obligațiile și responsabilitățile postului și se obligă să respecte procedurile interne și dispozițiile legale aplicabile.</p>`;
+  }
   // salvăm draft local
   if(!DB.rhActe) DB.rhActe=[];
   DB.rhActe.push({id:'RHA-'+Date.now(), tip:kind, angajat:ang, salvatLa:nowISO()});
@@ -9137,7 +9196,7 @@ function rhGenAct(kind){
   const html=`<div style="font-family:Georgia,'Times New Roman',serif;line-height:1.55;font-size:13.5px;color:#111">${_rhHeader()}${inner}
     <table style="width:100%;margin-top:30px"><tr>
       <td style="width:50%;vertical-align:top">Angajator,<br>${RH_FIRMA.nume}<br>prin ${RH_FIRMA.admin}<br><br>Semnătură și ștampilă: __________</td>
-      <td style="width:50%;vertical-align:top">${kind==='incetare'?'Am luat la cunoștință,<br>Salariat':'Salariat,'}<br>${escapeHtml(ang||'____________')}<br><br>Semnătură: __________</td>
+      <td style="width:50%;vertical-align:top">${(kind==='incetare'||kind==='fisapost')?'Am luat la cunoștință,<br>Salariat':'Salariat,'}<br>${escapeHtml(ang||'____________')}<br><br>Semnătură: __________</td>
     </tr></table></div>`;
   _rhLastDoc={fname, html};
   openModal(`<h3 style="margin-top:0">✅ ${titlu} — gata!</h3>
