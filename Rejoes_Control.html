@@ -862,6 +862,37 @@ async function renderAnalize() {
   } catch(e){ const b=document.getElementById('analizeBody'); if(b) b.innerHTML='<p style="color:var(--danger);font-size:12px">Eroare la calcul: '+escapeHtml(e.message)+'</p>'; console.error('renderAnalize', e); }
 }
 
+// ===== Break-even zilnic per magazin: țintă lunară distribuită pe zile (tipar real vânzări ian–apr 2026) =====
+// Index zi: 0=Luni, 1=Marți, ... 5=Sâmbătă, 6=Duminică. (magazine mici: duminica închis = 0)
+const BE_DOW = {
+  'Sibiu':      [1457,1749,1479,1261,2280,3701,4802],
+  'Bujorilor':  [1684,1882,2045,1893,2084,3267,2435],
+  'Aradului':   [1454,1776,1596,1649,1772,2518,2343],
+  'Jimbolia':   [811,621,815,759,916,479,0],
+  'Deta':       [547,336,357,366,413,319,0],
+  'Lugoj':      [630,387,412,422,476,368,0],
+  'Sannicolau': [1034,792,1041,968,1169,611,0]
+};
+const BE_MAG = {'MAG-001':'Aradului','MAG-002':'Bujorilor','MAG-003':'Sibiu','MAG-005':'Jimbolia','MAG-006':'Deta'};
+function _beKey(magId){
+  const id=(typeof _magId==='function')?_magId(magId):String(magId||'');
+  if(BE_MAG[id]) return BE_MAG[id];
+  const nm=(mag(magId)||String(magId||'')).toLowerCase();
+  if(nm.includes('lugoj')) return 'Lugoj';
+  if(nm.includes('nicolau')) return 'Sannicolau';
+  if(nm.includes('sibiu')) return 'Sibiu';
+  if(nm.includes('bujor')) return 'Bujorilor';
+  if(nm.includes('aradului')) return 'Aradului';
+  if(nm.includes('jimbolia')) return 'Jimbolia';
+  if(nm.includes('deta')) return 'Deta';
+  return null;
+}
+function beTarget(magId, dateStr){
+  const key=_beKey(magId); if(!key||!BE_DOW[key]||!dateStr) return null;
+  const idx=(new Date(dateStr).getDay()+6)%7;   // 0=Luni..6=Duminică
+  return BE_DOW[key][idx];
+}
+
 // ========== Raport zilnic pe magazine (read-only, pentru Olga) ==========
 let rzMode = '7';     // '7' | '30' | 'luna' | 'lunaTrecuta' | 'custom'
 let rzFrom = '', rzTo = '';
@@ -883,6 +914,32 @@ function renderRaportZilnic() {
   const perTotV = dates.reduce((s,d)=>s+byDate[d].reduce((x,r)=>x+(+r.vanzari||0),0),0);
   const perTotB = dates.reduce((s,d)=>s+byDate[d].reduce((x,r)=>x+(+r.bonuri||0),0),0);
   const fmtDiff = v => `<span style="color:${Math.abs(v)<1?'#0a7d3b':Math.abs(v)<20?'#b45309':'#dc2626'}">${fmt(v)}</span>`;
+  // ---- Sumar break-even pe magazin (perioada selectată): încasat real vs țintă pe zile ----
+  const beSum = {};
+  rap.forEach(r=>{ if(!r.data||r.data<rzF||r.data>rzT) return; const key=_beKey(r.magazin); if(!key) return;
+    const tgt=beTarget(r.magazin,r.data); if(tgt==null) return;
+    const o=(beSum[key]=beSum[key]||{real:0,target:0,name:mag(r.magazin),zile:0});
+    o.real+=(+r.vanzari||0); o.target+=tgt; o.zile++; });
+  const beOrder=['Sibiu','Bujorilor','Aradului','Jimbolia','Deta','Lugoj','Sannicolau'];
+  const beKeys=beOrder.filter(k=>beSum[k]);
+  let beTotR=0,beTotT=0; beKeys.forEach(k=>{beTotR+=beSum[k].real;beTotT+=beSum[k].target;});
+  const beCard = beKeys.length ? `<div class="card" style="margin-bottom:12px">
+      <div style="font-weight:700;font-size:14px;margin-bottom:2px">🎯 Break-even pe magazin</div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px">Încasat real vs țintă (break-even distribuit pe zilele săptămânii), perioada selectată.</div>
+      ${beKeys.map(k=>{ const o=beSum[k]; const diff=o.real-o.target; const pct=o.target>0?Math.round(o.real/o.target*100):0; const col=diff>=0?'#0a7d3b':'#dc2626'; const bar=Math.max(0,Math.min(100,pct));
+        return `<div style="margin:9px 0">
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px;gap:8px">
+            <span style="font-weight:600">${o.name}</span>
+            <span style="white-space:nowrap"><strong>${fmt(o.real)}</strong> / ${fmt(o.target)} lei · <span style="color:${col};font-weight:700">${pct}%</span></span>
+          </div>
+          <div style="height:8px;background:#ececec;border-radius:4px;overflow:hidden"><div style="height:100%;width:${bar}%;background:${col}"></div></div>
+          <div style="font-size:11.5px;color:${col};margin-top:2px">${diff>=0?'✓ peste prag cu '+fmt(diff)+' lei':'⚠ lipsă de recuperat: '+fmt(-diff)+' lei'}</div>
+        </div>`; }).join('')}
+      <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:7px;font-size:13px;display:flex;justify-content:space-between;gap:8px">
+        <strong>TOTAL rețea</strong>
+        <span style="white-space:nowrap"><strong>${fmt(beTotR)}</strong> / ${fmt(beTotT)} lei · <span style="color:${beTotR>=beTotT?'#0a7d3b':'#dc2626'};font-weight:800">${beTotT>0?Math.round(beTotR/beTotT*100):0}%</span> · ${beTotR-beTotT>=0?'+':''}${fmt(beTotR-beTotT)} lei</span>
+      </div>
+    </div>` : '';
   document.getElementById('content').innerHTML = `
     <div style="max-width:920px;margin:0 auto">
       <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
@@ -894,20 +951,23 @@ function renderRaportZilnic() {
         <span style="flex:1"></span>
         ${dates.length?`<span style="font-size:12.5px;color:var(--text-muted)">${dates.length} zile · <strong style="color:#0a7d3b">${fmt(perTotV)} lei</strong> · ${perTotB} bonuri</span>`:''}
       </div>
-      <p style="color:var(--text-muted);font-size:12px;margin:0 0 12px">Raport zilnic pe magazine — doar vizualizare.</p>
+      <p style="color:var(--text-muted);font-size:12px;margin:0 0 12px">Raport zilnic pe magazine — încasat real vs break-even (țintă pe ziua săptămânii).</p>
+      ${beCard}
       ${dates.length===0 ? '<div class="card"><p style="color:var(--text-muted);font-size:13px">Nu există raportări în perioada aleasă.</p></div>' : dates.map(d => {
         const rows = byDate[d].slice().sort((a,b)=>String(a.magazin||'').localeCompare(String(b.magazin||'')));
         const totV = rows.reduce((s,r)=>s+(+r.vanzari||0),0);
         const totB = rows.reduce((s,r)=>s+(+r.bonuri||0),0);
+        const totT = rows.reduce((s,r)=>{const t=beTarget(r.magazin,d);return s+(t||0);},0);
         return `<div class="card" style="margin-bottom:12px">
           <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px">
             <h3 style="font-size:14px;margin:0">${d} <span style="color:var(--text-muted);font-weight:400;font-size:12px">${typeof dayOfWeek==='function'?dayOfWeek(d):''}</span></h3>
-            <div style="font-size:13px"><strong style="color:#0a7d3b">${fmt(totV)} lei</strong> <span style="color:var(--text-muted);font-size:11px">· ${totB} bonuri</span></div>
+            <div style="font-size:13px"><strong style="color:#0a7d3b">${fmt(totV)} lei</strong>${totT>0?` <span style="color:var(--text-muted);font-size:11px">/ țintă ${fmt(totT)}</span>`:''} <span style="color:var(--text-muted);font-size:11px">· ${totB} bonuri</span></div>
           </div>
-          ${rows.map(r => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;margin:6px 0;align-items:center">
+          ${rows.map(r => { const tgt=beTarget(r.magazin,d); const v=+r.vanzari||0; const bd=tgt!=null?v-tgt:null;
+            return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;margin:6px 0;align-items:center">
             <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${mag(r.magazin)}${r.casier?` <span style="color:var(--text-muted)">· ${escapeHtml(r.casier)}</span>`:''}</div>
-            <div style="text-align:right;flex-shrink:0;white-space:nowrap"><strong>${fmt(r.vanzari)}</strong> lei <span style="color:var(--text-muted)">· ${r.bonuri||0} bon</span> · dif ${fmtDiff(+r.diferenta||0)}</div>
-          </div>`).join('')}
+            <div style="text-align:right;flex-shrink:0;white-space:nowrap"><strong>${fmt(r.vanzari)}</strong> lei${tgt!=null?` <span style="color:var(--text-muted)">/ ${fmt(tgt)}</span> · <span style="color:${bd>=0?'#0a7d3b':'#dc2626'};font-weight:600">${bd>=0?'+':''}${fmt(bd)}</span>`:''} <span style="color:var(--text-muted)">· ${r.bonuri||0} bon</span></div>
+          </div>`; }).join('')}
         </div>`;
       }).join('')}
     </div>`;
