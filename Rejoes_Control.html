@@ -900,10 +900,10 @@ function beTarget(magId, dateStr){
 }
 
 // ===== Premii break-even: atingerea țintei zilnice → primă la salariu, atribuită casierului zilei =====
-// Praguri: ≥100% (atins) → 50 lei · ≥125% → 100 lei · ≥200% (peste 100% peste prag) → 250 lei. Per zi calificată, cumulat.
+// Praguri: ≥100% (atins) → 50 lei · ≥125% → 75 lei · ≥200% (peste 100% peste prag) → 100 lei. Per zi calificată, cumulat.
 function beBonusTier(pct){ // pct = vânzări/țintă (raport)
-  if(pct>=2.00) return {lei:250, tier:3, emoji:'🏆', msg:'a spulberat ținta — peste 100% peste prag!'};
-  if(pct>=1.25) return {lei:100, tier:2, emoji:'🔥', msg:'a depășit ținta cu peste 25%!'};
+  if(pct>=2.00) return {lei:100, tier:3, emoji:'🏆', msg:'a spulberat ținta — peste 100% peste prag!'};
+  if(pct>=1.25) return {lei:75,  tier:2, emoji:'🔥', msg:'a depășit ținta cu peste 25%!'};
   if(pct>=1.00) return {lei:50,  tier:1, emoji:'🎯', msg:'a atins break-even-ul!'};
   return null;
 }
@@ -942,7 +942,7 @@ function beBonusCard(fromD,toD){
     </div>`).join('');
   return `<div class="card" style="margin-bottom:12px;border:1px solid #bbf7d0;background:linear-gradient(180deg,#f6fef9,#ffffff)">
       <div style="font-weight:700;font-size:14px;margin-bottom:2px">🏆 Premii break-even</div>
-      <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px">Când casierul atinge ținta zilnică (break-even) primește o primă la salariu: ≥100% → 50 lei · ≥125% → 100 lei · ≥200% → 250 lei. Perioada selectată.</div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px">Când casierul atinge ținta zilnică (break-even) primește o primă la salariu: ≥100% → 50 lei · ≥125% → 75 lei · ≥200% → 100 lei. Perioada selectată.</div>
       <div style="margin-bottom:8px">${chips}</div>
       ${list}
       <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:7px;font-size:13px;display:flex;justify-content:space-between">
