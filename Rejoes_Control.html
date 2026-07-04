@@ -873,6 +873,9 @@ const BE_DOW = {
   'Lugoj':      [630,387,412,422,476,368,0],
   'Sannicolau': [1034,792,1041,968,1169,611,0]
 };
+// Sezonalitate lunară (index; media anuală = 1,00). Sursă: vânzări reale 2025, bază constantă (Aradului+Bujorilor, prezente toate lunile).
+// Se aplică peste BE_DOW → ținta zilnică urmează sezonul; totalul anual rămâne pe break-even. Cheie = luna (1=Ian..12=Dec).
+const BE_SEASON = {1:0.64,2:0.84,3:1.17,4:1.49,5:1.25,6:1.04,7:0.91,8:0.60,9:0.82,10:1.12,11:1.15,12:0.97};
 const BE_MAG = {'MAG-001':'Aradului','MAG-002':'Bujorilor','MAG-003':'Sibiu','MAG-005':'Jimbolia','MAG-006':'Deta'};
 function _beKey(magId){
   const id=(typeof _magId==='function')?_magId(magId):String(magId||'');
@@ -889,8 +892,76 @@ function _beKey(magId){
 }
 function beTarget(magId, dateStr){
   const key=_beKey(magId); if(!key||!BE_DOW[key]||!dateStr) return null;
-  const idx=(new Date(dateStr).getDay()+6)%7;   // 0=Luni..6=Duminică
-  return BE_DOW[key][idx];
+  const dt=new Date(dateStr);
+  const idx=(dt.getDay()+6)%7;   // 0=Luni..6=Duminică
+  const base=BE_DOW[key][idx];
+  const f=BE_SEASON[dt.getMonth()+1]||1;   // factor sezonier al lunii
+  return Math.round(base*f);
+}
+
+// ===== Premii break-even: atingerea țintei zilnice → primă la salariu, atribuită casierului zilei =====
+// Praguri: ≥100% (atins) → 50 lei · ≥125% → 100 lei · ≥200% (peste 100% peste prag) → 250 lei. Per zi calificată, cumulat.
+function beBonusTier(pct){ // pct = vânzări/țintă (raport)
+  if(pct>=2.00) return {lei:250, tier:3, emoji:'🏆', msg:'a spulberat ținta — peste 100% peste prag!'};
+  if(pct>=1.25) return {lei:100, tier:2, emoji:'🔥', msg:'a depășit ținta cu peste 25%!'};
+  if(pct>=1.00) return {lei:50,  tier:1, emoji:'🎯', msg:'a atins break-even-ul!'};
+  return null;
+}
+function beBonusEvents(fromD,toD){
+  const ev=[];
+  (DB.raportari||[]).forEach(r=>{
+    if(!r.data||r.data<fromD||r.data>toD) return;
+    const cas=String(r.casier||'').trim(); if(!cas) return;
+    const tgt=beTarget(r.magazin,r.data); if(tgt==null||tgt<=0) return;
+    const v=+r.vanzari||0; if(v<tgt) return;
+    const b=beBonusTier(v/tgt); if(!b) return;
+    ev.push({data:r.data, magazin:r.magazin, casier:cas, vanzari:v, target:tgt, pct:Math.round(v/tgt*100), lei:b.lei, tier:b.tier, emoji:b.emoji, msg:b.msg});
+  });
+  ev.sort((a,b)=> a.data!==b.data ? (a.data<b.data?1:-1) : (b.pct-a.pct));
+  return ev;
+}
+function beBonusByPerson(fromD,toD){
+  const by={};
+  beBonusEvents(fromD,toD).forEach(e=>{ const o=(by[e.casier]=by[e.casier]||{casier:e.casier,total:0,nr:0}); o.total+=e.lei; o.nr++; });
+  return Object.values(by).sort((a,b)=>b.total-a.total);
+}
+function _beCol(t){ return t===3?'#7c3aed':t===2?'#d97706':'#0a7d3b'; }
+// Card complet pentru Raportul zilnic (listă evenimente + total/persoană)
+function beBonusCard(fromD,toD){
+  const ev=beBonusEvents(fromD,toD); if(!ev.length) return '';
+  const people=beBonusByPerson(fromD,toD);
+  const grand=people.reduce((s,p)=>s+p.total,0);
+  const chips=people.map(p=>`<span style="display:inline-block;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:999px;padding:3px 10px;margin:2px;font-size:12px">👤 <strong>${escapeHtml(p.casier)}</strong> · <strong style="color:#0a7d3b">+${p.total} lei</strong> <span style="color:var(--text-muted)">(${p.nr} ${p.nr===1?'zi':'zile'})</span></span>`).join('');
+  const list=ev.slice(0,60).map(e=>`<div style="display:flex;gap:8px;align-items:flex-start;margin:7px 0;padding:7px 9px;border-left:3px solid ${_beCol(e.tier)};background:#fbfefc;border-radius:0 6px 6px 0">
+      <span style="font-size:16px;line-height:1.2">${e.emoji}</span>
+      <div style="flex:1;min-width:0;font-size:12.5px">
+        <div><strong>${escapeHtml(e.casier)}</strong> ${e.msg} <span style="color:var(--text-muted)">— ${mag(e.magazin)}, ${e.data} ${typeof dayOfWeek==='function'?dayOfWeek(e.data):''}</span></div>
+        <div style="color:var(--text-muted);font-size:11.5px">Vânzări <strong>${fmt(e.vanzari)}</strong> / țintă ${fmt(e.target)} lei · <strong style="color:${_beCol(e.tier)}">${e.pct}%</strong></div>
+      </div>
+      <span style="white-space:nowrap;font-weight:800;color:${_beCol(e.tier)}">+${e.lei} lei</span>
+    </div>`).join('');
+  return `<div class="card" style="margin-bottom:12px;border:1px solid #bbf7d0;background:linear-gradient(180deg,#f6fef9,#ffffff)">
+      <div style="font-weight:700;font-size:14px;margin-bottom:2px">🏆 Premii break-even</div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px">Când casierul atinge ținta zilnică (break-even) primește o primă la salariu: ≥100% → 50 lei · ≥125% → 100 lei · ≥200% → 250 lei. Perioada selectată.</div>
+      <div style="margin-bottom:8px">${chips}</div>
+      ${list}
+      <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:7px;font-size:13px;display:flex;justify-content:space-between">
+        <strong>Total premii de adăugat la salarii</strong>
+        <strong style="color:#0a7d3b">+${grand} lei</strong>
+      </div>
+    </div>`;
+}
+// Rezumat compact pentru Pontaj (per persoană, de adăugat la salariu)
+function bePremiiPontajCard(fromD,toD,label){
+  const people=beBonusByPerson(fromD,toD); if(!people.length) return '';
+  const grand=people.reduce((s,p)=>s+p.total,0);
+  return `<div style="margin:0 0 14px;border:1px solid #bbf7d0;border-radius:8px;padding:10px;background:#f6fef9">
+      <div style="font-weight:600;margin-bottom:6px">🏆 Premii break-even — de adăugat la salariu (${label||''})</div>
+      <div class="table-wrap"><table><thead><tr><th>Angajat</th><th class="num">Zile țintă atinsă</th><th class="num">Primă (lei)</th></tr></thead><tbody>
+      ${people.map(p=>`<tr><td>${escapeHtml(p.casier)}</td><td class="num">${p.nr}</td><td class="num"><strong style="color:#0a7d3b">+${p.total}</strong></td></tr>`).join('')}
+      <tr style="border-top:2px solid var(--border)"><td><strong>TOTAL (${people.length} pers.)</strong></td><td class="num"><strong>${people.reduce((s,p)=>s+p.nr,0)}</strong></td><td class="num"><strong style="color:#0a7d3b">+${grand} lei</strong></td></tr>
+      </tbody></table></div>
+    </div>`;
 }
 
 // ========== Raport zilnic pe magazine (read-only, pentru Olga) ==========
@@ -953,6 +1024,7 @@ function renderRaportZilnic() {
       </div>
       <p style="color:var(--text-muted);font-size:12px;margin:0 0 12px">Raport zilnic pe magazine — încasat real vs break-even (țintă pe ziua săptămânii).</p>
       ${beCard}
+      ${beBonusCard(rzF,rzT)}
       ${dates.length===0 ? '<div class="card"><p style="color:var(--text-muted);font-size:13px">Nu există raportări în perioada aleasă.</p></div>' : dates.map(d => {
         const rows = byDate[d].slice().sort((a,b)=>String(a.magazin||'').localeCompare(String(b.magazin||'')));
         const totV = rows.reduce((s,r)=>s+(+r.vanzari||0),0);
@@ -971,6 +1043,7 @@ function renderRaportZilnic() {
         </div>`;
       }).join('')}
     </div>`;
+  try{ if(!window._bePremiiToasted){ const _ev=beBonusEvents(rzF,rzT); if(_ev.length){ const top=_ev[0]; toast(`${top.emoji} Bravo ${top.casier}! ${top.msg} +${top.lei} lei`); window._bePremiiToasted=true; } } }catch(e){}
 }
 
 function renderDashboard() {
@@ -1205,6 +1278,7 @@ function renderPontaj() {
         <strong>${recsAll.length}</strong> înregistrări · ${_periodLabel}${pontajFiltruAng!=='TOATE' ? ' · '+pontajFiltruAng : ''}${recsAll.length>recs.length?` (afișez primele ${recs.length})`:''}
       </div>
       ${totalsHtml}
+      ${bePremiiPontajCard(pFrom,pTo,_periodLabel)}
 
       ${recs.length===0 ? `<div class="empty"><h4>Nicio înregistrare</h4><p>Adaugă pontaj zilnic sau importă din Sheet.</p></div>` :
       `<div class="table-wrap"><table>
