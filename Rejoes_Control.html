@@ -907,11 +907,26 @@ function beBonusTier(pct){ // pct = vânzări/țintă (raport)
   if(pct>=1.00) return {lei:50,  tier:1, emoji:'🎯', msg:'a atins break-even-ul!'};
   return null;
 }
+// Prenumele oficiale ale echipei (afișaj premii). Alias = variante din „casier" -> prenumele preferat.
+const BE_NAME_ALIAS = {
+  'gabriela':'Gabi','gabi':'Gabi',
+  'olga':'Oli','oli':'Oli',
+  'petronela':'Petro','petro':'Petro',
+  'veronica':'Vero','vero':'Vero',
+  'natalia':'Natalia','alexia':'Alexia','gianina':'Gianina','claudia':'Claudia',
+  'diana':'Diana','anca':'Anca','dana':'Dana','ana':'Ana'
+};
+function _beFirstName(name){
+  const s=String(name||'').trim(); if(!s) return '';
+  const f=s.split(/[\s.,\-]+/)[0].toLowerCase();
+  if(BE_NAME_ALIAS[f]) return BE_NAME_ALIAS[f];
+  return f.charAt(0).toUpperCase()+f.slice(1);
+}
 function beBonusEvents(fromD,toD){
   const ev=[];
   (DB.raportari||[]).forEach(r=>{
     if(!r.data||r.data<fromD||r.data>toD) return;
-    const cas=String(r.casier||'').trim(); if(!cas) return;
+    const cas=_beFirstName(r.casier); if(!cas) return;
     const tgt=beTarget(r.magazin,r.data); if(tgt==null||tgt<=0) return;
     const v=+r.vanzari||0; if(v<tgt) return;
     const b=beBonusTier(v/tgt); if(!b) return;
