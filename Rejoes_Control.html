@@ -907,20 +907,18 @@ function beBonusTier(pct){ // pct = vânzări/țintă (raport)
   if(pct>=1.00) return {lei:50,  tier:1, emoji:'🎯', msg:'a atins break-even-ul!'};
   return null;
 }
-// Prenumele oficiale ale echipei (afișaj premii). Alias = variante din „casier" -> prenumele preferat.
-const BE_NAME_ALIAS = {
-  'gabriela':'Gabi','gabi':'Gabi',
-  'olga':'Oli','oli':'Oli',
-  'petronela':'Petro','petro':'Petro',
-  'veronica':'Vero','vero':'Vero',
-  'natalia':'Natalia','alexia':'Alexia','gianina':'Gianina','claudia':'Claudia',
-  'diana':'Diana','anca':'Anca','dana':'Dana','ana':'Ana'
+// Prenumele oficiale ale echipei. Se caută prenumele ORIUNDE în „casier" (nume/prenume în orice ordine, inclusiv compuse).
+const BE_ALIAS = {
+  ana:'Ana', gabi:'Gabi', gabriela:'Gabi', dana:'Dana', oli:'Oli', olga:'Oli',
+  anca:'Anca', diana:'Diana', gianina:'Gianina', petro:'Petro', petronela:'Petro',
+  vero:'Vero', veronica:'Vero', claudia:'Claudia', natalia:'Natalia', alexia:'Alexia'
 };
+function _beStrip(s){ return s.normalize('NFD').replace(/[̀-ͯ]/g,''); }
 function _beFirstName(name){
-  const s=String(name||'').trim(); if(!s) return '';
-  const f=s.split(/[\s.,\-]+/)[0].toLowerCase();
-  if(BE_NAME_ALIAS[f]) return BE_NAME_ALIAS[f];
-  return f.charAt(0).toUpperCase()+f.slice(1);
+  const s=_beStrip(String(name||'').trim().toLowerCase()); if(!s) return '';
+  const toks=s.split(/[\s.,\-]+/).filter(Boolean);
+  for(const t of toks){ if(BE_ALIAS[t]) return BE_ALIAS[t]; }
+  const f=toks[0]||''; return f ? f.charAt(0).toUpperCase()+f.slice(1) : '';
 }
 function beBonusEvents(fromD,toD){
   const ev=[];
