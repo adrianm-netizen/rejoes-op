@@ -934,15 +934,42 @@ function renderPanou(){
         return `<div style="margin:9px 0"><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px;gap:8px"><span style="font-weight:600">${o.name}</span><span style="white-space:nowrap"><strong>${fmt(o.real)}</strong> / ${fmt(o.target)} lei · <span style="color:${col};font-weight:700">${pct}%</span></span></div><div style="height:8px;background:#ececec;border-radius:4px;overflow:hidden"><div style="height:100%;width:${bar}%;background:${col}"></div></div></div>`;}).join('')}
       <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:7px;font-size:13px;display:flex;justify-content:space-between"><strong>TOTAL rețea</strong><span style="white-space:nowrap"><strong>${fmt(totR)}</strong> / ${fmt(totT)} lei · <span style="color:${totR>=totT?'#0a7d3b':'#dc2626'};font-weight:800">${totT>0?Math.round(totR/totT*100):0}%</span></span></div>
     </div>` : '<div class="card"><p style="color:var(--text-muted);font-size:13px">Nu există raportări pentru luna curentă.</p></div>';
+  // Ținta de AZI per magazin (ce trebuie făcut azi)
+  const dayName = typeof dayOfWeek==='function'?dayOfWeek(toD):'';
+  const azi={};
+  (DB.magazine||[]).forEach(m=>{ const key=_beKey(m.id); if(!key||azi[key]) return; const tgt=beTarget(m.id,toD); if(tgt==null) return; azi[key]={name:mag(m.id),target:tgt,real:0}; });
+  rap.forEach(r=>{ if(r.data!==toD) return; const key=_beKey(r.magazin); if(!key||!azi[key]) return; azi[key].real+=(+r.vanzari||0); });
+  const aziKeys=order.filter(k=>azi[k]);
+  const aziCard = aziKeys.length ? `<div class="card" style="margin-bottom:12px">
+      <div style="font-weight:700;font-size:15px;margin-bottom:2px">🎯 Ținta de AZI — ${toD} ${dayName}</div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px">Cât trebuie să facă azi fiecare magazin.</div>
+      ${aziKeys.map(k=>{const o=azi[k];const pct=o.target>0?Math.round(o.real/o.target*100):0;const ok=o.target>0&&o.real>=o.target;const col=ok?'#0a7d3b':'#b45309';const bar=Math.max(0,Math.min(100,pct));
+        return `<div style="margin:8px 0"><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px;gap:8px"><span style="font-weight:600">${o.name}</span><span style="white-space:nowrap">${o.real>0?`<strong>${fmt(o.real)}</strong> / `:''}<strong>${fmt(o.target)}</strong> lei${o.real>0?` · <span style="color:${col};font-weight:700">${pct}%</span>`:` <span style="color:var(--text-muted)">țintă azi</span>`}</span></div>${o.real>0?`<div style="height:7px;background:#ececec;border-radius:4px;overflow:hidden"><div style="height:100%;width:${bar}%;background:${col}"></div></div>`:''}</div>`;}).join('')}
+    </div>` : '';
   document.getElementById('content').innerHTML = `
     <div style="max-width:920px;margin:0 auto">
       <div class="card" style="text-align:center;background:linear-gradient(180deg,#f6fef9,#ffffff)">
         <div style="font-size:20px;font-weight:800;color:#1f6b4c">🏆 Break-even &amp; Premii</div>
         <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">Ținta zilnică pe magazin și primele câștigate de echipă. Se actualizează automat.</div>
       </div>
+      ${aziCard}
       ${beCard}
       ${beBonusCard(fromD,toD)}
     </div>`;
+  // Panoul trage datele live din cloud (doar în memorie, fără să suprascrie local), chiar dacă auto-sync e oprit
+  if(!window._panouInit){ window._panouInit=true;
+    panouSync().then(()=>{ if(currentView==='panou') renderPanou(); });
+    window._panouTimer=setInterval(()=>{ if(currentView==='panou') panouSync().then(()=>{ if(currentView==='panou') renderPanou(); }); }, 180000);
+  }
+}
+async function panouSync(){
+  try{
+    if(!window.FB||!window.FB.db) return;
+    const authed=await ensureFirebaseAuth(); if(!authed) return;
+    for(const col of ['raportari','magazine']){
+      try{ const s=await window.FB.db.ref(col).once('value'); const v=s.val(); if(v!==null&&v!==undefined) DB[col]=Array.isArray(v)?v:Object.values(v); }catch(e){}
+    }
+  }catch(e){ console.warn('panouSync',e); }
 }
 
 // ===== Premii break-even: atingerea țintei zilnice → primă la salariu, atribuită casierului zilei =====
