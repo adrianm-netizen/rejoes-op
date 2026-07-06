@@ -917,9 +917,10 @@ function beTarget(magId, dateStr){
 // ===== PANOU read-only pentru PayDesk (rol 'panou'): break-even + premii, luna curentă =====
 function renderPanou(){
   const rap=(DB.raportari||[]);
-  const t=new Date(); t.setHours(0,0,0,0);
-  const iso=d=>d.toISOString().slice(0,10);
-  const fromD=iso(new Date(t.getFullYear(),t.getMonth(),1)); const toD=iso(t);
+  const t=new Date();
+  const p2=n=>String(n).padStart(2,'0');
+  const toD=`${t.getFullYear()}-${p2(t.getMonth()+1)}-${p2(t.getDate())}`;
+  const fromD=`${t.getFullYear()}-${p2(t.getMonth()+1)}-01`;
   const LUNI=['ianuarie','februarie','martie','aprilie','mai','iunie','iulie','august','septembrie','octombrie','noiembrie','decembrie'];
   const beSum={};
   rap.forEach(r=>{ if(!r.data||r.data<fromD||r.data>toD) return; const key=_beKey(r.magazin); if(!key) return;
