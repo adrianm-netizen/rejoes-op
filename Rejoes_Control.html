@@ -868,14 +868,26 @@ const BE_DOW = {
   'Sibiu':      [1457,1749,1479,1261,2280,3701,4802],
   'Bujorilor':  [1684,1882,2045,1893,2084,3267,2435],
   'Aradului':   [1454,1776,1596,1649,1772,2518,2343],
-  'Jimbolia':   [811,621,815,759,916,479,0],
-  'Deta':       [547,336,357,366,413,319,0],
-  'Lugoj':      [630,387,412,422,476,368,0],
-  'Sannicolau': [1034,792,1041,968,1169,611,0]
+  'Jimbolia':   [876,671,880,820,989,517,0],
+  'Deta':       [794,487,519,531,600,464,0],
+  'Lugoj':      [756,464,494,506,571,442,0],
+  // NOTĂ internă (nu se afișează): țintele magazinelor mici includ o marjă peste break-even-ul real.
+  // BE REAL/lună: Jimbolia 19.136, Lugoj 11.726, Deta 10.166, Sânnicolau ~24.419.
+  // Țintă afișată: Jimbolia ×1,08 (~20.667) · Lugoj ×1,20 (~14.071) · Deta = Lugoj +5% (~14.775) · Sânnicolau = Jimbolia +5% (~21.700, fază de ramp-up).
+  'Sannicolau': [920,705,924,861,1038,543,0]
 };
 // Sezonalitate lunară (index; media anuală = 1,00). Sursă: vânzări reale 2025, bază constantă (Aradului+Bujorilor, prezente toate lunile).
 // Se aplică peste BE_DOW → ținta zilnică urmează sezonul; totalul anual rămâne pe break-even. Cheie = luna (1=Ian..12=Dec).
 const BE_SEASON = {1:0.64,2:0.84,3:1.17,4:1.49,5:1.25,6:1.04,7:0.91,8:0.60,9:0.82,10:1.12,11:1.15,12:0.97};
+// Rampă Sânnicolau: ținta (bază Jimbolia+5% ≈ 21.700) urcă spre break-even real (~24.419) până în dec. 2026, apoi rămâne (×1,125).
+function beRamp(key,dt){
+  if(key!=='Sannicolau') return 1;
+  const y=dt.getFullYear(), m=dt.getMonth()+1;
+  if(y<2026) return 1;
+  if(y>=2027) return 1.125;
+  const r={7:1.000,8:1.025,9:1.050,10:1.075,11:1.100,12:1.125};
+  return r[m]||1.000;
+}
 const BE_MAG = {'MAG-001':'Aradului','MAG-002':'Bujorilor','MAG-003':'Sibiu','MAG-005':'Jimbolia','MAG-006':'Deta'};
 function _beKey(magId){
   const id=(typeof _magId==='function')?_magId(magId):String(magId||'');
@@ -896,7 +908,7 @@ function beTarget(magId, dateStr){
   const idx=(dt.getDay()+6)%7;   // 0=Luni..6=Duminică
   const base=BE_DOW[key][idx];
   const f=BE_SEASON[dt.getMonth()+1]||1;   // factor sezonier al lunii
-  return Math.round(base*f);
+  return Math.round(base*f*beRamp(key,dt));
 }
 
 // ===== Premii break-even: atingerea țintei zilnice → primă la salariu, atribuită casierului zilei =====
@@ -1023,6 +1035,7 @@ function renderRaportZilnic() {
         <strong>TOTAL rețea</strong>
         <span style="white-space:nowrap"><strong>${fmt(beTotR)}</strong> / ${fmt(beTotT)} lei · <span style="color:${beTotR>=beTotT?'#0a7d3b':'#dc2626'};font-weight:800">${beTotT>0?Math.round(beTotR/beTotT*100):0}%</span> · ${beTotR-beTotT>=0?'+':''}${fmt(beTotR-beTotT)} lei</span>
       </div>
+      ${(typeof isAdmin==='function' && (isAdmin()||(DB.session&&DB.session.role==='owner'))) ? `<div style="margin-top:8px;border-top:1px dashed #c9a24b;padding-top:6px;font-size:10.5px;color:#8a6a20;line-height:1.5">🔒 Doar admin — țintă afișată vs break-even REAL (mag. mici, lei/lună): Jimbolia BE ${fmt(19136,0)} → țintă ${fmt(20667,0)} (+8%) · Lugoj BE ${fmt(11726,0)} → țintă ${fmt(14071,0)} (+20%) · Deta BE ${fmt(10166,0)} → țintă ${fmt(14775,0)} (+45%) · Sânnicolau BE ${fmt(24419,0)} — rampă 21.700→24.419 până în dec. Marja e ascunsă echipei.</div>` : ''}
     </div>` : '';
   document.getElementById('content').innerHTML = `
     <div style="max-width:920px;margin:0 auto">
