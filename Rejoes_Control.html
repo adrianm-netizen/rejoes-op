@@ -328,6 +328,7 @@ body.simple .sidebar-backdrop.show { display: block; }
       <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#7e3b8a;border-color:#7e3b8a" onclick="pickUser('olga')">👸 Olga — Co-owner</button>
       <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#9a5b2e;border-color:#9a5b2e" onclick="pickUser('ozan')">🤴 Ozan — Co-owner</button>
       <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#0a1e14;border-color:#0a1e14" onclick="pickUser('adrian')">🛡️ Adrian — admin</button>
+      <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#1f6b4c;border-color:#1f6b4c" onclick="pickUser('panou')">🏆 Panou magazine (break-even &amp; premii)</button>
     </div>
     <div id="loginPinForm" style="display:none">
       <div style="text-align:center;margin-bottom:14px;font-size:14px;color:#0f1d17"><span id="loginPickedName"></span></div>
@@ -468,7 +469,8 @@ const SEED = {
     gabi: { pin: "5555", role: "manager-depozit", nume: "Gabi" },
     dana: { pin: "9999", role: "contabil-sef", nume: "Dana" },
     olga: { pin: "7777", role: "owner", nume: "Olga" },
-    ozan: { pin: "8888", role: "owner", nume: "Ozan" }
+    ozan: { pin: "8888", role: "owner", nume: "Ozan" },
+    panou: { pin: "2626", role: "panou", nume: "Panou magazine" }
   },
   session: { user: null, role: null },
   // — Depozit / WMS structures (Faza 1) —
@@ -624,6 +626,7 @@ const VIEWS_ALL = [
   {id:'briefing', label:'Briefing', icon:'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8', roles:['admin','owner']},
   {id:'profit', label:'Profit', icon:'M3 3v18h18 M7 14l4-4 4 4 5-5', roles:['admin','owner']},
   {id:'raportzilnic', label:'📋 Raport zilnic', icon:'M9 17v-6h6v6M3 7l9-4 9 4M5 7v14h14V7', roles:['admin','owner','operator']},
+  {id:'panou', label:'🏆 Break-even & Premii', icon:'M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z', roles:['panou','admin','owner']},
   {id:'dosare', label:'📁 Dosare magazine', icon:'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z', roles:['admin','operator']},
   {id:'rh', label:'📋 RH / Personal', icon:'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', roles:['admin','operator']},
   {id:'cashbanca', label:'💵 Cash vs Bancă', icon:'M3 6h18v12H3z M3 10h18 M7 15h2', roles:['admin','operator']},
@@ -725,7 +728,7 @@ function go(view) {
   currentView = view;
   if (window.innerWidth <= 700) toggleSidebar(false); // închide sertarul pe mobil la navigare
   renderNav();
-  const titles = {analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', disponibilitate:'🗓️ Disponibilitate', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', cashbanca:'💵 Cash încasat vs Depuneri bancă', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
+  const titles = {panou:'🏆 Break-even & Premii', analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', disponibilitate:'🗓️ Disponibilitate', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', cashbanca:'💵 Cash încasat vs Depuneri bancă', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
     diferente:'Diferențe casă', inventar:'Inventar', alerte:'Alerte automate',
     import:'Import / Export date', setari:'Setări'};
   document.getElementById('pageTitle').textContent = titles[view];
@@ -734,12 +737,12 @@ function go(view) {
   const v = VIEWS_ALL.find(x => x.id === view);
   const ownerBlocked = DB.session.role === 'owner' && !OWNER_VIEWS.includes(view);
   if (v && DB.session.role && (!v.roles.includes(DB.session.role) || ownerBlocked)) {
-    currentView = DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : (DB.session.role === 'owner' ? 'analize' : 'dashboard'));
+    currentView = DB.session.role === 'panou' ? 'panou' : (DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : (DB.session.role === 'owner' ? 'analize' : 'dashboard')));
     renderNav();
     return go(currentView);
   }
   ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, disponibilitate:renderDisponibilitate, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, cashbanca:renderCashBanca, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
-    diferente:renderDiferente, inventar:renderInventar, alerte:renderAlerte, import:renderImport, setari:renderSetari})[view]();
+    diferente:renderDiferente, inventar:renderInventar, alerte:renderAlerte, import:renderImport, setari:renderSetari, panou:renderPanou})[view]();
 }
 
 function openModal(html) {
@@ -909,6 +912,37 @@ function beTarget(magId, dateStr){
   const base=BE_DOW[key][idx];
   const f=BE_SEASON[dt.getMonth()+1]||1;   // factor sezonier al lunii
   return Math.round(base*f*beRamp(key,dt));
+}
+
+// ===== PANOU read-only pentru PayDesk (rol 'panou'): break-even + premii, luna curentă =====
+function renderPanou(){
+  const rap=(DB.raportari||[]);
+  const t=new Date(); t.setHours(0,0,0,0);
+  const iso=d=>d.toISOString().slice(0,10);
+  const fromD=iso(new Date(t.getFullYear(),t.getMonth(),1)); const toD=iso(t);
+  const LUNI=['ianuarie','februarie','martie','aprilie','mai','iunie','iulie','august','septembrie','octombrie','noiembrie','decembrie'];
+  const beSum={};
+  rap.forEach(r=>{ if(!r.data||r.data<fromD||r.data>toD) return; const key=_beKey(r.magazin); if(!key) return;
+    const tgt=beTarget(r.magazin,r.data); if(tgt==null) return;
+    const o=(beSum[key]=beSum[key]||{real:0,target:0,name:mag(r.magazin)}); o.real+=(+r.vanzari||0); o.target+=tgt; });
+  const order=['Sibiu','Bujorilor','Aradului','Jimbolia','Deta','Lugoj','Sannicolau'];
+  const keys=order.filter(k=>beSum[k]);
+  let totR=0,totT=0; keys.forEach(k=>{totR+=beSum[k].real;totT+=beSum[k].target;});
+  const beCard = keys.length ? `<div class="card" style="margin-bottom:12px">
+      <div style="font-weight:700;font-size:15px;margin-bottom:8px">🎯 Break-even pe magazin — ${LUNI[t.getMonth()]} ${t.getFullYear()}</div>
+      ${keys.map(k=>{const o=beSum[k];const diff=o.real-o.target;const pct=o.target>0?Math.round(o.real/o.target*100):0;const col=diff>=0?'#0a7d3b':'#dc2626';const bar=Math.max(0,Math.min(100,pct));
+        return `<div style="margin:9px 0"><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px;gap:8px"><span style="font-weight:600">${o.name}</span><span style="white-space:nowrap"><strong>${fmt(o.real)}</strong> / ${fmt(o.target)} lei · <span style="color:${col};font-weight:700">${pct}%</span></span></div><div style="height:8px;background:#ececec;border-radius:4px;overflow:hidden"><div style="height:100%;width:${bar}%;background:${col}"></div></div></div>`;}).join('')}
+      <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:7px;font-size:13px;display:flex;justify-content:space-between"><strong>TOTAL rețea</strong><span style="white-space:nowrap"><strong>${fmt(totR)}</strong> / ${fmt(totT)} lei · <span style="color:${totR>=totT?'#0a7d3b':'#dc2626'};font-weight:800">${totT>0?Math.round(totR/totT*100):0}%</span></span></div>
+    </div>` : '<div class="card"><p style="color:var(--text-muted);font-size:13px">Nu există raportări pentru luna curentă.</p></div>';
+  document.getElementById('content').innerHTML = `
+    <div style="max-width:920px;margin:0 auto">
+      <div class="card" style="text-align:center;background:linear-gradient(180deg,#f6fef9,#ffffff)">
+        <div style="font-size:20px;font-weight:800;color:#1f6b4c">🏆 Break-even &amp; Premii</div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">Ținta zilnică pe magazin și primele câștigate de echipă. Se actualizează automat.</div>
+      </div>
+      ${beCard}
+      ${beBonusCard(fromD,toD)}
+    </div>`;
 }
 
 // ===== Premii break-even: atingerea țintei zilnice → primă la salariu, atribuită casierului zilei =====
@@ -8004,7 +8038,7 @@ function doLogin() {
   // Backup automat ÎNAINTE de orice operațiune cloud (paranoia după pierderile repetate)
   try { if (typeof createBackup === 'function') createBackup('login-' + pickedUser); } catch(e) { console.warn('Auto-backup login failed:', e); }
   document.getElementById('loginScreen').style.display = 'none';
-  currentView = DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : (DB.session.role === 'owner' ? 'analize' : 'dashboard'));
+  currentView = DB.session.role === 'panou' ? 'panou' : (DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : (DB.session.role === 'owner' ? 'analize' : 'dashboard')));
   renderNav();
   go(currentView);
   toast(`Bun venit, ${DB.users[pickedUser].nume}!`);
@@ -14227,7 +14261,7 @@ function addDateHints(root){
 
 if (DB.session && DB.session.user && DB.users[DB.session.user]) {
   document.getElementById('loginScreen').style.display = 'none';
-  currentView = DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : (DB.session.role === 'owner' ? 'analize' : 'dashboard'));
+  currentView = DB.session.role === 'panou' ? 'panou' : (DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : (DB.session.role === 'owner' ? 'analize' : 'dashboard')));
   renderNav();
   go(currentView);
   // Etapa 12 — auto auth la reload (sesiune existentă)
