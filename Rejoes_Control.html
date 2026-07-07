@@ -318,17 +318,21 @@ body.simple .sidebar-backdrop.show { display: block; }
   <div style="background:#fff;border-radius:14px;padding:36px 32px;max-width:380px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3)">
     <div style="text-align:center;margin-bottom:24px">
       <div style="font-size:14px;color:#5b6b62;text-transform:uppercase;letter-spacing:2px;font-weight:600">REJOES</div>
-      <div style="font-size:22px;font-weight:700;color:#0f1d17;margin-top:4px">Op. Management</div>
+      <div onclick="_adminTap()" style="font-size:22px;font-weight:700;color:#0f1d17;margin-top:4px;user-select:none">Op. Management</div>
       <div style="font-size:12px;color:#5b6b62;margin-top:8px">S Colect REC S.R.L.</div>
     </div>
     <div id="loginUserPick" style="display:grid;gap:10px;margin-bottom:18px">
       <button class="btn btn-primary" style="padding:14px;font-size:15px" onclick="pickUser('ana')">👤 Ana — operator</button>
       <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#2d6a4f;border-color:#2d6a4f" onclick="pickUser('gabi')">📦 Gabi — manager depozit</button>
-      <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#4577a8;border-color:#4577a8" onclick="pickUser('dana')">📊 Dana — contabil-șef</button>
-      <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#7e3b8a;border-color:#7e3b8a" onclick="pickUser('olga')">👸 Olga — Co-owner</button>
-      <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#9a5b2e;border-color:#9a5b2e" onclick="pickUser('ozan')">🤴 Ozan — Co-owner</button>
-      <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#0a1e14;border-color:#0a1e14" onclick="pickUser('adrian')">🛡️ Adrian — admin</button>
       <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#1f6b4c;border-color:#1f6b4c" onclick="pickUser('panou')">🏆 Panou magazine (break-even &amp; premii)</button>
+    </div>
+    <div id="loginAdminBox" style="display:none;margin-bottom:18px">
+      <div style="font-size:12px;color:#5b6b62;text-align:center;margin-bottom:8px">Acces administrativ</div>
+      <input type="text" id="loginAdminUser" autocomplete="off" placeholder="utilizator" style="width:100%;padding:12px;border:1px solid #cdd8d2;border-radius:6px;margin-bottom:8px;font-size:14px;box-sizing:border-box">
+      <input type="password" id="loginAdminPin" autocomplete="off" placeholder="PIN" onkeydown="if(event.key==='Enter')doAdminLogin()" style="width:100%;padding:12px;border:1px solid #cdd8d2;border-radius:6px;font-size:16px;text-align:center;letter-spacing:6px;box-sizing:border-box">
+      <button class="btn btn-primary" style="width:100%;padding:12px;margin-top:8px" onclick="doAdminLogin()">Intră</button>
+      <button class="btn" style="width:100%;padding:10px;margin-top:6px" onclick="document.getElementById('loginAdminBox').style.display='none';document.getElementById('loginUserPick').style.display='grid';">← Înapoi</button>
+      <div id="loginAdminErr" style="margin-top:8px;color:#c4453a;font-size:12px;text-align:center;min-height:16px"></div>
     </div>
     <div id="loginPinForm" style="display:none">
       <div style="text-align:center;margin-bottom:14px;font-size:14px;color:#0f1d17"><span id="loginPickedName"></span></div>
@@ -340,9 +344,6 @@ body.simple .sidebar-backdrop.show { display: block; }
         <button class="btn btn-primary" onclick="doLogin()">Intră</button>
       </div>
       <div id="loginErr" style="margin-top:10px;color:#c4453a;font-size:12px;text-align:center;min-height:16px"></div>
-      <div style="margin-top:18px;font-size:11px;color:#94a3b8;text-align:center">
-        Prima oară? PIN implicit: <strong>1234</strong> Ana, <strong>0000</strong> Adrian. Schimbă-le din Setări.
-      </div>
     </div>
   </div>
 </div>
@@ -465,7 +466,7 @@ const SEED = {
   disponibilitate: {},   // { [weekMondayISO]: { [angajatId]: { d:[7 statuses ''|'D'|'I'|'P'], obs, updatedLa } } } — centralizat (Ana)
   users: {
     ana: { pin: "1234", role: "operator", nume: "Ana" },
-    adrian: { pin: "0000", role: "admin", nume: "Adrian" },
+    adrian: { pin: "2016", role: "admin", nume: "Adrian" },
     gabi: { pin: "5555", role: "manager-depozit", nume: "Gabi" },
     dana: { pin: "9999", role: "contabil-sef", nume: "Dana" },
     olga: { pin: "7777", role: "owner", nume: "Olga" },
@@ -8072,6 +8073,32 @@ function doLogin() {
   toast(`Bun venit, ${DB.users[pickedUser].nume}!`);
   setTimeout(checkReminders, 800);
   setTimeout(startGlobalMessageListener, 1000);
+}
+
+// Acces administrativ discret — 5× tap pe titlul „Op. Management" ascunde admin/owner din listă
+let _adminTaps=0, _adminTapT=null;
+function _adminTap(){
+  _adminTaps++;
+  clearTimeout(_adminTapT);
+  _adminTapT=setTimeout(()=>{ _adminTaps=0; }, 1500);
+  if(_adminTaps>=5){
+    _adminTaps=0;
+    var up=document.getElementById('loginUserPick'); if(up) up.style.display='none';
+    var b=document.getElementById('loginAdminBox'); if(b) b.style.display='block';
+    setTimeout(()=>{ var el=document.getElementById('loginAdminUser'); if(el) el.focus(); }, 50);
+  }
+}
+function doAdminLogin(){
+  const u=(document.getElementById('loginAdminUser').value||'').trim().toLowerCase();
+  const pin=document.getElementById('loginAdminPin').value;
+  const allowed=['adrian','olga','ozan','dana'];
+  if(!allowed.includes(u) || !DB.users[u] || DB.users[u].pin!==pin){
+    document.getElementById('loginAdminErr').textContent='Utilizator sau PIN incorect';
+    return;
+  }
+  pickedUser=u;
+  document.getElementById('loginPin').value=pin;
+  doLogin();
 }
 
 // Etapa 12 — Firebase Anonymous Auth la login
