@@ -873,11 +873,11 @@ const BE_DOW = {
   'Bujorilor':  [1684,1882,2045,1893,2084,3267,2435],
   'Aradului':   [1454,1776,1596,1649,1772,2518,2343],
   'Jimbolia':   [876,671,880,820,989,517,0],
-  'Deta':       [794,487,519,531,600,464,0],
+  'Deta':       [993,609,649,664,750,580,0],
   'Lugoj':      [756,464,494,506,571,442,0],
   // NOTĂ internă (nu se afișează): țintele magazinelor mici includ o marjă peste break-even-ul real.
   // BE REAL/lună: Jimbolia 19.136, Lugoj 11.726, Deta 10.166, Sânnicolau ~24.419.
-  // Țintă afișată: Jimbolia ×1,08 (~20.667) · Lugoj ×1,20 (~14.071) · Deta = Lugoj +5% (~14.775) · Sânnicolau = Jimbolia +5% (~21.700, fază de ramp-up).
+  // Țintă afișată: Jimbolia ×1,08 (~20.667) · Lugoj ×1,20 (~14.071) · Deta ridicat +25% (8 iul 2026, ~18.469) · Sânnicolau = Jimbolia +5% (~21.700, fază de ramp-up).
   'Sannicolau': [920,705,924,861,1038,543,0]
 };
 // Sezonalitate lunară (index; media anuală = 1,00). Sursă: vânzări reale 2025, bază constantă (Aradului+Bujorilor, prezente toate lunile).
@@ -930,10 +930,11 @@ function renderPanou(){
   const order=['Sibiu','Bujorilor','Aradului','Jimbolia','Deta','Lugoj','Sannicolau'];
   const keys=order.filter(k=>beSum[k]);
   let totR=0,totT=0; keys.forEach(k=>{totR+=beSum[k].real;totT+=beSum[k].target;});
+  const gate=beStoreGate(fromD,toD);
   const beCard = keys.length ? `<div class="card" style="margin-bottom:12px">
       <div style="font-weight:700;font-size:15px;margin-bottom:8px">🎯 Break-even pe magazin — ${LUNI[t.getMonth()]} ${t.getFullYear()}</div>
-      ${keys.map(k=>{const o=beSum[k];const diff=o.real-o.target;const pct=o.target>0?Math.round(o.real/o.target*100):0;const col=diff>=0?'#0a7d3b':'#dc2626';const bar=Math.max(0,Math.min(100,pct));
-        return `<div style="margin:9px 0"><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px;gap:8px"><span style="font-weight:600">${o.name}</span><span style="white-space:nowrap"><strong>${fmt(o.real)}</strong> / ${fmt(o.target)} lei · <span style="color:${col};font-weight:700">${pct}%</span></span></div><div style="height:8px;background:#ececec;border-radius:4px;overflow:hidden"><div style="height:100%;width:${bar}%;background:${col}"></div></div></div>`;}).join('')}
+      ${keys.map(k=>{const o=beSum[k];const gb=gate[k]||{bonus:0,passed:false};const diff=o.real-o.target;const pct=o.target>0?Math.round(o.real/o.target*100):0;const col=diff>=0?'#0a7d3b':'#dc2626';const bar=Math.max(0,Math.min(100,pct));
+        return `<div style="margin:9px 0"><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px;gap:8px"><span style="font-weight:600">${o.name}</span><span style="white-space:nowrap"><strong>${fmt(o.real)}</strong> / ${fmt(o.target)} lei · <span style="color:${col};font-weight:700">${pct}%</span></span></div><div style="height:8px;background:#ececec;border-radius:4px;overflow:hidden"><div style="height:100%;width:${bar}%;background:${col}"></div></div>${gb.bonus>0?`<div style="font-size:11px;margin-top:2px;color:${gb.passed?'#0a7d3b':'#b45309'}">🏆 primă acumulată ${gb.bonus} lei — ${gb.passed?'✅ deblocată (BE lunar atins)':'⏳ se deblochează dacă atingeți BE lunar'}</div>`:''}</div>`;}).join('')}
       <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:7px;font-size:13px;display:flex;justify-content:space-between"><strong>TOTAL rețea</strong><span style="white-space:nowrap"><strong>${fmt(totR)}</strong> / ${fmt(totT)} lei · <span style="color:${totR>=totT?'#0a7d3b':'#dc2626'};font-weight:800">${totT>0?Math.round(totR/totT*100):0}%</span></span></div>
     </div>` : '<div class="card"><p style="color:var(--text-muted);font-size:13px">Nu există raportări pentru luna curentă.</p></div>';
   // Ținta de AZI per magazin (ce trebuie făcut azi)
@@ -1003,7 +1004,7 @@ function beBonusEvents(fromD,toD){
     const tgt=beTarget(r.magazin,r.data); if(tgt==null||tgt<=0) return;
     const v=+r.vanzari||0; if(v<tgt) return;
     const b=beBonusTier(v/tgt); if(!b) return;
-    ev.push({data:r.data, magazin:r.magazin, casier:cas, vanzari:v, target:tgt, pct:Math.round(v/tgt*100), lei:b.lei, tier:b.tier, emoji:b.emoji, msg:b.msg});
+    ev.push({data:r.data, magazin:r.magazin, beKey:_beKey(r.magazin), casier:cas, vanzari:v, target:tgt, pct:Math.round(v/tgt*100), lei:b.lei, tier:b.tier, emoji:b.emoji, msg:b.msg});
   });
   ev.sort((a,b)=> a.data!==b.data ? (a.data<b.data?1:-1) : (b.pct-a.pct));
   return ev;
@@ -1013,41 +1014,78 @@ function beBonusByPerson(fromD,toD){
   beBonusEvents(fromD,toD).forEach(e=>{ const o=(by[e.casier]=by[e.casier]||{casier:e.casier,total:0,nr:0}); o.total+=e.lei; o.nr++; });
   return Object.values(by).sort((a,b)=>b.total-a.total);
 }
+// Poartă lunară pe magazin: primele se plătesc DOAR dacă magazinul atinge BE-ul lunar (ținta cu marjă, însumată). Altfel se anulează — per magazin.
+function beStoreGate(fromD,toD){
+  const g={};
+  (DB.raportari||[]).forEach(r=>{
+    if(!r.data||r.data<fromD||r.data>toD) return;
+    const key=_beKey(r.magazin); if(!key) return;
+    const tgt=beTarget(r.magazin,r.data); if(tgt==null) return;
+    const o=(g[key]=g[key]||{key,name:mag(r.magazin),real:0,target:0,bonus:0});
+    o.real+=(+r.vanzari||0); o.target+=tgt;
+  });
+  beBonusEvents(fromD,toD).forEach(e=>{ if(g[e.beKey]) g[e.beKey].bonus+=e.lei; });
+  Object.values(g).forEach(o=>{ o.passed = o.target>0 && o.real>=o.target; o.pct = o.target>0?Math.round(o.real/o.target*100):0; });
+  return g;
+}
+// Prime per persoană, împărțite în CONFIRMATE (magazinul a trecut BE lunar) și ÎN AȘTEPTARE (magazinul încă sub BE)
+function beBonusByPersonGated(fromD,toD){
+  const gate=beStoreGate(fromD,toD); const by={};
+  beBonusEvents(fromD,toD).forEach(e=>{
+    const passed = !!(gate[e.beKey]&&gate[e.beKey].passed);
+    const o=(by[e.casier]=by[e.casier]||{casier:e.casier,confirmed:0,pending:0,nrC:0,nrP:0});
+    if(passed){ o.confirmed+=e.lei; o.nrC++; } else { o.pending+=e.lei; o.nrP++; }
+  });
+  return Object.values(by).sort((a,b)=>((b.confirmed+b.pending)-(a.confirmed+a.pending)));
+}
 function _beCol(t){ return t===3?'#7c3aed':t===2?'#d97706':'#0a7d3b'; }
 // Card complet pentru Raportul zilnic (listă evenimente + total/persoană)
 function beBonusCard(fromD,toD){
   const ev=beBonusEvents(fromD,toD); if(!ev.length) return '';
-  const people=beBonusByPerson(fromD,toD);
-  const grand=people.reduce((s,p)=>s+p.total,0);
-  const chips=people.map(p=>`<span style="display:inline-block;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:999px;padding:3px 10px;margin:2px;font-size:12px">👤 <strong>${escapeHtml(p.casier)}</strong> · <strong style="color:#0a7d3b">+${p.total} lei</strong> <span style="color:var(--text-muted)">(${p.nr} ${p.nr===1?'zi':'zile'})</span></span>`).join('');
-  const list=ev.slice(0,60).map(e=>`<div style="display:flex;gap:8px;align-items:flex-start;margin:7px 0;padding:7px 9px;border-left:3px solid ${_beCol(e.tier)};background:#fbfefc;border-radius:0 6px 6px 0">
+  const gate=beStoreGate(fromD,toD);
+  const people=beBonusByPersonGated(fromD,toD);
+  const grandC=people.reduce((s,p)=>s+p.confirmed,0);
+  const grandP=people.reduce((s,p)=>s+p.pending,0);
+  const chips=people.map(p=>{const parts=[];
+    if(p.confirmed>0) parts.push(`<strong style="color:#0a7d3b">+${p.confirmed} lei</strong>`);
+    if(p.pending>0) parts.push(`<strong style="color:#b45309">+${p.pending} în așteptare</strong>`);
+    return `<span style="display:inline-block;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:999px;padding:3px 10px;margin:2px;font-size:12px">👤 <strong>${escapeHtml(p.casier)}</strong> · ${parts.join(' · ')}</span>`;}).join('');
+  const gkeys=Object.keys(gate).filter(k=>gate[k].bonus>0).sort((a,b)=>gate[b].bonus-gate[a].bonus);
+  const gateRows=gkeys.map(k=>{const o=gate[k];
+    return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;margin:4px 0"><span>${o.passed?'✅':'⏳'} <strong>${escapeHtml(o.name)}</strong> — ${o.pct}% din BE lunar</span><span style="color:${o.passed?'#0a7d3b':'#b45309'};font-weight:700;white-space:nowrap">${o.bonus} lei ${o.passed?'(se plătesc)':'(în așteptare)'}</span></div>`;}).join('');
+  const list=ev.slice(0,60).map(e=>{const locked=!(gate[e.beKey]&&gate[e.beKey].passed);
+    return `<div style="display:flex;gap:8px;align-items:flex-start;margin:7px 0;padding:7px 9px;border-left:3px solid ${_beCol(e.tier)};background:#fbfefc;border-radius:0 6px 6px 0${locked?';opacity:.75':''}">
       <span style="font-size:16px;line-height:1.2">${e.emoji}</span>
       <div style="flex:1;min-width:0;font-size:12.5px">
         <div><strong>${escapeHtml(e.casier)}</strong> ${e.msg} <span style="color:var(--text-muted)">— ${mag(e.magazin)}, ${e.data} ${typeof dayOfWeek==='function'?dayOfWeek(e.data):''}</span></div>
         <div style="color:var(--text-muted);font-size:11.5px">Vânzări <strong>${fmt(e.vanzari)}</strong> / țintă ${fmt(e.target)} lei · <strong style="color:${_beCol(e.tier)}">${e.pct}%</strong></div>
       </div>
-      <span style="white-space:nowrap;font-weight:800;color:${_beCol(e.tier)}">+${e.lei} lei</span>
-    </div>`).join('');
+      <span style="white-space:nowrap;font-weight:800;color:${locked?'#b45309':_beCol(e.tier)}">+${e.lei} lei${locked?' ⏳':''}</span>
+    </div>`;}).join('');
   return `<div class="card" style="margin-bottom:12px;border:1px solid #bbf7d0;background:linear-gradient(180deg,#f6fef9,#ffffff)">
       <div style="font-weight:700;font-size:14px;margin-bottom:2px">🏆 Premii break-even</div>
-      <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px">Când casierul atinge ținta zilnică (break-even) primește o primă la salariu: ≥100% → 50 lei · ≥125% → 75 lei · ≥200% → 100 lei. Perioada selectată.</div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px">Prima zilnică (≥100% → 50 · ≥125% → 75 · ≥200% → 100 lei) se <strong>acumulează</strong>, dar se plătește <strong>doar dacă magazinul atinge BE-ul lunar</strong>. Dacă magazinul nu trece BE pe lună, primele lui se anulează.</div>
       <div style="margin-bottom:8px">${chips}</div>
+      ${gateRows?`<div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:8px"><div style="font-size:11.5px;color:var(--text-muted);margin-bottom:3px">Poarta lunară pe magazin</div>${gateRows}</div>`:''}
       ${list}
       <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:7px;font-size:13px;display:flex;justify-content:space-between">
-        <strong>Total premii de adăugat la salarii</strong>
-        <strong style="color:#0a7d3b">+${grand} lei</strong>
+        <strong>De plătit acum (magazine care au trecut BE lunar)</strong>
+        <strong style="color:#0a7d3b">+${grandC} lei</strong>
       </div>
+      ${grandP>0?`<div style="font-size:12px;display:flex;justify-content:space-between;color:#b45309;margin-top:2px"><span>În așteptare (se plătesc dacă magazinul atinge BE lunar)</span><strong>+${grandP} lei</strong></div>`:''}
     </div>`;
 }
 // Rezumat compact pentru Pontaj (per persoană, de adăugat la salariu)
 function bePremiiPontajCard(fromD,toD,label){
-  const people=beBonusByPerson(fromD,toD); if(!people.length) return '';
-  const grand=people.reduce((s,p)=>s+p.total,0);
+  const people=beBonusByPersonGated(fromD,toD); if(!people.length) return '';
+  const grandC=people.reduce((s,p)=>s+p.confirmed,0);
+  const grandP=people.reduce((s,p)=>s+p.pending,0);
   return `<div style="margin:0 0 14px;border:1px solid #bbf7d0;border-radius:8px;padding:10px;background:#f6fef9">
-      <div style="font-weight:600;margin-bottom:6px">🏆 Premii break-even — de adăugat la salariu (${label||''})</div>
-      <div class="table-wrap"><table><thead><tr><th>Angajat</th><th class="num">Zile țintă atinsă</th><th class="num">Primă (lei)</th></tr></thead><tbody>
-      ${people.map(p=>`<tr><td>${escapeHtml(p.casier)}</td><td class="num">${p.nr}</td><td class="num"><strong style="color:#0a7d3b">+${p.total}</strong></td></tr>`).join('')}
-      <tr style="border-top:2px solid var(--border)"><td><strong>TOTAL (${people.length} pers.)</strong></td><td class="num"><strong>${people.reduce((s,p)=>s+p.nr,0)}</strong></td><td class="num"><strong style="color:#0a7d3b">+${grand} lei</strong></td></tr>
+      <div style="font-weight:600;margin-bottom:2px">🏆 Premii break-even — de adăugat la salariu (${label||''})</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Se plătesc doar primele din magazinele care au atins BE-ul lunar; restul rămân „în așteptare".</div>
+      <div class="table-wrap"><table><thead><tr><th>Angajat</th><th class="num">De plătit (lei)</th><th class="num">În așteptare (lei)</th></tr></thead><tbody>
+      ${people.map(p=>`<tr><td>${escapeHtml(p.casier)}</td><td class="num"><strong style="color:#0a7d3b">${p.confirmed?'+'+p.confirmed:'—'}</strong></td><td class="num">${p.pending?`<span style="color:#b45309">+${p.pending}</span>`:'—'}</td></tr>`).join('')}
+      <tr style="border-top:2px solid var(--border)"><td><strong>TOTAL (${people.length} pers.)</strong></td><td class="num"><strong style="color:#0a7d3b">+${grandC} lei</strong></td><td class="num"><strong style="color:#b45309">+${grandP} lei</strong></td></tr>
       </tbody></table></div>
     </div>`;
 }
