@@ -1105,7 +1105,8 @@ let PONTAJ_GEO = {
   'Lugoj':      {lat:45.6823178, lng:21.8995029, raza:150}
 };
 // Persoane care NU pontează (după nume de familie): Ana(Onofrei), Dana(Ursache), Olga(Baraban), Adrian(Marinescu)
-const PONTAJ_EXEMPT_NAMES = ['onofrei','ursache','baraban','marinescu'];
+// + plecate din firmă (nu mai apar la butoanele de pontaj): Ciobanu, Bakaity
+const PONTAJ_EXEMPT_NAMES = ['onofrei','ursache','baraban','marinescu','ciobanu','bakaity'];
 function pontajExempt(nume){ const s=_beStrip(String(nume||'').toLowerCase()); return PONTAJ_EXEMPT_NAMES.some(x=>s.includes(x)); }
 function pontajGeoFor(magId){ const k=_beKey(magId); return k?(PONTAJ_GEO[k]||null):null; }
 function _haversineM(la1,lo1,la2,lo2){ const R=6371000,rad=Math.PI/180;
