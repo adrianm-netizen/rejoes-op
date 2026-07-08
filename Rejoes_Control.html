@@ -23,6 +23,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
 <script>
   (function(){
     const firebaseConfig = {
@@ -1445,8 +1446,31 @@ function pontajTestAlarma(){ _pjBeep(); toast('🔊 Test alarmă'); }
 function pontajAskNotif(){ if(!('Notification' in window)){ toast('Browserul nu suportă notificări'); return; } Notification.requestPermission().then(p=>{ toast(p==='granted'?'Notificări activate ✅':'Notificări refuzate'); renderPontajControl(); }); }
 function pontajSaveReminder(){ const v=document.getElementById('pjRemOra').value||'21:00'; DB.pontajReminderOra=v; save(); toast('Ora reminder salvată: '+v); }
 function pontajCtrlSelfie(id){ const p=pontajList().find(x=>x.id===id); if(!p||!p.selfie)return; openModal(`<div style="text-align:center"><div style="font-weight:700;margin-bottom:8px">${escapeHtml(_beFirstName(p.angajat))} — ${p.tip==='IN'?'Intrare':'Ieșire'} ${p.ora||_pjHM(p.ts)}</div><img src="${p.selfie}" style="max-width:100%;border-radius:10px"><div style="font-size:12px;color:var(--text-muted);margin-top:8px">${escapeHtml(mag(p.magazin)||'')} · ${p.sursa==='telefon'?('📍 '+(p.dist!=null?p.dist+' m față de magazin':'GPS')):'PayDesk (fără selfie/GPS)'}</div><div style="margin-top:12px"><button class="btn" onclick="closeModal()">Închide</button></div></div>`); }
+// --- Push FCM (notificări când aplicația e închisă) ---
+const FCM_VAPID = ""; // <<< cheie VAPID (Web Push certificate) din consola Firebase — de completat
+function pontajPushEnabled(){ try{ return localStorage.getItem('rejoes_push_on')==='1'; }catch(e){ return false; } }
+async function pontajEnablePush(){
+  try{
+    if(!('serviceWorker' in navigator) || typeof firebase==='undefined' || !firebase.messaging){ toast('Push indisponibil pe acest dispozitiv'); return; }
+    if(!FCM_VAPID){ toast('Push neconfigurat încă (lipsă cheie)'); return; }
+    const perm=await Notification.requestPermission(); if(perm!=='granted'){ toast('Notificări refuzate'); return; }
+    const reg=await navigator.serviceWorker.register('firebase-messaging-sw.js', { scope:'./fcm/' });
+    const messaging=firebase.messaging();
+    const token=await messaging.getToken({ vapidKey:FCM_VAPID, serviceWorkerRegistration:reg });
+    if(!token){ toast('Nu am putut obține tokenul push'); return; }
+    await ensureFirebaseAuth();
+    const who=(DB.session && DB.session.user)||'necunoscut';
+    const kid=token.replace(/[.#$\[\]\/]/g,'_');
+    await window.FB.db.ref('fcmTokens/'+kid).set({ token, user:who, ua:navigator.userAgent, savedAt:new Date().toISOString() });
+    try{ localStorage.setItem('rejoes_push_on','1'); }catch(e){}
+    messaging.onMessage(function(payload){ const n=(payload&&payload.notification)||{}; toast('🔔 '+(n.title||'Alertă')+' — '+(n.body||'')); try{_pjBeep();}catch(e){} });
+    toast('✅ Push activat pe acest dispozitiv');
+    if(currentView==='pontajcontrol') renderPontajControl();
+  }catch(e){ console.warn('push',e); toast('Eroare push: '+((e&&e.message)||e)); }
+}
 function renderPontajControl(){ _pjCtrlAnos=pontajActiveAnomalies();
   const notifOn=('Notification' in window && Notification.permission==='granted');
+  const pushOn=pontajPushEnabled();
   const anoHtml=_pjCtrlAnos.length? _pjCtrlAnos.map((a,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border)"><div style="font-size:13px">${a.sev==='high'?'🔴':'🟠'} ${escapeHtml(a.mesaj)}</div><button class="btn" style="font-size:11px;padding:3px 8px" onclick="pontajCtrlAckIdx(${i})">Confirmă</button></div>`).join('') : '<div style="padding:12px;color:#0a7d3b;font-weight:600">Nicio alarmă activă. ✅</div>';
   const day=_pjCtrlDate;
   const punches=pontajList().filter(p=>p.data===day).sort((a,b)=> a.ts<b.ts?-1:1);
@@ -1459,6 +1483,7 @@ function renderPontajControl(){ _pjCtrlAnos=pontajActiveAnomalies();
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" onclick="pontajTestAlarma()">🔊 Test alarmă</button>
           ${notifOn?'<span style="font-size:12px;color:#0a7d3b;align-self:center">🔔 Notificări active</span>':'<button class="btn btn-primary" onclick="pontajAskNotif()">🔔 Activează notificări</button>'}
+          ${pushOn?'<span style="font-size:12px;color:#0a7d3b;align-self:center">📲 Push activat pe acest telefon</span>':'<button class="btn btn-primary" onclick="pontajEnablePush()">📲 Activează push pe acest telefon</button>'}
         </div>
       </div>
       <div class="card">
