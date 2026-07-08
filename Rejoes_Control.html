@@ -633,6 +633,8 @@ const VIEWS_ALL = [
   {id:'cashbanca', label:'💵 Cash vs Bancă', icon:'M3 6h18v12H3z M3 10h18 M7 15h2', roles:['admin','operator']},
   {id:'pontaj', label:'Pontaj', icon:'M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', roles:['admin','owner','operator','contabil-sef']},
   {id:'disponibilitate', label:'🗓️ Disponibilitate', icon:'M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 16l2 2 4-4', roles:['admin','operator']},
+  {id:'programmag', label:'🕒 Program magazine', icon:'M12 6v6l4 2 M12 22a10 10 0 100-20 10 10 0 000 20z', roles:['admin','operator']},
+  {id:'aprobarepontaj', label:'✅ Pontaj de aprobat', icon:'M9 12l2 2 4-4 M12 22a10 10 0 100-20 10 10 0 000 20z', roles:['admin','operator']},
   {id:'raportare', label:'Raportare zilnică', icon:'M9 17v-6h6v6M3 7l9-4 9 4M5 7v14h14V7', roles:['admin','owner','operator','contabil-sef']},
   {id:'tasks', label:'Tasks', icon:'M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z', roles:['admin','owner','operator','manager-depozit']},
   {id:'diferente', label:'Diferențe casă', icon:'M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6', roles:['admin','owner']},
@@ -729,7 +731,7 @@ function go(view) {
   currentView = view;
   if (window.innerWidth <= 700) toggleSidebar(false); // închide sertarul pe mobil la navigare
   renderNav();
-  const titles = {panou:'🏆 Break-even & Premii', analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', disponibilitate:'🗓️ Disponibilitate', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', cashbanca:'💵 Cash încasat vs Depuneri bancă', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
+  const titles = {panou:'🏆 Break-even & Premii', analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', disponibilitate:'🗓️ Disponibilitate', programmag:'🕒 Program magazine', aprobarepontaj:'✅ Pontaj de aprobat', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', cashbanca:'💵 Cash încasat vs Depuneri bancă', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
     diferente:'Diferențe casă', inventar:'Inventar', alerte:'Alerte automate',
     import:'Import / Export date', setari:'Setări'};
   document.getElementById('pageTitle').textContent = titles[view];
@@ -742,7 +744,7 @@ function go(view) {
     renderNav();
     return go(currentView);
   }
-  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, disponibilitate:renderDisponibilitate, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, cashbanca:renderCashBanca, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
+  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, disponibilitate:renderDisponibilitate, programmag:renderProgramMag, aprobarepontaj:renderAprobarePontaj, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, cashbanca:renderCashBanca, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
     diferente:renderDiferente, inventar:renderInventar, alerte:renderAlerte, import:renderImport, setari:renderSetari, panou:renderPanou})[view]();
 }
 
@@ -955,6 +957,7 @@ function renderPanou(){
         <div style="font-size:20px;font-weight:800;color:#1f6b4c">🏆 Break-even &amp; Premii</div>
         <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">Ținta zilnică pe magazin și primele câștigate de echipă. Se actualizează automat.</div>
       </div>
+      ${pontajPanouCard()}
       ${aziCard}
       ${beCard}
       ${beBonusCard(fromD,toD)}
@@ -1087,6 +1090,233 @@ function bePremiiPontajCard(fromD,toD,label){
       ${people.map(p=>`<tr><td>${escapeHtml(p.casier)}</td><td class="num"><strong style="color:#0a7d3b">${p.confirmed?'+'+p.confirmed:'—'}</strong></td><td class="num">${p.pending?`<span style="color:#b45309">+${p.pending}</span>`:'—'}</td></tr>`).join('')}
       <tr style="border-top:2px solid var(--border)"><td><strong>TOTAL (${people.length} pers.)</strong></td><td class="num"><strong style="color:#0a7d3b">+${grandC} lei</strong></td><td class="num"><strong style="color:#b45309">+${grandP} lei</strong></td></tr>
       </tbody></table></div>
+    </div>`;
+}
+
+// ================= PONTAJ IN/OUT cu geolocație (geofence) — Faza 1 =================
+// Coordonate reale magazine + rază geofence (m). Cheia = _beKey(magId). Editabile din „Locații magazine".
+let PONTAJ_GEO = {
+  'Sibiu':      {lat:45.8236828, lng:24.1448139, raza:150},
+  'Aradului':   {lat:45.7858899, lng:21.2190251, raza:150},
+  'Bujorilor':  {lat:45.7125532, lng:21.2108860, raza:150},
+  'Jimbolia':   {lat:45.7960452, lng:20.7181658, raza:150},
+  'Deta':       {lat:45.3921528, lng:21.2241921, raza:150},
+  'Sannicolau': {lat:46.0715767, lng:20.6255270, raza:150},
+  'Lugoj':      {lat:45.6823178, lng:21.8995029, raza:150}
+};
+// Persoane care NU pontează (după nume de familie): Ana(Onofrei), Dana(Ursache), Olga(Baraban), Adrian(Marinescu)
+const PONTAJ_EXEMPT_NAMES = ['onofrei','ursache','baraban','marinescu'];
+function pontajExempt(nume){ const s=_beStrip(String(nume||'').toLowerCase()); return PONTAJ_EXEMPT_NAMES.some(x=>s.includes(x)); }
+function pontajGeoFor(magId){ const k=_beKey(magId); return k?(PONTAJ_GEO[k]||null):null; }
+function _haversineM(la1,lo1,la2,lo2){ const R=6371000,rad=Math.PI/180;
+  const dla=(la2-la1)*rad, dlo=(lo2-lo1)*rad;
+  const a=Math.sin(dla/2)**2+Math.cos(la1*rad)*Math.cos(la2*rad)*Math.sin(dlo/2)**2;
+  return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))); }
+// Verifică dacă (lat,lng) e în raza magazinului; adaugă toleranță = precizia GPS (max 60 m).
+function pontajGeofence(magId, lat, lng, acc){ const g=pontajGeoFor(magId);
+  if(!g) return {ok:false, dist:null, raza:null, reason:'fără coordonate magazin'};
+  const dist=_haversineM(g.lat,g.lng,lat,lng);
+  const tol=Math.min(acc||0, 60);
+  return {ok: dist<=(g.raza+tol), dist, raza:g.raza, tol}; }
+// Citește poziția GPS (Promise) — necesită HTTPS + permisiune locație.
+function pontajGetPosition(){ return new Promise((res,rej)=>{
+  if(!navigator.geolocation) return rej(new Error('Geolocația nu e disponibilă pe acest dispozitiv'));
+  navigator.geolocation.getCurrentPosition(
+    p=>res({lat:p.coords.latitude, lng:p.coords.longitude, acc:Math.round(p.coords.accuracy||0)}),
+    e=>rej(new Error(e.code===1?'Permisiune locație refuzată — activeaz-o din setările browserului':(e.code===3?'Timeout GPS — reîncearcă afară/lângă fereastră':'Eroare locație'))),
+    {enableHighAccuracy:true, timeout:15000, maximumAge:0});
+}); }
+
+// --- Pontaj IN/OUT: model + UI ---
+function _pjToday(){ const t=new Date(),p=n=>String(n).padStart(2,'0'); return `${t.getFullYear()}-${p(t.getMonth()+1)}-${p(t.getDate())}`; }
+function _pjNow(){ const t=new Date(),p=n=>String(n).padStart(2,'0'); return `${p(t.getHours())}:${p(t.getMinutes())}`; }
+function pontajList(){ if(!DB.ponch) DB.ponch=[]; return DB.ponch; }
+function pontajTodayFor(nume){ const d=_pjToday(); return pontajList().filter(x=>x.angajat===nume&&x.data===d).sort((a,b)=>a.ts<b.ts?-1:1); }
+function pontajStareFor(nume){ const l=pontajTodayFor(nume); const last=l[l.length-1]; return {inauntru:!!(last&&last.tip==='IN'), last, count:l.length}; }
+function pontajEmployees(){ return (DB.angajati||[]).filter(a=>a.status==='Activ'&&!pontajExempt(a.nume)).map(a=>a.nume).sort((a,b)=>a.localeCompare(b,'ro')); }
+function pontajFindStore(lat,lng,acc){ let best=null; for(const k in PONTAJ_GEO){ const g=PONTAJ_GEO[k]; const d=_haversineM(g.lat,g.lng,lat,lng); const tol=Math.min(acc||0,60); if(d<=g.raza+tol&&(!best||d<best.dist)) best={key:k,dist:d,raza:g.raza}; } return best; }
+function pontajNearest(lat,lng){ let n=null; for(const k in PONTAJ_GEO){ const g=PONTAJ_GEO[k]; const d=_haversineM(g.lat,g.lng,lat,lng); if(!n||d<n.d)n={k,d}; } return n; }
+function _pjMagIdByKey(key){ const m=(DB.magazine||[]).find(x=>_beKey(x.id)===key); return m?m.id:key; }
+async function pontajSavePunch(rec){ if(!DB.ponch)DB.ponch=[]; rec.id='pj-'+Date.now()+'-'+Math.random().toString(36).slice(2,7); rec.salvatLa=new Date().toISOString(); DB.ponch.push(rec); try{ _lastLocalChange=Date.now(); }catch(e){} save(); try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('ponch/'+rec.id).set(rec);} }catch(e){ console.warn('pontaj cloud',e); } }
+let pontajMe=(function(){ try{return localStorage.getItem('rejoes_pontaj_me')||'';}catch(e){return '';} })();
+function _pjRerender(){ try{ if(currentView==='panou') return renderPanou(); if(currentView==='pontajio') return renderPontajIO(); }catch(e){} }
+function pontajSetMe(nume){ pontajMe=nume||''; try{localStorage.setItem('rejoes_pontaj_me',pontajMe);}catch(e){} _pjRerender(); }
+function _pjMsg(t,col){ const el=document.getElementById('pontajMsg'); if(el){ el.textContent=t||''; el.style.color=col||'var(--text-muted)'; } }
+function pontajCaptureSelfie(){ return new Promise(res=>{ let done=false; const fin=v=>{ if(done)return; done=true; res(v); };
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.setAttribute('capture','user');
+  inp.onchange=()=>{ const f=inp.files&&inp.files[0]; if(!f)return fin(null);
+    const r=new FileReader(); r.onload=()=>{ const img=new Image(); img.onload=()=>{ const max=480; let w=img.width,h=img.height; if(w>=h&&w>max){h=Math.round(h*max/w);w=max;} else if(h>max){w=Math.round(w*max/h);h=max;} const c=document.createElement('canvas'); c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); fin(c.toDataURL('image/jpeg',0.55)); }; img.onerror=()=>fin(null); img.src=r.result; }; r.onerror=()=>fin(null); r.readAsDataURL(f); };
+  inp.click();
+  const onF=()=>{ setTimeout(()=>{ if(!inp.files||!inp.files.length){ window.removeEventListener('focus',onF); fin(null);} },1200); };
+  setTimeout(()=>window.addEventListener('focus',onF),300);
+}); }
+async function pontajPunchPhone(tip){ const nume=pontajMe; if(!nume)return;
+  _pjMsg('Se citește locația… ține GPS-ul pornit.','#0a7d3b');
+  let pos; try{ pos=await pontajGetPosition(); }catch(e){ _pjMsg('⚠ '+e.message,'#c4453a'); return; }
+  const st=pontajFindStore(pos.lat,pos.lng,pos.acc);
+  if(!st){ const n=pontajNearest(pos.lat,pos.lng); _pjMsg(`⛔ Nu ești la niciun magazin. Cel mai apropiat: ${n?n.k+' la ~'+n.d+' m':'—'} (precizie GPS ±${pos.acc} m).`,'#c4453a'); return; }
+  _pjMsg('📸 Fă un selfie pentru confirmare…','#0a7d3b');
+  const selfie=await pontajCaptureSelfie();
+  if(selfie===null){ _pjMsg('Pontaj anulat — selfie-ul e obligatoriu.','#b45309'); return; }
+  const magId=_pjMagIdByKey(st.key);
+  await pontajSavePunch({data:_pjToday(), ora:_pjNow(), ts:new Date().toISOString(), angajat:nume, magazin:magId, magKey:st.key, tip, lat:pos.lat, lng:pos.lng, acc:pos.acc, dist:st.dist, sursa:'telefon', selfie, geoOk:true});
+  toast(`✅ ${tip==='IN'?'Intrare':'Ieșire'} — ${st.key}, ${_pjNow()}`);
+  _pjRerender();
+}
+function pontajPayDeskModal(){ const emps=pontajEmployees();
+  const opts=emps.map((n,i)=>`<option value="${i}">${escapeHtml(n)}</option>`).join('');
+  const mags=Object.keys(PONTAJ_GEO).map(k=>`<option value="${k}">${k}</option>`).join('');
+  openModal(`<h3 style="margin:0 0 10px">Pontaj PayDesk (rezervă)</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px">Doar dacă nu ai telefonul la tine. Fără selfie/GPS — se marchează pentru verificare.</p>
+    <div class="form-field"><label>Persoană</label><select id="pdPers">${opts}</select></div>
+    <div class="form-field" style="margin-top:8px"><label>Magazin</label><select id="pdMag">${mags}</select></div>
+    <div class="form-field" style="margin-top:8px"><label>Tip</label><select id="pdTip"><option value="IN">Intrare</option><option value="OUT">Ieșire</option></select></div>
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Renunță</button><button class="btn btn-primary" onclick="pontajPayDeskSave()">Salvează</button></div>`);
+}
+async function pontajPayDeskSave(){ const emps=pontajEmployees();
+  const nume=emps[+document.getElementById('pdPers').value]; const key=document.getElementById('pdMag').value; const tip=document.getElementById('pdTip').value;
+  if(!nume||!key)return; const magId=_pjMagIdByKey(key);
+  await pontajSavePunch({data:_pjToday(), ora:_pjNow(), ts:new Date().toISOString(), angajat:nume, magazin:magId, magKey:key, tip, sursa:'paydesk', geoOk:null, flag:'rezervă PayDesk — de verificat'});
+  closeModal(); toast(`✅ ${tip==='IN'?'Intrare':'Ieșire'} PayDesk — ${nume}`); _pjRerender();
+}
+function pontajPanouCard(){ const emps=pontajEmployees(); const me=(pontajMe&&emps.includes(pontajMe))?pontajMe:'';
+  let inner;
+  if(!me){ inner=`<div style="font-size:12.5px;color:var(--text-muted);margin-bottom:8px">Apasă pe numele tău ca să pontezi:</div><div style="display:flex;flex-wrap:wrap;gap:6px">`+emps.map((n,i)=>`<button class="btn" style="padding:8px 12px;font-size:13px" onclick="pontajSetMe(pontajEmployees()[${i}])">👤 ${escapeHtml(n)}</button>`).join('')+`</div>`; }
+  else { const stare=pontajStareFor(me);
+    inner=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-weight:700">👤 ${escapeHtml(me)} — ${stare.inauntru?`<span style="color:#0a7d3b">ÎN TURĂ</span> (de la ${stare.last.ora})`:`<span style="color:#b45309">în afara turei</span>`}</div><button class="btn" style="font-size:11px;padding:3px 8px" onclick="pontajSetMe('')">nu sunt eu</button></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button class="btn btn-primary" style="padding:16px;font-size:15px;${stare.inauntru?'opacity:.45':'background:#0a7d3b;border-color:#0a7d3b'}" ${stare.inauntru?'disabled':''} onclick="pontajPunchPhone('IN')">🟢 Intrare</button>
+        <button class="btn btn-primary" style="padding:16px;font-size:15px;${!stare.inauntru?'opacity:.45':'background:#b45309;border-color:#b45309'}" ${!stare.inauntru?'disabled':''} onclick="pontajPunchPhone('OUT')">🔴 Ieșire</button>
+      </div><div id="pontajMsg" style="margin-top:8px;font-size:12px;text-align:center;min-height:16px"></div>`; }
+  return `<div class="card" style="margin-bottom:12px;border:1px solid #cdeadd"><div style="font-weight:700;font-size:15px;margin-bottom:8px">⏱️ Pontaj — Intrare / Ieșire</div>${inner}<div style="margin-top:8px;font-size:11px;color:var(--text-muted)">De pe telefon: locația + selfie se verifică automat. Fără telefon? <a href="#" onclick="pontajPayDeskModal();return false;" style="color:#1f6b4c">Rezervă PayDesk »</a></div></div>`;
+}
+function renderPontajIO(){ const emps=pontajEmployees(); const me=(pontajMe&&emps.includes(pontajMe))?pontajMe:'';
+  let html='<div style="max-width:520px;margin:0 auto">';
+  html+=`<div class="card" style="text-align:center;background:linear-gradient(180deg,#f6fef9,#fff)"><div style="font-size:20px;font-weight:800;color:#1f6b4c">⏱️ Pontaj — Intrare / Ieșire</div><div style="font-size:12px;color:var(--text-muted);margin-top:4px">Pontează de pe telefon, la magazin. Locația se verifică automat.</div></div>`;
+  if(!me){ html+=`<div class="card"><div style="font-weight:600;margin-bottom:8px">Cine ești?</div><div style="display:grid;gap:8px">`+emps.map((n,i)=>`<button class="btn btn-primary" style="padding:12px;font-size:14px" onclick="pontajSetMe(pontajEmployees()[${i}])">👤 ${escapeHtml(n)}</button>`).join('')+`</div>${emps.length?'':'<p style="color:var(--text-muted);font-size:12px">Nu există angajați activi.</p>'}</div>`; }
+  else { const stare=pontajStareFor(me); const azi=pontajTodayFor(me);
+    html+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-weight:700;font-size:16px">👤 ${escapeHtml(me)}</div><button class="btn" style="font-size:11px;padding:4px 8px" onclick="pontajSetMe('')">schimbă</button></div>
+      <div style="font-size:13px;margin-bottom:12px">Stare acum: ${stare.inauntru?`<strong style="color:#0a7d3b">ÎN TURĂ</strong> (intrare la ${stare.last.ora})`:`<strong style="color:#b45309">în afara turei</strong>`}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button class="btn btn-primary" style="padding:18px;font-size:16px;${stare.inauntru?'opacity:.45':'background:#0a7d3b;border-color:#0a7d3b'}" ${stare.inauntru?'disabled':''} onclick="pontajPunchPhone('IN')">🟢 Intrare</button>
+        <button class="btn btn-primary" style="padding:18px;font-size:16px;${!stare.inauntru?'opacity:.45':'background:#b45309;border-color:#b45309'}" ${!stare.inauntru?'disabled':''} onclick="pontajPunchPhone('OUT')">🔴 Ieșire</button>
+      </div>
+      <div id="pontajMsg" style="margin-top:10px;font-size:12px;text-align:center;min-height:16px"></div></div>`;
+    if(azi.length){ html+=`<div class="card"><div style="font-weight:600;margin-bottom:6px;font-size:13px">Pontajele de azi</div>`+azi.map(p=>`<div style="display:flex;justify-content:space-between;font-size:12.5px;margin:4px 0"><span>${p.tip==='IN'?'🟢 Intrare':'🔴 Ieșire'} · <strong>${p.ora}</strong> <span style="color:var(--text-muted)">· ${mag(p.magazin)}${p.sursa==='paydesk'?' · PayDesk':''}</span></span><span style="color:var(--text-muted)">${p.dist!=null?'📍 '+p.dist+' m':''}</span></div>`).join('')+`</div>`; }
+  }
+  html+=`<div class="card" style="background:#fafafa"><div style="font-size:12px;color:var(--text-muted)">Fără telefon la tine? Poți ponta de la <strong>PayDesk</strong> (rezervă). <a href="#" onclick="pontajPayDeskModal();return false;" style="color:#1f6b4c;font-weight:600">Deschide pontaj PayDesk »</a></div></div>`;
+  html+='</div>'; document.getElementById('content').innerHTML=html;
+}
+
+// --- Program magazine (deschidere/inchidere/toleranta) — editabil de Ana ---
+const PONTAJ_ZILE=['Lu','Ma','Mi','Jo','Vi','Sâ','Du']; // index 0=Luni ... 6=Duminică
+function pontajProgram(){ if(!DB.programMagazin) DB.programMagazin={};
+  for(const k in PONTAJ_GEO){ if(!DB.programMagazin[k]) DB.programMagazin[k]={open:'10:00',close:'20:00',tol:15,inchis:[]}; if(!Array.isArray(DB.programMagazin[k].inchis)) DB.programMagazin[k].inchis=[]; }
+  return DB.programMagazin; }
+function pontajProgFor(magKey){ const p=pontajProgram(); return p[magKey]||{open:'10:00',close:'20:00',tol:15,inchis:[]}; }
+// index zi Luni=0..Duminică=6 dintr-un obiect Date
+function _pjDow(d){ return (d.getDay()+6)%7; }
+async function pontajProgramSave(){ pontajProgram();
+  for(const k in PONTAJ_GEO){ const o=document.getElementById('pm_open_'+k), c=document.getElementById('pm_close_'+k), t=document.getElementById('pm_tol_'+k);
+    if(o) DB.programMagazin[k].open=o.value||'10:00'; if(c) DB.programMagazin[k].close=c.value||'20:00'; if(t) DB.programMagazin[k].tol=Math.max(0,parseInt(t.value||'15',10)||15);
+    DB.programMagazin[k].inchis=PONTAJ_ZILE.map((_,i)=>i).filter(i=>{ const el=document.getElementById('pm_z_'+k+'_'+i); return el&&el.checked; });
+  }
+  save(); try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('programMagazin').set(DB.programMagazin);} }catch(e){ console.warn('program cloud',e); }
+  toast('✅ Program salvat'); renderProgramMag();
+}
+function renderProgramMag(){ const p=pontajProgram();
+  const rows=Object.keys(PONTAJ_GEO).map(k=>{ const g=p[k];
+    return `<tr>
+      <td style="font-weight:600;padding:8px 6px">${escapeHtml(mag(_pjMagIdByKey(k))||k)}</td>
+      <td style="padding:8px 6px"><input type="time" id="pm_open_${k}" value="${g.open}" style="padding:5px;border:1px solid var(--border);border-radius:5px"></td>
+      <td style="padding:8px 6px"><input type="time" id="pm_close_${k}" value="${g.close}" style="padding:5px;border:1px solid var(--border);border-radius:5px"></td>
+      <td style="padding:8px 6px"><input type="number" min="0" id="pm_tol_${k}" value="${g.tol}" style="width:64px;padding:5px;border:1px solid var(--border);border-radius:5px"> min</td>
+      <td style="padding:8px 6px">${PONTAJ_ZILE.map((z,i)=>`<label style="display:inline-flex;align-items:center;gap:2px;margin-right:6px;font-size:12px"><input type="checkbox" id="pm_z_${k}_${i}" ${g.inchis.includes(i)?'checked':''}> ${z}</label>`).join('')}</td>
+    </tr>`; }).join('');
+  document.getElementById('content').innerHTML=`
+    <div style="max-width:1000px;margin:0 auto">
+      <div class="card">
+        <div style="font-weight:700;font-size:16px;margin-bottom:4px">🕒 Program magazine</div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px">Orele de deschidere/închidere și toleranța (minute) folosite pentru întârzieri și alarme. „Zile închise” = zilele în care magazinul nu lucrează (nu se declanșează alarme).</div>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="text-align:left;border-bottom:2px solid var(--border)">
+            <th style="padding:6px">Magazin</th><th style="padding:6px">Deschidere</th><th style="padding:6px">Închidere</th><th style="padding:6px">Toleranță</th><th style="padding:6px">Zile închise</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+        <div style="margin-top:14px"><button class="btn btn-primary" onclick="pontajProgramSave()">💾 Salvează programul</button></div>
+      </div>
+    </div>`;
+}
+
+// --- Rulare pontaj din IN/OUT (ore + intarzieri) + aprobare Ana ---
+function _pjHM(ts){ const d=new Date(ts); const p=n=>String(n).padStart(2,'0'); return p(d.getHours())+':'+p(d.getMinutes()); }
+function _pjMinutesLate(hmStart, hmOpen){ if(!hmStart||hmStart==='—'||!hmOpen) return 0; const a=hmStart.split(':').map(Number), b=hmOpen.split(':').map(Number); return (a[0]*60+a[1])-(b[0]*60+b[1]); }
+function pontajRollupPerson(nume, data){
+  const punches=pontajList().filter(x=>x.angajat===nume && x.data===data).sort((a,b)=> a.ts<b.ts?-1:1);
+  if(!punches.length) return null;
+  const firstIn=punches.find(p=>p.tip==='IN')||punches[0];
+  const magKey=firstIn.magKey||_beKey(firstIn.magazin);
+  let ore=0, openTs=null; const anomalii=[];
+  for(const p of punches){
+    if(p.tip==='IN'){ if(openTs!==null) anomalii.push('dublă intrare'); openTs=p.ts; }
+    else if(p.tip==='OUT'){ if(openTs!==null){ const dt=(new Date(p.ts)-new Date(openTs))/3600000; if(dt>0) ore+=dt; openTs=null; } else anomalii.push('ieșire fără intrare'); }
+  }
+  const deschis=openTs!==null; if(deschis) anomalii.push('lipsă ieșire');
+  const oraStart=_pjHM(firstIn.ts);
+  const lastOut=[...punches].reverse().find(p=>p.tip==='OUT');
+  const oraSfarsit=lastOut? _pjHM(lastOut.ts) : '—';
+  const prog=pontajProgFor(magKey);
+  const late=_pjMinutesLate(oraStart, prog.open);
+  if(late>prog.tol) anomalii.push('întârziere '+late+' min');
+  if(!deschis && ore>0){ if(ore<0.25) anomalii.push('tură foarte scurtă'); if(ore>14) anomalii.push('tură foarte lungă'); }
+  return {data, angajat:nume, magKey, locatie:mag(_pjMagIdByKey(magKey))||magKey,
+    tipZi:'Lucrat 🟢', oraStart, oraSfarsit,
+    oreLucrate: ore? (Math.round(ore*100)/100).toString() : '—',
+    intarziere: late>0?late:0, deschis, anomalii, nrPunches:punches.length,
+    selfies: punches.filter(p=>p.selfie).map(p=>({tip:p.tip, ora:_pjHM(p.ts), selfie:p.selfie, dist:p.dist, sursa:p.sursa}))};
+}
+function pontajRollupDay(data){ const names=[...new Set(pontajList().filter(x=>x.data===data).map(x=>x.angajat))];
+  return names.map(n=>pontajRollupPerson(n,data)).filter(Boolean).sort((a,b)=>(a.locatie||'').localeCompare(b.locatie||'','ro')); }
+
+let _pjAprDate=(typeof todayISO==='function'?todayISO():new Date().toISOString().slice(0,10));
+let _pjDrafts=[];
+function pontajAprSetDate(v){ _pjAprDate=v||_pjAprDate; renderAprobarePontaj(); }
+function _pjDraftToRec(d){ return {data:d.data, angajat:d.angajat, locatie:d.locatie, tipZi:d.tipZi, oraStart:d.oraStart, oraSfarsit:d.oraSfarsit, oreLucrate:d.oreLucrate, observatii:(d.anomalii&&d.anomalii.length?('Auto: '+d.anomalii.join(', ')):'Auto din pontaj IN/OUT'), dinPontajIO:true, salvatLa:(typeof nowISO==='function'?nowISO():new Date().toISOString())}; }
+function pontajEsteAprobat(nume,data){ return DB.pontaj.some(p=>p.data===data && p.angajat===nume && p.dinPontajIO); }
+function _pjApplyRec(rec){ const i=DB.pontaj.findIndex(p=>p.data===rec.data && p.angajat===rec.angajat); if(i>=0) DB.pontaj[i]=Object.assign({},DB.pontaj[i],rec); else DB.pontaj.push(rec); }
+function pontajAprobaIdx(i){ const d=_pjDrafts[i]; if(!d)return; _pjApplyRec(_pjDraftToRec(d)); save(); toast('✅ Aprobat: '+(typeof _beFirstName==='function'?_beFirstName(d.angajat):d.angajat)); renderAprobarePontaj(); }
+function pontajAprobaTot(){ let n=0; _pjDrafts.forEach(d=>{ if(pontajEsteAprobat(d.angajat,d.data))return; _pjApplyRec(_pjDraftToRec(d)); n++; }); save(); toast('✅ Aprobate: '+n); renderAprobarePontaj(); }
+function pontajShowSelfie(di,si){ const d=_pjDrafts[di]; if(!d||!d.selfies[si])return; const s=d.selfies[si];
+  openModal(`<div style="text-align:center"><div style="font-weight:700;margin-bottom:8px">${escapeHtml(d.angajat)} — ${s.tip==='IN'?'Intrare':'Ieșire'} ${s.ora}</div><img src="${s.selfie}" style="max-width:100%;border-radius:10px"><div style="font-size:12px;color:var(--text-muted);margin-top:8px">${s.sursa==='telefon'?('📍 '+(s.dist!=null?s.dist+' m față de magazin':'GPS')):'PayDesk (fără selfie/GPS)'}</div><div style="margin-top:12px"><button class="btn" onclick="closeModal()">Închide</button></div></div>`); }
+function renderAprobarePontaj(){ _pjDrafts=pontajRollupDay(_pjAprDate);
+  const totalDe=_pjDrafts.filter(d=>!pontajEsteAprobat(d.angajat,d.data)).length;
+  const rows=_pjDrafts.map((d,di)=>{ const apr=pontajEsteAprobat(d.angajat,d.data);
+    const anom=(d.anomalii||[]).map(a=>`<span style="display:inline-block;background:#fdecea;color:#c0392b;border-radius:4px;padding:1px 6px;font-size:11px;margin:1px">${escapeHtml(a)}</span>`).join(' ');
+    const sfx=d.selfies.map((s,i)=>`<img src="${s.selfie}" title="${s.tip} ${s.ora}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;cursor:pointer;margin-right:3px;vertical-align:middle" onclick="pontajShowSelfie(${di},${i})">`).join('');
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 6px;font-weight:600">${escapeHtml(d.angajat)}<div style="font-size:11px;color:var(--text-muted);font-weight:400">${escapeHtml(d.locatie)}</div></td>
+      <td style="padding:8px 6px">${d.oraStart}</td>
+      <td style="padding:8px 6px">${d.oraSfarsit}${d.deschis?' <span style="color:#c0392b" title="lipsă ieșire">⚠</span>':''}</td>
+      <td style="padding:8px 6px"><strong>${d.oreLucrate==='—'?'—':d.oreLucrate+' h'}</strong></td>
+      <td style="padding:8px 6px">${d.intarziere>0?`<span style="color:#b45309">+${d.intarziere}m</span>`:'—'}</td>
+      <td style="padding:8px 6px">${sfx||'<span style="color:var(--text-muted);font-size:11px">fără</span>'}</td>
+      <td style="padding:8px 6px">${anom||'<span style="color:#0a7d3b;font-size:11px">ok</span>'}</td>
+      <td style="padding:8px 6px">${apr?'<span style="color:#0a7d3b;font-weight:600">✓ aprobat</span>':`<button class="btn btn-primary" style="padding:5px 10px;font-size:12px" onclick="pontajAprobaIdx(${di})">Aprobă</button>`}</td>
+    </tr>`; }).join('');
+  document.getElementById('content').innerHTML=`
+    <div style="max-width:1050px;margin:0 auto">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <div><div style="font-weight:700;font-size:16px">✅ Pontaj de aprobat</div><div style="font-size:12.5px;color:var(--text-muted)">Rulat automat din intrări/ieșiri. Verifică selfie-urile și aprobă — intră în fișa oficială.</div></div>
+          <div><input type="date" value="${_pjAprDate}" onchange="pontajAprSetDate(this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px"></div>
+        </div>
+        ${_pjDrafts.length? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="text-align:left;border-bottom:2px solid var(--border)"><th style="padding:6px">Angajat</th><th style="padding:6px">Intrare</th><th style="padding:6px">Ieșire</th><th style="padding:6px">Ore</th><th style="padding:6px">Întârz.</th><th style="padding:6px">Selfie</th><th style="padding:6px">Observații</th><th style="padding:6px"></th></tr></thead>
+          <tbody>${rows}</tbody></table></div>
+          <div style="margin-top:14px">${totalDe>0?`<button class="btn btn-primary" onclick="pontajAprobaTot()">✅ Aprobă tot (${totalDe})</button>`:'<span style="color:#0a7d3b;font-weight:600">Tot aprobat pentru această zi.</span>'}</div>`
+        : '<div style="padding:24px;text-align:center;color:var(--text-muted)">Niciun pontaj în această zi.</div>'}
+      </div>
     </div>`;
 }
 
