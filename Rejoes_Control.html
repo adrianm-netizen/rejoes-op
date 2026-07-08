@@ -656,6 +656,7 @@ let VIEWS = VIEWS_ALL;
 const OWNER_VIEWS = ['analize','dashboard','briefing','profit','raportzilnic','inventar','alerte'];
 let currentView = 'dashboard';
 
+function panouMsg(){ const m=['Fiecare bon contează. Fiecare zi peste break-even — primă în plus. 💪','Azi construim viitorul, un client mulțumit pe rând. 🌱','Peste break-even → prima e a voastră. Simplu și corect. 🎯','Un zâmbet la casă aduce clientul înapoi — și prima mai aproape. 😊','Ținem aproape de țintă azi, ne bucurăm de primă mâine. 🏆','Magazin ordonat = vânzări mai mari. Hai să trecem BE-ul! ✨','Echipă bună, rezultate bune. Azi jucăm pentru primă. 🙌']; return m[(new Date()).getDay()%m.length]; }
 function renderNav() {
   // Filter VIEWS by current role
   VIEWS = VIEWS_ALL.filter(v => {
@@ -671,6 +672,14 @@ function renderNav() {
       <span class="label">${v.label}</span>
     </div>`).join('');
   document.querySelectorAll('.nav-item').forEach(el => el.onclick = () => go(el.dataset.view));
+  // PayDesk (rol panou): decor + motivație în zona goală din sidebar
+  if (DB.session && DB.session.role === 'panou') {
+    const nav = document.getElementById('nav');
+    const art = document.createElement('div');
+    art.style.cssText = 'padding:18px 12px 8px;margin-top:6px';
+    art.innerHTML = `<div style="background:#fff;border-radius:12px;padding:14px 12px;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.18)"><img src="logo_scolect.png" alt="S-Colect" style="height:40px;width:auto;max-width:100%" onerror="this.style.display='none'"><div style="height:10px"></div><img src="logo_rejoes.png" alt="Rejoes" style="height:26px;width:auto;max-width:100%" onerror="this.style.display='none'"></div><div style="color:#e2f4ea;font-size:12px;text-align:center;margin-top:16px;line-height:1.55;font-weight:600">${panouMsg()}</div><div style="color:#9fc9b2;font-size:11px;text-align:center;margin-top:12px">🏆 Treci break-even → <b>prima e a ta</b></div>`;
+    nav.appendChild(art);
+  }
   // Separă magazinele de depozite (tip:'Depozit')
   const activeLocs = DB.magazine.filter(m=>m.status==='Activ');
   const nMagazine = activeLocs.filter(m => m.tip !== 'Depozit').length;
@@ -949,8 +958,7 @@ function renderPanou(){
   rap.forEach(r=>{ if(r.data!==toD) return; const key=_beKey(r.magazin); if(!key||!azi[key]) return; azi[key].real+=(+r.vanzari||0); });
   const aziKeys=order.filter(k=>azi[k]);
   const aziTotT = aziKeys.reduce((s,k)=>s+(azi[k].target||0),0);
-  const _panouMsgs=['Fiecare bon contează. Fiecare zi peste break-even — primă în plus. 💪','Azi construim viitorul, un client mulțumit pe rând. 🌱','Peste break-even → prima e a voastră. Simplu și corect. 🎯','Un zâmbet la casă aduce clientul înapoi — și prima mai aproape. 😊','Ținem aproape de țintă azi, ne bucurăm de primă mâine. 🏆','Magazin ordonat = vânzări mai mari. Hai să trecem BE-ul! ✨','Echipă bună, rezultate bune. Azi jucăm pentru primă. 🙌'];
-  const _panouMsg=_panouMsgs[(new Date(toD+'T12:00:00').getDay())%_panouMsgs.length];
+  const _panouMsg=panouMsg();
   const aziCard = aziKeys.length ? `<div class="card" style="margin-bottom:12px">
       <div style="font-weight:700;font-size:15px;margin-bottom:2px">🎯 Ținta de AZI — ${toD} ${dayName}</div>
       <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px">Cât trebuie să facă azi fiecare magazin.</div>
