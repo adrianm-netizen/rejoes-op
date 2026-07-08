@@ -956,11 +956,11 @@ function renderPanou(){
     </div>` : '';
   document.getElementById('content').innerHTML = `
     <div style="max-width:920px;margin:0 auto">
+      ${pontajPanouCard()}
       <div class="card" style="text-align:center;background:linear-gradient(180deg,#f6fef9,#ffffff)">
         <div style="font-size:20px;font-weight:800;color:#1f6b4c">🏆 Break-even &amp; Premii</div>
         <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">Ținta zilnică pe magazin și primele câștigate de echipă. Se actualizează automat.</div>
       </div>
-      ${pontajPanouCard()}
       ${aziCard}
       ${beCard}
       ${beBonusCard(fromD,toD)}
@@ -1413,14 +1413,17 @@ function pontajAllAnomalies(){ let all=pontajAnomalies(_pjToday()).concat(pontaj
 }
 function pontajActiveAnomalies(){ const ack=DB.ponchAck||{}; return pontajAllAnomalies().filter(a=>!ack[a.key]); }
 function pontajAck(key){ if(!DB.ponchAck)DB.ponchAck={}; DB.ponchAck[key]=true; save(); }
-let _pjAlarmSeen={}, _pjBeepCtx=null;
+let _pjAlarmSeen={}, _pjBeepCtx=null, _pjBannerDismissed=false;
+function _pjDismissBanner(){ _pjBannerDismissed=true; const b=document.getElementById('pjAlarmBar'); if(b)b.remove(); }
+function _pjIsMobile(){ try{ return (window.innerWidth<=820) || /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(navigator.userAgent||''); }catch(e){ return false; } }
 function _pjBeep(){ try{ _pjBeepCtx=_pjBeepCtx||new (window.AudioContext||window.webkitAudioContext)(); const c=_pjBeepCtx; if(c.state==='suspended')c.resume();
   [0,0.7].forEach(off=>{ const o=c.createOscillator(),g=c.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(c.destination); const t=c.currentTime+off; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.3,t+0.05); g.gain.exponentialRampToValueAtTime(0.0001,t+0.5); o.start(t); o.stop(t+0.55); }); }catch(e){} }
 function pontajGoControl(){ try{ if(typeof go==='function') go('pontajcontrol'); }catch(e){} }
 function _pjBanner(anos){ let b=document.getElementById('pjAlarmBar');
-  if(!anos||!anos.length){ if(b)b.remove(); return; }
+  const hide = !anos || !anos.length || _pjBannerDismissed || _pjIsMobile() || (typeof currentView!=='undefined' && currentView==='pontajcontrol');
+  if(hide){ if(b)b.remove(); return; }
   if(!b){ b=document.createElement('div'); b.id='pjAlarmBar'; b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:6000;background:#c0392b;color:#fff;padding:10px 14px;font:600 13px system-ui,Arial;box-shadow:0 3px 12px rgba(0,0,0,.3)'; document.body.appendChild(b); }
-  b.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:1100px;margin:0 auto"><div>🚨 ${anos.length} ${anos.length===1?'alertă pontaj':'alerte pontaj'}: ${escapeHtml(anos[0].mesaj)}${anos.length>1?` (+${anos.length-1})`:''}</div><button onclick="pontajGoControl()" style="background:#fff;color:#c0392b;border:0;border-radius:5px;padding:5px 10px;font-weight:700;cursor:pointer">Vezi</button></div>`;
+  b.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;max-width:1100px;margin:0 auto"><div style="flex:1">🚨 ${anos.length} ${anos.length===1?'alertă pontaj':'alerte pontaj'}: ${escapeHtml(anos[0].mesaj)}${anos.length>1?` (+${anos.length-1})`:''}</div><button onclick="pontajGoControl()" style="background:#fff;color:#c0392b;border:0;border-radius:5px;padding:5px 10px;font-weight:700;cursor:pointer">Vezi</button><button onclick="_pjDismissBanner()" aria-label="Închide" style="background:transparent;color:#fff;border:0;font-size:18px;font-weight:700;cursor:pointer;padding:0 4px;line-height:1">✕</button></div>`;
 }
 function pontajReminderCheck(){ const ora=(DB.pontajReminderOra||'21:00'); const today=_pjToday();
   if(_pjNowMin()>=_pjParseHM(ora) && DB._pjReminderLast!==today){
@@ -1433,7 +1436,7 @@ function pontajReminderCheck(){ const ora=(DB.pontajReminderOra||'21:00'); const
 function pontajWatch(){ try{ const active=pontajActiveAnomalies(); let fresh=0;
   active.forEach(a=>{ if(!_pjAlarmSeen[a.key]){ _pjAlarmSeen[a.key]=true; fresh++;
     if('Notification' in window && Notification.permission==='granted'){ try{ new Notification('🚨 Alertă pontaj', {body:a.mesaj}); }catch(e){} } } });
-  if(fresh>0) _pjBeep();
+  if(fresh>0){ _pjBannerDismissed=false; _pjBeep(); }
   _pjBanner(active); pontajReminderCheck();
 }catch(e){ console.warn('pontajWatch',e); } }
 
