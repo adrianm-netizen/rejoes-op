@@ -466,7 +466,7 @@ const SEED = {
   tasks: [],           // {id, titlu, descriere, responsabil, locatie, termen, prioritate, reminder, done, creatLa, doneLa}
   disponibilitate: {},   // { [weekMondayISO]: { [angajatId]: { d:[7 statuses ''|'D'|'I'|'P'], obs, updatedLa } } } — centralizat (Ana)
   users: {
-    ana: { pin: "1234", role: "operator", nume: "Ana" },
+    ana: { pin: "0798", role: "operator", nume: "Ana" },
     adrian: { pin: "2016", role: "admin", nume: "Adrian" },
     gabi: { pin: "5555", role: "manager-depozit", nume: "Gabi" },
     dana: { pin: "9999", role: "contabil-sef", nume: "Dana" },
@@ -14734,6 +14734,8 @@ Object.keys(SEED.users).forEach(u => {
     // Force role + nume from SEED (PIN-ul rămâne ce a setat utilizatorul)
     DB.users[u].role = SEED.users[u].role;
     DB.users[u].nume = SEED.users[u].nume;
+    // Ana: PIN gestionat central de admin — se forțează din SEED
+    if (u === 'ana') DB.users[u].pin = SEED.users[u].pin;
   }
 });
 // Dacă sesiunea curentă are un user, actualizează și role în session
