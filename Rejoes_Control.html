@@ -14143,6 +14143,29 @@ try { setTimeout(function(){ try{ pontajWatch(); }catch(e){} }, 4000); setInterv
 // Sincronizare pontaje din cloud (telefoanele fetelor) — la pornire + la fiecare 45s
 try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setInterval(function(){ try{ pontajPullCloud(); }catch(e){} }, 45000); } catch(e){}
 
+// ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
+// La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
+// version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
+const APP_VERSION = '2026-07-09-2355';
+async function _verCheck(){
+  try{
+    const r = await fetch('version.json?_t=' + Date.now(), { cache:'no-store' });
+    if(!r.ok) return;
+    const j = await r.json();
+    if(!j || !j.v || j.v === APP_VERSION) return;         // deja pe ultima versiune
+    let last = 0; try{ last = +sessionStorage.getItem('_verReloadAt') || 0; }catch(e){}
+    if(Date.now() - last < 300000) return;                // throttle 5 min → fără buclă de reload
+    try{ sessionStorage.setItem('_verReloadAt', String(Date.now())); }catch(e){}
+    try{ toast('🔄 Versiune nouă — se actualizează…'); }catch(e){}
+    setTimeout(function(){ location.replace(location.pathname + '?u=' + Date.now()); }, 900);
+  }catch(e){}
+}
+try {
+  setTimeout(_verCheck, 3000);
+  setInterval(_verCheck, 120000);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) _verCheck(); });
+} catch(e){}
+
 // ---------- CLOUD SYNC ----------
 const CLOUD_COLLECTIONS = [
   'pontaj','raportari','diferente','inventar','tasks','magazine','furnizori','facturiIntrare','sortari','nomenclator',
