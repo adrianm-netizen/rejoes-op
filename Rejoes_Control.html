@@ -1115,13 +1115,13 @@ function bePremiiPontajCard(fromD,toD,label){
 // ================= PONTAJ IN/OUT cu geolocație (geofence) — Faza 1 =================
 // Coordonate reale magazine + rază geofence (m). Cheia = _beKey(magId). Editabile din „Locații magazine".
 let PONTAJ_GEO = {
-  'Sibiu':      {lat:45.8236828, lng:24.1448139, raza:150},
-  'Aradului':   {lat:45.7858899, lng:21.2190251, raza:150},
-  'Bujorilor':  {lat:45.7125532, lng:21.2108860, raza:150},
-  'Jimbolia':   {lat:45.7960452, lng:20.7181658, raza:150},
-  'Deta':       {lat:45.3921528, lng:21.2241921, raza:150},
-  'Sannicolau': {lat:46.0715767, lng:20.6255270, raza:150},
-  'Lugoj':      {lat:45.6823178, lng:21.8995029, raza:150}
+  'Sibiu':      {lat:45.8236828, lng:24.1448139, raza:20},
+  'Aradului':   {lat:45.7858899, lng:21.2190251, raza:20},
+  'Bujorilor':  {lat:45.7125532, lng:21.2108860, raza:20},
+  'Jimbolia':   {lat:45.7960452, lng:20.7181658, raza:20},
+  'Deta':       {lat:45.3921528, lng:21.2241921, raza:20},
+  'Sannicolau': {lat:46.0715767, lng:20.6255270, raza:20},
+  'Lugoj':      {lat:45.6823178, lng:21.8995029, raza:20}
 };
 // NU apar la butoanele de pontaj: Dana(Ursache), Olga(Baraban), Adrian(Marinescu) + plecate din firmă: Ciobanu, Bakaity
 const PONTAJ_EXEMPT_NAMES = ['ursache','baraban','marinescu','ciobanu','bakaity'];
@@ -1129,6 +1129,9 @@ function pontajExempt(nume){ const s=_beStrip(String(nume||'').toLowerCase()); r
 // Ana(Onofrei): APARE la butoane (vizibilă pentru echipă) DAR nu pontează efectiv
 const PONTAJ_NOPUNCH_NAMES = ['onofrei'];
 function pontajNoPunch(nume){ const s=_beStrip(String(nume||'').toLowerCase()); return PONTAJ_NOPUNCH_NAMES.some(x=>s.includes(x)); }
+// Geofence STRICT (fără toleranță GPS): persoane care au obiceiul să ponteze din afara magazinului.
+// Anca (Alexandru Anca) pleacă pe la alte magazine → pentru ea rază 20 m DURĂ, indiferent de precizia GPS.
+function pontajStrict(nume){ const s=_beStrip(String(nume||'').toLowerCase()); return s.includes('alexandru')&&s.includes('anca'); }
 // Nume afișat la butoanele de pontaj: prenume (stil break-even); Ana forțat „Ana" (aliasul ei o arată ca „Onofrei")
 function pontajDisplay(nume){ return pontajNoPunch(nume) ? 'Ana' : _beFirstName(nume); }
 function pontajGeoFor(magId){ const k=_beKey(magId); return k?(PONTAJ_GEO[k]||null):null; }
@@ -1158,7 +1161,7 @@ function pontajList(){ if(!DB.ponch) DB.ponch=[]; return DB.ponch; }
 function pontajTodayFor(nume){ const d=_pjToday(); return pontajList().filter(x=>x.angajat===nume&&x.data===d).sort((a,b)=>a.ts<b.ts?-1:1); }
 function pontajStareFor(nume){ const l=pontajTodayFor(nume); const last=l[l.length-1]; return {inauntru:!!(last&&last.tip==='IN'), last, count:l.length}; }
 function pontajEmployees(){ const active=(DB.angajati||[]).filter(a=>a.status==='Activ'); const list=active.filter(a=>!pontajExempt(a.nume)).map(a=>a.nume); if(!list.some(n=>pontajNoPunch(n))) list.push('Ana Onofrei'); return [...new Set(list)].sort((a,b)=>a.localeCompare(b,'ro')); }
-function pontajFindStore(lat,lng,acc){ let best=null; for(const k in PONTAJ_GEO){ const g=PONTAJ_GEO[k]; const d=_haversineM(g.lat,g.lng,lat,lng); const tol=Math.min(acc||0,60); if(d<=g.raza+tol&&(!best||d<best.dist)) best={key:k,dist:d,raza:g.raza}; } return best; }
+function pontajFindStore(lat,lng,acc,strict){ let best=null; for(const k in PONTAJ_GEO){ const g=PONTAJ_GEO[k]; const d=_haversineM(g.lat,g.lng,lat,lng); const tol=strict?0:Math.min(acc||0,60); if(d<=g.raza+tol&&(!best||d<best.dist)) best={key:k,dist:d,raza:g.raza}; } return best; }
 function pontajNearest(lat,lng){ let n=null; for(const k in PONTAJ_GEO){ const g=PONTAJ_GEO[k]; const d=_haversineM(g.lat,g.lng,lat,lng); if(!n||d<n.d)n={k,d}; } return n; }
 function _pjMagIdByKey(key){ const m=(DB.magazine||[]).find(x=>_beKey(x.id)===key); return m?m.id:key; }
 async function pontajSavePunch(rec){ if(!DB.ponch)DB.ponch=[]; rec.id='pj-'+Date.now()+'-'+Math.random().toString(36).slice(2,7); rec.salvatLa=new Date().toISOString(); DB.ponch.push(rec); try{ _lastLocalChange=Date.now(); }catch(e){} save(); try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('ponch/'+rec.id).set(rec);} }catch(e){ console.warn('pontaj cloud',e); } }
@@ -1198,8 +1201,9 @@ async function pontajPunchPhone(tip){ const nume=pontajMe; if(!nume)return;
   if(pontajNoPunch(nume)){ _pjMsg('Ana coordonează echipa — nu pontează intrare/ieșire.','#b45309'); return; }
   _pjMsg('Se citește locația… ține GPS-ul pornit.','#0a7d3b');
   let pos; try{ pos=await pontajGetPosition(); }catch(e){ _pjMsg('⚠ '+e.message,'#c4453a'); return; }
-  const st=pontajFindStore(pos.lat,pos.lng,pos.acc);
-  if(!st){ const n=pontajNearest(pos.lat,pos.lng); _pjMsg(`⛔ Nu ești la niciun magazin. Cel mai apropiat: ${n?n.k+' la ~'+n.d+' m':'—'} (precizie GPS ±${pos.acc} m).`,'#c4453a'); return; }
+  const strict=pontajStrict(nume);
+  const st=pontajFindStore(pos.lat,pos.lng,pos.acc,strict);
+  if(!st){ const n=pontajNearest(pos.lat,pos.lng); _pjMsg(`⛔ Trebuie să fii ${strict?'în magazin (max 20 m, fără toleranță)':'la magazin'}. Cel mai apropiat: ${n?n.k+' la ~'+n.d+' m':'—'}${strict?'':` (precizie GPS ±${pos.acc} m)`}.`,'#c4453a'); return; }
   _pjMsg('📸 Fă un selfie pentru confirmare…','#0a7d3b');
   const selfie=await pontajCaptureSelfie();
   if(selfie===null){ _pjMsg('Pontaj anulat — selfie-ul e obligatoriu.','#b45309'); return; }
