@@ -1162,6 +1162,26 @@ function pontajFindStore(lat,lng,acc){ let best=null; for(const k in PONTAJ_GEO)
 function pontajNearest(lat,lng){ let n=null; for(const k in PONTAJ_GEO){ const g=PONTAJ_GEO[k]; const d=_haversineM(g.lat,g.lng,lat,lng); if(!n||d<n.d)n={k,d}; } return n; }
 function _pjMagIdByKey(key){ const m=(DB.magazine||[]).find(x=>_beKey(x.id)===key); return m?m.id:key; }
 async function pontajSavePunch(rec){ if(!DB.ponch)DB.ponch=[]; rec.id='pj-'+Date.now()+'-'+Math.random().toString(36).slice(2,7); rec.salvatLa=new Date().toISOString(); DB.ponch.push(rec); try{ _lastLocalChange=Date.now(); }catch(e){} save(); try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('ponch/'+rec.id).set(rec);} }catch(e){ console.warn('pontaj cloud',e); } }
+// Sincronizare descendentă: trage pontajele din cloud (de pe telefoanele fetelor) în DB.ponch local
+let _pjPulling=false;
+async function pontajPullCloud(){
+  if(_pjPulling) return; _pjPulling=true;
+  try{
+    if(!(window.FB&&window.FB.db)){ return; }
+    await ensureFirebaseAuth();
+    const snap=await window.FB.db.ref('ponch').once('value');
+    const cloud=snap.val()||{};
+    if(!DB.ponch)DB.ponch=[];
+    const have=new Set(DB.ponch.map(p=>p&&p.id));
+    let added=0;
+    Object.keys(cloud).forEach(k=>{ const r=cloud[k]; if(r&&r.id&&!have.has(r.id)){ DB.ponch.push(r); have.add(r.id); added++; } });
+    if(added>0){ try{save();}catch(e){}
+      const map={aprobarepontaj:renderAprobarePontaj, pontajcontrol:renderPontajControl, panou:renderPanou};
+      if(typeof currentView!=='undefined' && map[currentView]){ try{ map[currentView](); }catch(e){} }
+    }
+  }catch(e){ console.warn('pontajPullCloud',e); }
+  finally{ _pjPulling=false; }
+}
 let pontajMe=(function(){ try{return localStorage.getItem('rejoes_pontaj_me')||'';}catch(e){return '';} })();
 function _pjRerender(){ try{ if(currentView==='panou') return renderPanou(); if(currentView==='pontajio') return renderPontajIO(); }catch(e){} }
 function pontajSetMe(nume){ pontajMe=nume||''; try{localStorage.setItem('rejoes_pontaj_me',pontajMe);}catch(e){} _pjRerender(); }
@@ -1316,7 +1336,7 @@ function pontajAprobaIdx(i){ const d=_pjDrafts[i]; if(!d)return; _pjApplyRec(_pj
 function pontajAprobaTot(){ let n=0; _pjDrafts.forEach(d=>{ if(pontajEsteAprobat(d.angajat,d.data))return; _pjApplyRec(_pjDraftToRec(d)); n++; }); save(); toast('✅ Aprobate: '+n); renderAprobarePontaj(); }
 function pontajShowSelfie(di,si){ const d=_pjDrafts[di]; if(!d||!d.selfies[si])return; const s=d.selfies[si];
   openModal(`<div style="text-align:center"><div style="font-weight:700;margin-bottom:8px">${escapeHtml(d.angajat)} — ${s.tip==='IN'?'Intrare':'Ieșire'} ${s.ora}</div><img src="${s.selfie}" style="max-width:100%;border-radius:10px"><div style="font-size:12px;color:var(--text-muted);margin-top:8px">${s.sursa==='telefon'?('📍 '+(s.dist!=null?s.dist+' m față de magazin':'GPS')):'PayDesk (fără selfie/GPS)'}</div><div style="margin-top:12px"><button class="btn" onclick="closeModal()">Închide</button></div></div>`); }
-function renderAprobarePontaj(){ _pjDrafts=pontajRollupDay(_pjAprDate);
+function renderAprobarePontaj(){ try{pontajPullCloud();}catch(e){} _pjDrafts=pontajRollupDay(_pjAprDate);
   const totalDe=_pjDrafts.filter(d=>!pontajEsteAprobat(d.angajat,d.data)).length;
   const rows=_pjDrafts.map((d,di)=>{ const apr=pontajEsteAprobat(d.angajat,d.data);
     const anom=(d.anomalii||[]).map(a=>`<span style="display:inline-block;background:#fdecea;color:#c0392b;border-radius:4px;padding:1px 6px;font-size:11px;margin:1px">${escapeHtml(a)}</span>`).join(' ');
@@ -1449,7 +1469,7 @@ function pontajReminderCheck(){ const ora=(DB.pontajReminderOra||'21:00'); const
     }
   }
 }
-function pontajWatch(){ try{ const active=pontajActiveAnomalies(); let fresh=0;
+function pontajWatch(){ try{ pontajPullCloud(); }catch(e){} try{ const active=pontajActiveAnomalies(); let fresh=0;
   active.forEach(a=>{ if(!_pjAlarmSeen[a.key]){ _pjAlarmSeen[a.key]=true; fresh++;
     if('Notification' in window && Notification.permission==='granted'){ try{ new Notification('🚨 Alertă pontaj', {body:a.mesaj}); }catch(e){} } } });
   if(fresh>0){ _pjBannerDismissed=false; _pjBeep(); }
@@ -1487,7 +1507,7 @@ async function pontajEnablePush(){
     if(currentView==='pontajcontrol') renderPontajControl();
   }catch(e){ console.warn('push',e); toast('Eroare push: '+((e&&e.message)||e)); }
 }
-function renderPontajControl(){ _pjCtrlAnos=pontajActiveAnomalies();
+function renderPontajControl(){ try{pontajPullCloud();}catch(e){} _pjCtrlAnos=pontajActiveAnomalies();
   const notifOn=('Notification' in window && Notification.permission==='granted');
   const pushOn=pontajPushEnabled();
   const anoHtml=_pjCtrlAnos.length? _pjCtrlAnos.map((a,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border)"><div style="font-size:13px">${a.sev==='high'?'🔴':'🟠'} ${escapeHtml(a.mesaj)}</div><button class="btn" style="font-size:11px;padding:3px 8px" onclick="pontajCtrlAckIdx(${i})">Confirmă</button></div>`).join('') : '<div style="padding:12px;color:#0a7d3b;font-weight:600">Nicio alarmă activă. ✅</div>';
@@ -14116,6 +14136,8 @@ function enableNotifications() {
 setInterval(checkReminders, 60000);
 // Paznic pontaj: verifică anomaliile la fiecare 2 minute + o dată la pornire
 try { setTimeout(function(){ try{ pontajWatch(); }catch(e){} }, 4000); setInterval(function(){ try{ pontajWatch(); }catch(e){} }, 120000); } catch(e){}
+// Sincronizare pontaje din cloud (telefoanele fetelor) — la pornire + la fiecare 45s
+try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setInterval(function(){ try{ pontajPullCloud(); }catch(e){} }, 45000); } catch(e){}
 
 // ---------- CLOUD SYNC ----------
 const CLOUD_COLLECTIONS = [
