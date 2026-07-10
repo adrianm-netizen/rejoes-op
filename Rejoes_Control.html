@@ -1340,7 +1340,7 @@ function _pjHMtoMin(hm){ if(!hm||hm==='—') return 0; const a=String(hm).split(
 function pontajNormaMin(magKey, data){ const prog=pontajProgFor(magKey); if(!prog) return 0;
   try{ const dow=_pjDow(new Date(data+'T12:00:00')); if(Array.isArray(prog.inchis)&&prog.inchis.includes(dow)) return 0; }catch(e){}
   const m=_pjHMtoMin(prog.close)-_pjHMtoMin(prog.open); return m>0?m:0; }
-function _pjMinH(m){ m=Math.round(Math.abs(m)); const h=Math.floor(m/60), mm=m%60; return h>0?(h+'h'+(mm?' '+mm+'m':'')):(mm+'m'); }
+function _pjMinH(m){ m=Math.round(Math.abs(m)); const h=Math.floor(m/60), mm=m%60; return h>0?(h+'h '+(mm<10?'0':'')+mm+'m'):(mm+'m'); }
 function pontajRollupPerson(nume, data){
   const punches=pontajList().filter(x=>x.angajat===nume && x.data===data).sort((a,b)=> a.ts<b.ts?-1:1);
   if(!punches.length) return null;
@@ -1366,7 +1366,7 @@ function pontajRollupPerson(nume, data){
   const deficitMin=(diffMin<-PONTAJ_TOL_ORE)?(-diffMin):0;
   return {data, angajat:nume, magKey, locatie:mag(_pjMagIdByKey(magKey))||magKey,
     tipZi:'Lucrat 🟢', oraStart, oraSfarsit,
-    oreLucrate: ore? (Math.round(ore*100)/100).toString() : '—',
+    oreLucrate: lucratMin? (Math.round(lucratMin/60*100)/100).toString() : '—',
     intarziere: late>0?late:0, deschis, anomalii, nrPunches:punches.length,
     normaMin, lucratMin, diffMin, supMin, deficitMin,
     selfies: punches.filter(p=>p.selfie).map(p=>({tip:p.tip, ora:_pjHM(p.ts), selfie:p.selfie, dist:p.dist, sursa:p.sursa}))};
@@ -1394,7 +1394,7 @@ function renderAprobarePontaj(){ try{pontajPullCloud();}catch(e){} _pjDrafts=pon
     const rec=_pjRecFor(d.data, d.angajat);
     const anom=(d.anomalii||[]).map(a=>`<span style="display:inline-block;background:#fdecea;color:#c0392b;border-radius:4px;padding:1px 6px;font-size:11px;margin:1px">${escapeHtml(a)}</span>`).join(' ');
     const sfx=d.selfies.map((s,i)=>`<img src="${s.selfie}" title="${s.tip} ${s.ora}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;cursor:pointer;margin-right:3px;vertical-align:middle" onclick="pontajShowSelfie(${di},${i})">`).join('');
-    const normH=d.normaMin?(Math.round(d.normaMin/60*10)/10)+'h':'—';
+    const normH=d.normaMin?_pjMinH(d.normaMin):'—';
     let difHtml;
     if(d.supMin>0) difHtml=`<span style="color:#0a7d3b;font-weight:700">+${_pjMinH(d.supMin)}</span>`;
     else if(d.deficitMin>0) difHtml=`<span style="color:#c0392b;font-weight:700">−${_pjMinH(d.deficitMin)}</span>`;
@@ -1411,7 +1411,7 @@ function renderAprobarePontaj(){ try{pontajPullCloud();}catch(e){} _pjDrafts=pon
       <td style="padding:8px 6px;font-weight:600">${escapeHtml(d.angajat)}<div style="font-size:11px;color:var(--text-muted);font-weight:400">${escapeHtml(d.locatie)}</div></td>
       <td style="padding:8px 6px">${d.oraStart}</td>
       <td style="padding:8px 6px">${d.oraSfarsit}${d.deschis?' <span style="color:#c0392b" title="lipsă ieșire">⚠</span>':''}</td>
-      <td style="padding:8px 6px"><strong>${d.oreLucrate==='—'?'—':d.oreLucrate+' h'}</strong></td>
+      <td style="padding:8px 6px"><strong>${d.oreLucrate==='—'?'—':_pjMinH(d.lucratMin)}</strong></td>
       <td style="padding:8px 6px"><span style="color:var(--text-muted);font-size:11px">${normH}</span><div style="font-size:11.5px">${difHtml}</div>${supHtml}</td>
       <td style="padding:8px 6px">${d.intarziere>0?`<span style="color:#b45309">+${d.intarziere}m</span>`:'—'}</td>
       <td style="padding:8px 6px">${sfx||'<span style="color:var(--text-muted);font-size:11px">fără</span>'}</td>
@@ -1807,7 +1807,7 @@ function renderDashboard() {
 
     <div class="grid grid-5">
       <div class="card"><div class="card-title">Angajați activi</div><div class="card-value">${DB.angajati.filter(a=>a.status==='Activ').length}</div></div>
-      <div class="card"><div class="card-title">Total ore lucrate</div><div class="card-value">${fmt(totalOreLuna,0)} <span style="font-size:13px;color:var(--text-muted)">h</span></div></div>
+      <div class="card"><div class="card-title">Total ore lucrate</div><div class="card-value">${_pjMinH(Math.round(totalOreLuna*60))}</div></div>
       <div class="card"><div class="card-title">Vânzări totale</div><div class="card-value">${fmt(totalVanzari)} <span style="font-size:13px;color:var(--text-muted)">RON</span></div></div>
       <div class="card"><div class="card-title">Bonuri fiscale</div><div class="card-value">${totalBon}</div></div>
       <div class="card"><div class="card-title">Diferență casă</div><div class="card-value ${Math.abs(totalDiff)<1?'success':Math.abs(totalDiff)<50?'warning':'danger'}">${fmt(totalDiff)} <span style="font-size:13px;color:var(--text-muted)">RON</span></div></div>
@@ -1843,7 +1843,7 @@ function renderDashboard() {
         <thead><tr><th>#</th><th>Angajat</th><th>Program</th><th class="num">Zile lucrate</th><th class="num">Ore lucrate</th><th class="num">Norma luna</th><th class="num">+/- Norma</th><th>Status</th></tr></thead>
         <tbody>${angajatiStats.map((a,i)=>`<tr style="${a.depasit?'background:#fdecea':''}">
           <td>${i+1}</td><td><strong>${a.depasit?'⚠ ':''}${a.nume}</strong></td><td>${a.program||'<em style="color:#94a3b8">—</em>'}</td>
-          <td class="num">${a.zileLucrate}</td><td class="num"><strong>${fmt(a.oreLucrate,1)} h</strong></td>
+          <td class="num">${a.zileLucrate}</td><td class="num"><strong>${_pjMinH(Math.round(a.oreLucrate*60))}</strong></td>
           <td class="num">${a.norma} h</td>
           <td class="num" style="color:${a.depasit?'#b00020':a.diff>=0?'var(--success)':'var(--danger)'};font-weight:${a.depasit?'700':'400'}">${a.diff>=0?'+':''}${fmt(a.diff,1)} h</td>
           <td><span class="badge ${a.status==='OK'?'badge-ok':a.status==='Depășit'?'badge-danger':a.status==='Aproape'?'badge-warn':'badge-danger'}" ${a.depasit?'style="background:#b00020;color:#fff"':''}>${a.depasit?'⚠ '+a.status:a.status}</span></td>
@@ -1952,8 +1952,8 @@ function renderPontaj() {
   const totalsHtml = _tot.length? `<div style="margin:0 0 14px;border:1px solid var(--border);border-radius:8px;padding:10px;background:#fafefb">
       <div style="font-weight:600;margin-bottom:8px">Σ Totaluri pe angajat — ${_periodLabel}</div>
       <div class="table-wrap"><table><thead><tr><th>Angajat</th><th class="num">Zile lucrate</th><th class="num">Ore total</th></tr></thead><tbody>
-      ${_tot.map(r=>`<tr><td>${r.n}</td><td class="num">${r.zile}</td><td class="num"><strong>${fmt(r.ore,1)} h</strong></td></tr>`).join('')}
-      <tr style="border-top:2px solid var(--border)"><td><strong>TOTAL (${_tot.length} pers.)</strong></td><td class="num"><strong>${_tot.reduce((s,r)=>s+r.zile,0)}</strong></td><td class="num"><strong>${fmt(_tot.reduce((s,r)=>s+r.ore,0),1)} h</strong></td></tr>
+      ${_tot.map(r=>`<tr><td>${r.n}</td><td class="num">${r.zile}</td><td class="num"><strong>${_pjMinH(Math.round(r.ore*60))}</strong></td></tr>`).join('')}
+      <tr style="border-top:2px solid var(--border)"><td><strong>TOTAL (${_tot.length} pers.)</strong></td><td class="num"><strong>${_tot.reduce((s,r)=>s+r.zile,0)}</strong></td><td class="num"><strong>${_pjMinH(Math.round(_tot.reduce((s,r)=>s+r.ore,0)*60))}</strong></td></tr>
       </tbody></table></div></div>` : '';
 
   document.getElementById('content').innerHTML = `
@@ -1998,7 +1998,7 @@ function renderPontaj() {
             <td><small style="color:var(--text-muted)">${r.locatie||'—'}</small></td>
             <td><span class="badge ${badgeClass}">${tipObj?tipObj.emoji+' '+tipObj.id:r.tipZi||'—'}</span></td>
             <td>${r.oraStart||'—'}</td><td>${r.oraSfarsit||'—'}</td>
-            <td class="num"><strong>${r.oreLucrate ? fmt(parseFloat(r.oreLucrate),1)+' h' : '—'}</strong></td>
+            <td class="num"><strong>${(r.oreLucrate&&r.oreLucrate!=='—') ? _pjMinH(Math.round(parseFloat(r.oreLucrate)*60)) : '—'}</strong></td>
             <td><small>${r.observatii||''}</small></td>
             <td>${isAdmin() ? `<button class="btn btn-sm btn-ghost" onclick="editPontaj(${idx})">✎</button><button class="btn btn-sm btn-ghost" onclick="delPontaj(${idx})">×</button>` : '<small style="color:var(--text-muted)" title="Editare doar de la contul de administrator">—</small>'}</td>
           </tr>`;
@@ -10513,7 +10513,7 @@ async function briefingText() {
 `;
   txt += `• ${b.angajatiCuPontaj.size}/${b.angajatiActivi.length} angajați au înregistrări
 `;
-  txt += `• ${b.lucratPer.length} zile de lucru efectiv, total ${b.oreTotal.toFixed(1)}h
+  txt += `• ${b.lucratPer.length} zile de lucru efectiv, total ${_pjMinH(Math.round(b.oreTotal*60))}
 `;
   if (b.fараPontaj.length > 0) {
     txt += `⚠ Fără pontaj înregistrat ieri: ${b.fараPontaj.map(a=>a.nume).join(', ')}
@@ -10721,7 +10721,7 @@ async function renderBriefing() {
       <h3 style="font-size:15px;color:var(--accent);margin-top:18px;margin-bottom:8px">👥 PONTAJ</h3>
       <ul style="margin-left:22px;font-size:14px">
         <li>${b.angajatiCuPontaj.size} / ${b.angajatiActivi.length} angajați cu înregistrări</li>
-        <li>${b.lucratPer.length} zile efective de lucru, total <strong>${b.oreTotal.toFixed(1)} h</strong></li>
+        <li>${b.lucratPer.length} zile efective de lucru, total <strong>${_pjMinH(Math.round(b.oreTotal*60))}</strong></li>
         ${b.fараPontaj.length>0 ? `<li style="color:var(--danger)"><strong>⚠ Fără pontaj ieri:</strong> ${b.fараPontaj.map(a=>a.nume).join(', ')}</li>` : ''}
       </ul>
       ${b.perAngajat.filter(a=>a.ore>0).length>0 ? `
@@ -14271,7 +14271,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-10-2115';
+const APP_VERSION = '2026-07-10-2145';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
