@@ -1189,16 +1189,43 @@ let pontajMe=(function(){ try{return localStorage.getItem('rejoes_pontaj_me')||'
 function _pjRerender(){ try{ if(currentView==='panou') return renderPanou(); if(currentView==='pontajio') return renderPontajIO(); }catch(e){} }
 function pontajSetMe(nume){ pontajMe=nume||''; try{localStorage.setItem('rejoes_pontaj_me',pontajMe);}catch(e){} _pjRerender(); }
 function _pjMsg(t,col){ const el=document.getElementById('pontajMsg'); if(el){ el.textContent=t||''; el.style.color=col||'var(--text-muted)'; } }
-function pontajCaptureSelfie(){ return new Promise(res=>{ let done=false; const fin=v=>{ if(done)return; done=true; res(v); };
+// Selfie: cameră LIVE în pagină (getUserMedia) — fiabil pe iPhone (Safari + instalat), nu iese din aplicație, nu se pierde poza.
+function pontajCaptureSelfie(){ return new Promise(res=>{
+  let done=false, stream=null, ov=null;
+  function cleanup(){ try{ if(stream) stream.getTracks().forEach(t=>t.stop()); }catch(e){} try{ if(ov) ov.remove(); }catch(e){} stream=null; ov=null; }
+  const fin=v=>{ if(done)return; done=true; cleanup(); res(v); };
+  if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return _selfieFileFallback(fin);
+  ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:100000;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML='<video id="pjCamV" autoplay playsinline muted style="max-width:100%;max-height:70vh;border-radius:12px;transform:scaleX(-1)"></video>'
+    +'<div style="color:#ccc;font-size:13px;margin-top:12px;text-align:center">Ține fața în cadru și apasă „Fă selfie"</div>'
+    +'<div style="display:flex;gap:14px;margin-top:14px">'
+    +'<button id="pjCamX" style="padding:12px 20px;border-radius:10px;border:1px solid #666;background:#222;color:#fff;font-size:15px">Renunță</button>'
+    +'<button id="pjCamSnap" style="padding:12px 28px;border-radius:10px;border:none;background:#2d8659;color:#fff;font-size:16px;font-weight:700">📸 Fă selfie</button>'
+    +'</div>';
+  document.body.appendChild(ov);
+  const v=ov.querySelector('#pjCamV');
+  ov.querySelector('#pjCamX').onclick=()=>fin(null);
+  ov.querySelector('#pjCamSnap').onclick=()=>{ try{
+    const vw=v.videoWidth||480, vh=v.videoHeight||640, max=480;
+    let w=vw,h=vh; if(w>=h&&w>max){h=Math.round(h*max/w);w=max;} else if(h>max){w=Math.round(w*max/h);h=max;}
+    const c=document.createElement('canvas'); c.width=w;c.height=h; const ctx=c.getContext('2d');
+    ctx.translate(w,0); ctx.scale(-1,1); ctx.drawImage(v,0,0,w,h);
+    fin(c.toDataURL('image/jpeg',0.55));
+  }catch(e){ fin(null); } };
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false})
+    .then(s=>{ if(done){ try{s.getTracks().forEach(t=>t.stop());}catch(e){} return; } stream=s; v.srcObject=s; if(v.play) v.play().catch(()=>{}); })
+    .catch(()=>{ cleanup(); _selfieFileFallback(fin); });   // permisiune refuzată / eroare → revine la metoda veche
+}); }
+// Rezervă: input file cu cameră (dacă getUserMedia lipsește sau e refuzat)
+function _selfieFileFallback(fin){
   const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.setAttribute('capture','user');
   inp.onchange=()=>{ const f=inp.files&&inp.files[0]; if(!f)return fin(null);
     const r=new FileReader(); r.onload=()=>{ const img=new Image(); img.onload=()=>{ const max=480; let w=img.width,h=img.height; if(w>=h&&w>max){h=Math.round(h*max/w);w=max;} else if(h>max){w=Math.round(w*max/h);h=max;} const c=document.createElement('canvas'); c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); fin(c.toDataURL('image/jpeg',0.55)); }; img.onerror=()=>fin(null); img.src=r.result; }; r.onerror=()=>fin(null); r.readAsDataURL(f); };
   inp.click();
-  // Detectare anulare ROBUSTĂ: la revenirea din cameră așteaptă generos (telefoane lente / mod economisire baterie)
-  // verificând repetat dacă poza a sosit — altfel poza reală venea după 1,2s și pontajul era anulat FALS (cazul Petro).
-  function _selfiePoll(){ let n=0; const tick=()=>{ if(done) return; if(inp.files&&inp.files.length) return; if(++n>=24){ fin(null); return; } setTimeout(tick,500); }; setTimeout(tick,900); }
-  setTimeout(()=>window.addEventListener('focus',_selfiePoll,{once:true}),400);
-}); }
+  function poll(){ let n=0; const tick=()=>{ if(inp.files&&inp.files.length) return; if(++n>=24){ fin(null); return; } setTimeout(tick,500); }; setTimeout(tick,900); }
+  setTimeout(()=>window.addEventListener('focus',poll,{once:true}),400);
+}
 async function pontajPunchPhone(tip){ const nume=pontajMe; if(!nume)return;
   if(pontajNoPunch(nume)){ _pjMsg('Ana coordonează echipa — nu pontează intrare/ieșire.','#b45309'); return; }
   try{ window._pjActiveUntil = Date.now() + 90000; }catch(e){}  // blochează auto-reload cât durează pontarea
@@ -14208,7 +14235,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-10-2015';
+const APP_VERSION = '2026-07-10-2030';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
