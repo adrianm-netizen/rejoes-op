@@ -1364,11 +1364,13 @@ function pontajRollupPerson(nume, data){
   const diffMin=(normaMin>0 && lucratMin>0)?(lucratMin-normaMin):0;
   const supMin=diffMin>PONTAJ_TOL_ORE?diffMin:0;
   const deficitMin=(diffMin<-PONTAJ_TOL_ORE)?(-diffMin):0;
+  const contMin=supMin>0?normaMin:lucratMin;   // contabilizat: suplimentarul NU contează până nu e acceptat → rămâne la normă
   return {data, angajat:nume, magKey, locatie:mag(_pjMagIdByKey(magKey))||magKey,
     tipZi:'Lucrat 🟢', oraStart, oraSfarsit,
-    oreLucrate: lucratMin? (Math.round(lucratMin/60*100)/100).toString() : '—',
+    oreLucrate: contMin? (Math.round(contMin/60*100)/100).toString() : '—',
+    oreReal: lucratMin? (Math.round(lucratMin/60*100)/100).toString() : '—',
     intarziere: late>0?late:0, deschis, anomalii, nrPunches:punches.length,
-    normaMin, lucratMin, diffMin, supMin, deficitMin,
+    normaMin, lucratMin, contMin, diffMin, supMin, deficitMin,
     selfies: punches.filter(p=>p.selfie).map(p=>({tip:p.tip, ora:_pjHM(p.ts), selfie:p.selfie, dist:p.dist, sursa:p.sursa}))};
 }
 function pontajRollupDay(data){ const names=[...new Set(pontajList().filter(x=>x.data===data).map(x=>x.angajat))];
@@ -1377,10 +1379,14 @@ function pontajRollupDay(data){ const names=[...new Set(pontajList().filter(x=>x
 let _pjAprDate=(typeof todayISO==='function'?todayISO():new Date().toISOString().slice(0,10));
 let _pjDrafts=[];
 function pontajAprSetDate(v){ _pjAprDate=v||_pjAprDate; renderAprobarePontaj(); }
-function _pjDraftToRec(d){ return {data:d.data, angajat:d.angajat, locatie:d.locatie, tipZi:d.tipZi, oraStart:d.oraStart, oraSfarsit:d.oraSfarsit, oreLucrate:d.oreLucrate, observatii:(d.anomalii&&d.anomalii.length?('Auto: '+d.anomalii.join(', ')):'Auto din pontaj IN/OUT'), dinPontajIO:true, normaMin:d.normaMin, diffMin:d.diffMin, supMin:d.supMin, deficitMin:d.deficitMin, salvatLa:(typeof nowISO==='function'?nowISO():new Date().toISOString())}; }
+function _pjDraftToRec(d){ return {data:d.data, angajat:d.angajat, locatie:d.locatie, tipZi:d.tipZi, oraStart:d.oraStart, oraSfarsit:d.oraSfarsit, oreLucrate:d.oreLucrate, oreReal:d.oreReal, observatii:(d.anomalii&&d.anomalii.length?('Auto: '+d.anomalii.join(', ')):'Auto din pontaj IN/OUT'), dinPontajIO:true, normaMin:d.normaMin, diffMin:d.diffMin, supMin:d.supMin, deficitMin:d.deficitMin, salvatLa:(typeof nowISO==='function'?nowISO():new Date().toISOString())}; }
 function _pjRecFor(data,angajat){ return DB.pontaj.find(p=>p.data===data && p.angajat===angajat); }
-function pontajProponeSupl(di){ const d=_pjDrafts[di]; if(!d)return; const r=_pjRecFor(d.data,d.angajat); if(!r){ toast('Aprobă întâi ziua'); return; } r.supPropus=true; r.supMin=d.supMin; save(); toast('Ore suplimentare propuse — așteaptă confirmarea admin'); renderAprobarePontaj(); }
-function pontajConfirmaSupl(di){ if(!isAdmin()){ toast('Doar administratorul confirmă orele suplimentare.'); return; } const d=_pjDrafts[di]; if(!d)return; const r=_pjRecFor(d.data,d.angajat); if(!r)return; r.supAprobat=true; r.supPropus=true; save(); toast('✅ Ore suplimentare confirmate'); renderAprobarePontaj(); }
+// Ana propune suplimentarul (orele rămân la normă până confirmi tu)
+function pontajProponeSupl(di){ const d=_pjDrafts[di]; if(!d)return; const r=_pjRecFor(d.data,d.angajat); if(!r){ toast('Aprobă întâi ziua'); return; } r.supPropus=true; r.supRefuzat=false; r.supMin=d.supMin; save(); toast('Suplimentar propus — așteaptă confirmarea ta ca admin'); renderAprobarePontaj(); }
+// Admin confirmă → orele REALE contează (se adaugă suplimentarul)
+function pontajConfirmaSupl(di){ if(!isAdmin()){ toast('Doar administratorul confirmă orele suplimentare.'); return; } const d=_pjDrafts[di]; if(!d)return; const r=_pjRecFor(d.data,d.angajat); if(!r)return; r.supAprobat=true; r.supPropus=true; r.supRefuzat=false; if(r.oreReal) r.oreLucrate=r.oreReal; save(); toast('✅ Suplimentar confirmat — orele reale contează'); renderAprobarePontaj(); }
+// Refuz (Ana sau admin) → rămâne la normă
+function pontajRefuzaSupl(di){ const d=_pjDrafts[di]; if(!d)return; const r=_pjRecFor(d.data,d.angajat); if(!r){ toast('Aprobă întâi ziua'); return; } r.supRefuzat=true; r.supPropus=false; r.supAprobat=false; if(d.normaMin) r.oreLucrate=(Math.round(d.normaMin/60*100)/100).toString(); save(); toast('Suplimentar refuzat — rămâne la orarul normal'); renderAprobarePontaj(); }
 function pontajEsteAprobat(nume,data){ return DB.pontaj.some(p=>p.data===data && p.angajat===nume && (p.dinPontajIO || p.corectatManual)); }
 function _pjApplyRec(rec){ const i=DB.pontaj.findIndex(p=>p.data===rec.data && p.angajat===rec.angajat); if(i>=0){ if(DB.pontaj[i].corectatManual) return; DB.pontaj[i]=Object.assign({},DB.pontaj[i],rec);} else DB.pontaj.push(rec); }
 function pontajAprobaIdx(i){ const d=_pjDrafts[i]; if(!d)return; _pjApplyRec(_pjDraftToRec(d)); save(); toast('✅ Aprobat: '+(typeof _beFirstName==='function'?_beFirstName(d.angajat):d.angajat)); renderAprobarePontaj(); }
@@ -1394,6 +1400,8 @@ function renderAprobarePontaj(){ try{pontajPullCloud();}catch(e){} _pjDrafts=pon
     const rec=_pjRecFor(d.data, d.angajat);
     const anom=(d.anomalii||[]).map(a=>`<span style="display:inline-block;background:#fdecea;color:#c0392b;border-radius:4px;padding:1px 6px;font-size:11px;margin:1px">${escapeHtml(a)}</span>`).join(' ');
     const sfx=d.selfies.map((s,i)=>`<img src="${s.selfie}" title="${s.tip} ${s.ora}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;cursor:pointer;margin-right:3px;vertical-align:middle" onclick="pontajShowSelfie(${di},${i})">`).join('');
+    const accepted=rec&&rec.supAprobat, refuzat=rec&&rec.supRefuzat;
+    const contMinNow=(d.supMin>0 && !accepted)?d.normaMin:d.lucratMin;
     const normH=d.normaMin?_pjMinH(d.normaMin):'—';
     let difHtml;
     if(d.supMin>0) difHtml=`<span style="color:#0a7d3b;font-weight:700">+${_pjMinH(d.supMin)}</span>`;
@@ -1401,17 +1409,18 @@ function renderAprobarePontaj(){ try{pontajPullCloud();}catch(e){} _pjDrafts=pon
     else if(d.normaMin>0&&d.lucratMin>0) difHtml='<span style="color:#0a7d3b;font-size:11px">la normă</span>';
     else difHtml='<span style="color:var(--text-muted)">—</span>';
     let supHtml='';
-    if(d.supMin>0){ const sp=rec&&rec.supPropus, sa=rec&&rec.supAprobat;
-      if(sa) supHtml='<div style="margin-top:3px"><span style="background:#e7f6ec;color:#0a7d3b;border-radius:4px;padding:1px 6px;font-size:10.5px">✓ supl. aprobat</span></div>';
-      else if(sp) supHtml=`<div style="margin-top:3px"><span style="background:#fff7e6;color:#b45309;border-radius:4px;padding:1px 6px;font-size:10.5px">supl. propus</span>${_admOn?` <button class="btn btn-sm" style="padding:2px 7px;font-size:11px" onclick="pontajConfirmaSupl(${di})">Confirmă</button>`:''}</div>`;
-      else if(apr) supHtml=`<div style="margin-top:3px"><button class="btn btn-sm" style="padding:2px 7px;font-size:11px" onclick="pontajProponeSupl(${di})">Accept supl.</button></div>`;
+    if(d.supMin>0){ const sp=rec&&rec.supPropus;
+      if(accepted) supHtml=`<div style="margin-top:3px"><span style="background:#e7f6ec;color:#0a7d3b;border-radius:4px;padding:1px 6px;font-size:10.5px">✓ supl. aprobat (+${_pjMinH(d.supMin)})</span></div>`;
+      else if(refuzat) supHtml=`<div style="margin-top:3px"><span style="background:#f3f4f6;color:#6b7280;border-radius:4px;padding:1px 6px;font-size:10.5px">supl. refuzat — la normă</span>${_admOn?` <button class="btn btn-sm" style="padding:2px 7px;font-size:11px" onclick="pontajConfirmaSupl(${di})">Acceptă totuși</button>`:''}</div>`;
+      else if(sp) supHtml=`<div style="margin-top:3px"><span style="background:#fff7e6;color:#b45309;border-radius:4px;padding:1px 6px;font-size:10.5px">supl. propus (+${_pjMinH(d.supMin)})</span>${_admOn?` <button class="btn btn-sm" style="padding:2px 7px;font-size:11px" onclick="pontajConfirmaSupl(${di})">Confirmă</button> <button class="btn btn-sm" style="padding:2px 7px;font-size:11px" onclick="pontajRefuzaSupl(${di})">Refuză</button>`:''}</div>`;
+      else if(apr) supHtml=`<div style="margin-top:3px"><button class="btn btn-sm" style="padding:2px 7px;font-size:11px" onclick="pontajProponeSupl(${di})">Accept +${_pjMinH(d.supMin)}</button> <button class="btn btn-sm" style="padding:2px 7px;font-size:11px" onclick="pontajRefuzaSupl(${di})">Refuză</button></div>`;
       else supHtml='<div style="margin-top:3px;font-size:10.5px;color:var(--text-muted)">aprobă întâi ziua</div>';
     }
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:8px 6px;font-weight:600">${escapeHtml(d.angajat)}<div style="font-size:11px;color:var(--text-muted);font-weight:400">${escapeHtml(d.locatie)}</div></td>
       <td style="padding:8px 6px">${d.oraStart}</td>
       <td style="padding:8px 6px">${d.oraSfarsit}${d.deschis?' <span style="color:#c0392b" title="lipsă ieșire">⚠</span>':''}</td>
-      <td style="padding:8px 6px"><strong>${d.oreLucrate==='—'?'—':_pjMinH(d.lucratMin)}</strong></td>
+      <td style="padding:8px 6px"><strong>${d.lucratMin?_pjMinH(contMinNow):'—'}</strong>${(d.lucratMin&&contMinNow!==d.lucratMin)?`<div style="font-size:10.5px;color:var(--text-muted)">lucrat ${_pjMinH(d.lucratMin)}</div>`:''}</td>
       <td style="padding:8px 6px"><span style="color:var(--text-muted);font-size:11px">${normH}</span><div style="font-size:11.5px">${difHtml}</div>${supHtml}</td>
       <td style="padding:8px 6px">${d.intarziere>0?`<span style="color:#b45309">+${d.intarziere}m</span>`:'—'}</td>
       <td style="padding:8px 6px">${sfx||'<span style="color:var(--text-muted);font-size:11px">fără</span>'}</td>
@@ -1629,7 +1638,8 @@ function _pjRefreshFisaForDay(data, angajat){
     const i=DB.pontaj.findIndex(p=>p.data===data && p.angajat===angajat);
     if(i<0) return;                          // neaprobat încă → se preia corect la aprobare
     if(DB.pontaj[i].corectatManual) return;  // corecție manuală în fișă → nu suprascrie
-    DB.pontaj[i]=Object.assign({},DB.pontaj[i],{oraStart:draft.oraStart, oraSfarsit:draft.oraSfarsit, oreLucrate:draft.oreLucrate});
+    const useReal=DB.pontaj[i].supAprobat;   // dacă suplimentarul era aprobat, păstrează orele reale
+    DB.pontaj[i]=Object.assign({},DB.pontaj[i],{oraStart:draft.oraStart, oraSfarsit:draft.oraSfarsit, oreReal:draft.oreReal, oreLucrate:(useReal?draft.oreReal:draft.oreLucrate), normaMin:draft.normaMin, supMin:draft.supMin, deficitMin:draft.deficitMin});
     save();
   }catch(e){ console.warn('refresh fisa',e); }
 }
@@ -14271,7 +14281,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-10-2145';
+const APP_VERSION = '2026-07-10-2210';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
