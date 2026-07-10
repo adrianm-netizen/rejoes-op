@@ -1336,8 +1336,8 @@ let _pjAprDate=(typeof todayISO==='function'?todayISO():new Date().toISOString()
 let _pjDrafts=[];
 function pontajAprSetDate(v){ _pjAprDate=v||_pjAprDate; renderAprobarePontaj(); }
 function _pjDraftToRec(d){ return {data:d.data, angajat:d.angajat, locatie:d.locatie, tipZi:d.tipZi, oraStart:d.oraStart, oraSfarsit:d.oraSfarsit, oreLucrate:d.oreLucrate, observatii:(d.anomalii&&d.anomalii.length?('Auto: '+d.anomalii.join(', ')):'Auto din pontaj IN/OUT'), dinPontajIO:true, salvatLa:(typeof nowISO==='function'?nowISO():new Date().toISOString())}; }
-function pontajEsteAprobat(nume,data){ return DB.pontaj.some(p=>p.data===data && p.angajat===nume && p.dinPontajIO); }
-function _pjApplyRec(rec){ const i=DB.pontaj.findIndex(p=>p.data===rec.data && p.angajat===rec.angajat); if(i>=0) DB.pontaj[i]=Object.assign({},DB.pontaj[i],rec); else DB.pontaj.push(rec); }
+function pontajEsteAprobat(nume,data){ return DB.pontaj.some(p=>p.data===data && p.angajat===nume && (p.dinPontajIO || p.corectatManual)); }
+function _pjApplyRec(rec){ const i=DB.pontaj.findIndex(p=>p.data===rec.data && p.angajat===rec.angajat); if(i>=0){ if(DB.pontaj[i].corectatManual) return; DB.pontaj[i]=Object.assign({},DB.pontaj[i],rec);} else DB.pontaj.push(rec); }
 function pontajAprobaIdx(i){ const d=_pjDrafts[i]; if(!d)return; _pjApplyRec(_pjDraftToRec(d)); save(); toast('✅ Aprobat: '+(typeof _beFirstName==='function'?_beFirstName(d.angajat):d.angajat)); renderAprobarePontaj(); }
 function pontajAprobaTot(){ let n=0; _pjDrafts.forEach(d=>{ if(pontajEsteAprobat(d.angajat,d.data))return; _pjApplyRec(_pjDraftToRec(d)); n++; }); save(); toast('✅ Aprobate: '+n); renderAprobarePontaj(); }
 function pontajShowSelfie(di,si){ const d=_pjDrafts[di]; if(!d||!d.selfies[si])return; const s=d.selfies[si];
@@ -1518,8 +1518,13 @@ function renderPontajControl(){ try{pontajPullCloud();}catch(e){} _pjCtrlAnos=po
   const pushOn=pontajPushEnabled();
   const anoHtml=_pjCtrlAnos.length? _pjCtrlAnos.map((a,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border)"><div style="font-size:13px">${a.sev==='high'?'🔴':'🟠'} ${escapeHtml(a.mesaj)}</div><button class="btn" style="font-size:11px;padding:3px 8px" onclick="pontajCtrlAckIdx(${i})">Confirmă</button></div>`).join('') : '<div style="padding:12px;color:#0a7d3b;font-weight:600">Nicio alarmă activă. ✅</div>';
   const day=_pjCtrlDate;
+  const _pjAdm=(typeof isAdmin==='function' && isAdmin());
   const punches=pontajList().filter(p=>p.data===day).sort((a,b)=> a.ts<b.ts?-1:1);
-  const pHtml=punches.length? punches.map(p=>`<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px">${p.ora||_pjHM(p.ts)}</td><td style="padding:6px">${p.tip==='IN'?'🟢 IN':'🔴 OUT'}</td><td style="padding:6px;font-weight:600">${escapeHtml(_beFirstName(p.angajat))}</td><td style="padding:6px">${escapeHtml(mag(p.magazin)||p.magKey||'')}</td><td style="padding:6px">${p.sursa==='paydesk'?'PayDesk':(p.dist!=null?'📍 '+p.dist+' m':'GPS')}</td><td style="padding:6px">${p.selfie?`<img src="${p.selfie}" style="width:34px;height:34px;object-fit:cover;border-radius:5px;cursor:pointer" onclick="pontajCtrlSelfie('${p.id}')">`:'<span style="color:var(--text-muted)">—</span>'}</td></tr>`).join('') : '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--text-muted)">Niciun pontaj în această zi.</td></tr>';
+  const pHtml=punches.length? punches.map(p=>{
+    const t=p.ora||_pjHM(p.ts);
+    const adj=p.ajustatDeAdmin?` <span title="ajustat de admin (ora telefon: ${p.oraOriginal||'?'})" style="color:#b45309;cursor:help">✎</span>`:'';
+    return `<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px">${t}${adj}</td><td style="padding:6px">${p.tip==='IN'?'🟢 IN':'🔴 OUT'}</td><td style="padding:6px;font-weight:600">${escapeHtml(_beFirstName(p.angajat))}</td><td style="padding:6px">${escapeHtml(mag(p.magazin)||p.magKey||'')}</td><td style="padding:6px">${p.sursa==='paydesk'?'PayDesk':(p.dist!=null?'📍 '+p.dist+' m':'GPS')}</td><td style="padding:6px">${p.selfie?`<img src="${p.selfie}" style="width:34px;height:34px;object-fit:cover;border-radius:5px;cursor:pointer" onclick="pontajCtrlSelfie('${p.id}')">`:'<span style="color:var(--text-muted)">—</span>'}</td>${_pjAdm?`<td style="padding:6px;white-space:nowrap"><button class="btn btn-sm btn-ghost" title="Corectează ora" onclick="pontajCtrlEditPunch('${p.id}')">✎</button><button class="btn btn-sm btn-ghost" title="Șterge pontarea" onclick="pontajCtrlDelPunch('${p.id}')">×</button></td>`:''}</tr>`;
+  }).join('') : `<tr><td colspan="${_pjAdm?7:6}" style="padding:16px;text-align:center;color:var(--text-muted)">Niciun pontaj în această zi.</td></tr>`;
   document.getElementById('content').innerHTML=`
     <div style="max-width:960px;margin:0 auto">
       <div class="card">
@@ -1545,11 +1550,60 @@ function renderPontajControl(){ try{pontajPullCloud();}catch(e){} _pjCtrlAnos=po
           <input type="date" value="${day}" onchange="pontajCtrlDate(this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px">
         </div>
         <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="text-align:left;border-bottom:2px solid var(--border)"><th style="padding:6px">Ora</th><th style="padding:6px">Tip</th><th style="padding:6px">Persoană</th><th style="padding:6px">Magazin</th><th style="padding:6px">Sursă</th><th style="padding:6px">Selfie</th></tr></thead>
+          <thead><tr style="text-align:left;border-bottom:2px solid var(--border)"><th style="padding:6px">Ora</th><th style="padding:6px">Tip</th><th style="padding:6px">Persoană</th><th style="padding:6px">Magazin</th><th style="padding:6px">Sursă</th><th style="padding:6px">Selfie</th>${_pjAdm?'<th style="padding:6px">Corectează</th>':''}</tr></thead>
           <tbody>${pHtml}</tbody>
         </table></div>
       </div>
     </div>`;
+}
+
+// --- Corectare pontare (ora IN/OUT) — DOAR ADMIN. Păstrează ora telefonului + selfie ca dovadă. ---
+function _pjFindPunch(id){ return pontajList().find(p=>p.id===id)||null; }
+async function _pjPushPunch(rec){ try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('ponch/'+rec.id).set(rec);} }catch(e){ console.warn('punch cloud',e); } }
+// După corectarea unei pontări, reîmprospătează fișa deja aprobată pentru acea zi/persoană (dacă nu e corectată manual)
+function _pjRefreshFisaForDay(data, angajat){
+  try{
+    const draft=(pontajRollupDay(data)||[]).find(d=>d.angajat===angajat);
+    if(!draft) return;
+    const i=DB.pontaj.findIndex(p=>p.data===data && p.angajat===angajat);
+    if(i<0) return;                          // neaprobat încă → se preia corect la aprobare
+    if(DB.pontaj[i].corectatManual) return;  // corecție manuală în fișă → nu suprascrie
+    DB.pontaj[i]=Object.assign({},DB.pontaj[i],{oraStart:draft.oraStart, oraSfarsit:draft.oraSfarsit, oreLucrate:draft.oreLucrate});
+    save();
+  }catch(e){ console.warn('refresh fisa',e); }
+}
+function pontajCtrlEditPunch(id){
+  if(!isAdmin()){ toast('Doar administratorul poate corecta pontări.'); return; }
+  const p=_pjFindPunch(id); if(!p){ toast('Pontare negăsită'); return; }
+  const t=p.ora||_pjHM(p.ts);
+  openModal(`<h3 style="margin:0 0 6px">Corectează ora pontării</h3>
+    <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px">${escapeHtml(_beFirstName(p.angajat))} — ${p.tip==='IN'?'Intrare':'Ieșire'} · ${escapeHtml(mag(p.magazin)||p.magKey||'')} · ${p.data}</div>
+    <div class="form-field" style="margin:0"><label>Ora reală</label><input type="time" id="pjEditOra" value="${t}" style="padding:8px;border:1px solid var(--border);border-radius:6px"></div>
+    ${p.ajustatDeAdmin?`<div style="font-size:11.5px;color:#b45309;margin-top:6px">Ora inițială (telefon): ${p.oraOriginal||'?'}</div>`:''}
+    <div style="font-size:11.5px;color:var(--text-muted);margin-top:10px">Ora de pe telefon și selfie-ul rămân salvate ca dovadă. Corecția se reflectă automat în „Pontaj de aprobat" și în fișa oficială.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeModal()">Anulează</button><button class="btn btn-primary" onclick="pontajCtrlSavePunchTime('${id}')">Salvează</button></div>`);
+}
+async function pontajCtrlSavePunchTime(id){
+  if(!isAdmin()){ toast('Doar administratorul poate corecta pontări.'); return; }
+  const p=_pjFindPunch(id); if(!p) return;
+  const v=document.getElementById('pjEditOra').value; if(!v){ toast('Pune o oră'); return; }
+  if(!p.ajustatDeAdmin){ p.oraOriginal = p.ora||_pjHM(p.ts); }
+  p.ora = v;
+  const nd = new Date(p.data+'T'+v+':00'); if(!isNaN(nd.getTime())) p.ts = nd.toISOString();
+  p.ajustatDeAdmin = true; p.ajustatLa = (typeof nowISO==='function'?nowISO():new Date().toISOString());
+  try{ _lastLocalChange=Date.now(); }catch(e){}
+  save(); _pjPushPunch(p); _pjRefreshFisaForDay(p.data, p.angajat);
+  closeModal(); toast('✅ Oră corectată'); renderPontajControl();
+}
+async function pontajCtrlDelPunch(id){
+  if(!isAdmin()){ toast('Doar administratorul poate șterge pontări.'); return; }
+  const p=_pjFindPunch(id); if(!p) return;
+  if(!confirm(`Ștergi pontarea ${p.tip} ${p.ora||_pjHM(p.ts)} — ${_beFirstName(p.angajat)}?`)) return;
+  const i=DB.ponch.findIndex(x=>x.id===id); if(i>=0) DB.ponch.splice(i,1);
+  try{ _lastLocalChange=Date.now(); }catch(e){}
+  save(); _pjRefreshFisaForDay(p.data, p.angajat);
+  try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('ponch/'+id).remove(); } }catch(e){ console.warn('punch del cloud',e); }
+  toast('Pontare ștearsă'); renderPontajControl();
 }
 
 // ========== Raport zilnic pe magazine (read-only, pentru Olga) ==========
@@ -1985,11 +2039,13 @@ function savePontaj(idx) {
     observatii: document.getElementById('pf_obs').value,
     salvatLa: nowISO()
   };
+  rec.corectatManual = true;   // salvare de la admin = corecție autoritară → protejată de re-aprobare
   let modificare = false, prev = null;
   if (idx>=0) {
     prev = DB.pontaj[idx];
     modificare = true;
     rec.modCount = ((prev && prev.modCount) || 0) + 1;
+    if (prev && prev.dinPontajIO) rec.dinPontajIO = true;   // păstrează statutul de aprobat
     DB.pontaj[idx] = rec;
   } else {
     // upsert: dacă există deja pentru data + angajat
@@ -1998,6 +2054,7 @@ function savePontaj(idx) {
       prev = DB.pontaj[i];
       modificare = true;
       rec.modCount = ((prev && prev.modCount) || 0) + 1;
+      if (prev && prev.dinPontajIO) rec.dinPontajIO = true;
       DB.pontaj[i] = rec;
     } else { rec.modCount = 0; DB.pontaj.push(rec); }
   }
@@ -14149,7 +14206,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-10-0430';
+const APP_VERSION = '2026-07-10-0510';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
