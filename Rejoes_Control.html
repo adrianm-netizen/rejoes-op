@@ -1334,6 +1334,13 @@ function renderProgramMag(){ const p=pontajProgram();
 // --- Rulare pontaj din IN/OUT (ore + intarzieri) + aprobare Ana ---
 function _pjHM(ts){ const d=new Date(ts); const p=n=>String(n).padStart(2,'0'); return p(d.getHours())+':'+p(d.getMinutes()); }
 function _pjMinutesLate(hmStart, hmOpen){ if(!hmStart||hmStart==='—'||!hmOpen) return 0; const a=hmStart.split(':').map(Number), b=hmOpen.split(':').map(Number); return (a[0]*60+a[1])-(b[0]*60+b[1]); }
+// --- Normă zi (din programul MAGAZINULUI: close-open) + plus/minus față de normă (toleranță 15 min) ---
+const PONTAJ_TOL_ORE = 15;
+function _pjHMtoMin(hm){ if(!hm||hm==='—') return 0; const a=String(hm).split(':').map(Number); return (a[0]||0)*60+(a[1]||0); }
+function pontajNormaMin(magKey, data){ const prog=pontajProgFor(magKey); if(!prog) return 0;
+  try{ const dow=_pjDow(new Date(data+'T12:00:00')); if(Array.isArray(prog.inchis)&&prog.inchis.includes(dow)) return 0; }catch(e){}
+  const m=_pjHMtoMin(prog.close)-_pjHMtoMin(prog.open); return m>0?m:0; }
+function _pjMinH(m){ m=Math.round(Math.abs(m)); const h=Math.floor(m/60), mm=m%60; return h>0?(h+'h'+(mm?' '+mm+'m':'')):(mm+'m'); }
 function pontajRollupPerson(nume, data){
   const punches=pontajList().filter(x=>x.angajat===nume && x.data===data).sort((a,b)=> a.ts<b.ts?-1:1);
   if(!punches.length) return null;
@@ -1352,10 +1359,16 @@ function pontajRollupPerson(nume, data){
   const late=_pjMinutesLate(oraStart, prog.open);
   if(late>prog.tol) anomalii.push('întârziere '+late+' min');
   if(!deschis && ore>0){ if(ore<0.25) anomalii.push('tură foarte scurtă'); if(ore>14) anomalii.push('tură foarte lungă'); }
+  const normaMin=pontajNormaMin(magKey, data);
+  const lucratMin=ore>0?Math.round(ore*60):0;
+  const diffMin=(normaMin>0 && lucratMin>0)?(lucratMin-normaMin):0;
+  const supMin=diffMin>PONTAJ_TOL_ORE?diffMin:0;
+  const deficitMin=(diffMin<-PONTAJ_TOL_ORE)?(-diffMin):0;
   return {data, angajat:nume, magKey, locatie:mag(_pjMagIdByKey(magKey))||magKey,
     tipZi:'Lucrat 🟢', oraStart, oraSfarsit,
     oreLucrate: ore? (Math.round(ore*100)/100).toString() : '—',
     intarziere: late>0?late:0, deschis, anomalii, nrPunches:punches.length,
+    normaMin, lucratMin, diffMin, supMin, deficitMin,
     selfies: punches.filter(p=>p.selfie).map(p=>({tip:p.tip, ora:_pjHM(p.ts), selfie:p.selfie, dist:p.dist, sursa:p.sursa}))};
 }
 function pontajRollupDay(data){ const names=[...new Set(pontajList().filter(x=>x.data===data).map(x=>x.angajat))];
@@ -1364,7 +1377,10 @@ function pontajRollupDay(data){ const names=[...new Set(pontajList().filter(x=>x
 let _pjAprDate=(typeof todayISO==='function'?todayISO():new Date().toISOString().slice(0,10));
 let _pjDrafts=[];
 function pontajAprSetDate(v){ _pjAprDate=v||_pjAprDate; renderAprobarePontaj(); }
-function _pjDraftToRec(d){ return {data:d.data, angajat:d.angajat, locatie:d.locatie, tipZi:d.tipZi, oraStart:d.oraStart, oraSfarsit:d.oraSfarsit, oreLucrate:d.oreLucrate, observatii:(d.anomalii&&d.anomalii.length?('Auto: '+d.anomalii.join(', ')):'Auto din pontaj IN/OUT'), dinPontajIO:true, salvatLa:(typeof nowISO==='function'?nowISO():new Date().toISOString())}; }
+function _pjDraftToRec(d){ return {data:d.data, angajat:d.angajat, locatie:d.locatie, tipZi:d.tipZi, oraStart:d.oraStart, oraSfarsit:d.oraSfarsit, oreLucrate:d.oreLucrate, observatii:(d.anomalii&&d.anomalii.length?('Auto: '+d.anomalii.join(', ')):'Auto din pontaj IN/OUT'), dinPontajIO:true, normaMin:d.normaMin, diffMin:d.diffMin, supMin:d.supMin, deficitMin:d.deficitMin, salvatLa:(typeof nowISO==='function'?nowISO():new Date().toISOString())}; }
+function _pjRecFor(data,angajat){ return DB.pontaj.find(p=>p.data===data && p.angajat===angajat); }
+function pontajProponeSupl(di){ const d=_pjDrafts[di]; if(!d)return; const r=_pjRecFor(d.data,d.angajat); if(!r){ toast('Aprobă întâi ziua'); return; } r.supPropus=true; r.supMin=d.supMin; save(); toast('Ore suplimentare propuse — așteaptă confirmarea admin'); renderAprobarePontaj(); }
+function pontajConfirmaSupl(di){ if(!isAdmin()){ toast('Doar administratorul confirmă orele suplimentare.'); return; } const d=_pjDrafts[di]; if(!d)return; const r=_pjRecFor(d.data,d.angajat); if(!r)return; r.supAprobat=true; r.supPropus=true; save(); toast('✅ Ore suplimentare confirmate'); renderAprobarePontaj(); }
 function pontajEsteAprobat(nume,data){ return DB.pontaj.some(p=>p.data===data && p.angajat===nume && (p.dinPontajIO || p.corectatManual)); }
 function _pjApplyRec(rec){ const i=DB.pontaj.findIndex(p=>p.data===rec.data && p.angajat===rec.angajat); if(i>=0){ if(DB.pontaj[i].corectatManual) return; DB.pontaj[i]=Object.assign({},DB.pontaj[i],rec);} else DB.pontaj.push(rec); }
 function pontajAprobaIdx(i){ const d=_pjDrafts[i]; if(!d)return; _pjApplyRec(_pjDraftToRec(d)); save(); toast('✅ Aprobat: '+(typeof _beFirstName==='function'?_beFirstName(d.angajat):d.angajat)); renderAprobarePontaj(); }
@@ -1373,14 +1389,30 @@ function pontajShowSelfie(di,si){ const d=_pjDrafts[di]; if(!d||!d.selfies[si])r
   openModal(`<div style="text-align:center"><div style="font-weight:700;margin-bottom:8px">${escapeHtml(d.angajat)} — ${s.tip==='IN'?'Intrare':'Ieșire'} ${s.ora}</div><img src="${s.selfie}" style="max-width:100%;border-radius:10px"><div style="font-size:12px;color:var(--text-muted);margin-top:8px">${s.sursa==='telefon'?('📍 '+(s.dist!=null?s.dist+' m față de magazin':'GPS')):'PayDesk (fără selfie/GPS)'}</div><div style="margin-top:12px"><button class="btn" onclick="closeModal()">Închide</button></div></div>`); }
 function renderAprobarePontaj(){ try{pontajPullCloud();}catch(e){} _pjDrafts=pontajRollupDay(_pjAprDate);
   const totalDe=_pjDrafts.filter(d=>!pontajEsteAprobat(d.angajat,d.data)).length;
+  const _admOn=(typeof isAdmin==='function' && isAdmin());
   const rows=_pjDrafts.map((d,di)=>{ const apr=pontajEsteAprobat(d.angajat,d.data);
+    const rec=_pjRecFor(d.data, d.angajat);
     const anom=(d.anomalii||[]).map(a=>`<span style="display:inline-block;background:#fdecea;color:#c0392b;border-radius:4px;padding:1px 6px;font-size:11px;margin:1px">${escapeHtml(a)}</span>`).join(' ');
     const sfx=d.selfies.map((s,i)=>`<img src="${s.selfie}" title="${s.tip} ${s.ora}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;cursor:pointer;margin-right:3px;vertical-align:middle" onclick="pontajShowSelfie(${di},${i})">`).join('');
+    const normH=d.normaMin?(Math.round(d.normaMin/60*10)/10)+'h':'—';
+    let difHtml;
+    if(d.supMin>0) difHtml=`<span style="color:#0a7d3b;font-weight:700">+${_pjMinH(d.supMin)}</span>`;
+    else if(d.deficitMin>0) difHtml=`<span style="color:#c0392b;font-weight:700">−${_pjMinH(d.deficitMin)}</span>`;
+    else if(d.normaMin>0&&d.lucratMin>0) difHtml='<span style="color:#0a7d3b;font-size:11px">la normă</span>';
+    else difHtml='<span style="color:var(--text-muted)">—</span>';
+    let supHtml='';
+    if(d.supMin>0){ const sp=rec&&rec.supPropus, sa=rec&&rec.supAprobat;
+      if(sa) supHtml='<div style="margin-top:3px"><span style="background:#e7f6ec;color:#0a7d3b;border-radius:4px;padding:1px 6px;font-size:10.5px">✓ supl. aprobat</span></div>';
+      else if(sp) supHtml=`<div style="margin-top:3px"><span style="background:#fff7e6;color:#b45309;border-radius:4px;padding:1px 6px;font-size:10.5px">supl. propus</span>${_admOn?` <button class="btn btn-sm" style="padding:2px 7px;font-size:11px" onclick="pontajConfirmaSupl(${di})">Confirmă</button>`:''}</div>`;
+      else if(apr) supHtml=`<div style="margin-top:3px"><button class="btn btn-sm" style="padding:2px 7px;font-size:11px" onclick="pontajProponeSupl(${di})">Accept supl.</button></div>`;
+      else supHtml='<div style="margin-top:3px;font-size:10.5px;color:var(--text-muted)">aprobă întâi ziua</div>';
+    }
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:8px 6px;font-weight:600">${escapeHtml(d.angajat)}<div style="font-size:11px;color:var(--text-muted);font-weight:400">${escapeHtml(d.locatie)}</div></td>
       <td style="padding:8px 6px">${d.oraStart}</td>
       <td style="padding:8px 6px">${d.oraSfarsit}${d.deschis?' <span style="color:#c0392b" title="lipsă ieșire">⚠</span>':''}</td>
       <td style="padding:8px 6px"><strong>${d.oreLucrate==='—'?'—':d.oreLucrate+' h'}</strong></td>
+      <td style="padding:8px 6px"><span style="color:var(--text-muted);font-size:11px">${normH}</span><div style="font-size:11.5px">${difHtml}</div>${supHtml}</td>
       <td style="padding:8px 6px">${d.intarziere>0?`<span style="color:#b45309">+${d.intarziere}m</span>`:'—'}</td>
       <td style="padding:8px 6px">${sfx||'<span style="color:var(--text-muted);font-size:11px">fără</span>'}</td>
       <td style="padding:8px 6px">${anom||'<span style="color:#0a7d3b;font-size:11px">ok</span>'}</td>
@@ -1394,7 +1426,7 @@ function renderAprobarePontaj(){ try{pontajPullCloud();}catch(e){} _pjDrafts=pon
           <div><input type="date" value="${_pjAprDate}" onchange="pontajAprSetDate(this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px"></div>
         </div>
         ${_pjDrafts.length? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="text-align:left;border-bottom:2px solid var(--border)"><th style="padding:6px">Angajat</th><th style="padding:6px">Intrare</th><th style="padding:6px">Ieșire</th><th style="padding:6px">Ore</th><th style="padding:6px">Întârz.</th><th style="padding:6px">Selfie</th><th style="padding:6px">Observații</th><th style="padding:6px"></th></tr></thead>
+          <thead><tr style="text-align:left;border-bottom:2px solid var(--border)"><th style="padding:6px">Angajat</th><th style="padding:6px">Intrare</th><th style="padding:6px">Ieșire</th><th style="padding:6px">Ore</th><th style="padding:6px">Normă / Dif</th><th style="padding:6px">Întârz.</th><th style="padding:6px">Selfie</th><th style="padding:6px">Observații</th><th style="padding:6px"></th></tr></thead>
           <tbody>${rows}</tbody></table></div>
           <div style="margin-top:14px">${totalDe>0?`<button class="btn btn-primary" onclick="pontajAprobaTot()">✅ Aprobă tot (${totalDe})</button>`:'<span style="color:#0a7d3b;font-weight:600">Tot aprobat pentru această zi.</span>'}</div>`
         : '<div style="padding:24px;text-align:center;color:var(--text-muted)">Niciun pontaj în această zi.</div>'}
@@ -2019,6 +2051,9 @@ function pontajForm(rec, idx) {
     <div class="form-row">
       <div class="form-field" style="flex:3"><label>Observații</label><input type="text" id="pf_obs" value="${(cur.observatii||'').replace(/"/g,'&quot;')}"></div>
     </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:3"><label>Motiv ajustare ore (ex: învoire aprobată, inventar)</label><input type="text" id="pf_motiv" value="${(cur.motivAjustare||'').replace(/"/g,'&quot;')}" placeholder="opțional — dacă modifici orele față de pontaj"></div>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
       <button class="btn" onclick="closeModal()">Anulează</button>
       <button class="btn btn-primary" onclick="savePontaj(${idx})">Salvează</button>
@@ -2066,6 +2101,7 @@ function savePontaj(idx) {
     oraSfarsit: hasOre ? document.getElementById('pf_end').value : '—',
     oreLucrate: hasOre ? document.getElementById('pf_ore').value : '—',
     observatii: document.getElementById('pf_obs').value,
+    motivAjustare: (document.getElementById('pf_motiv')?document.getElementById('pf_motiv').value:''),
     salvatLa: nowISO()
   };
   rec.corectatManual = true;   // salvare de la admin = corecție autoritară → protejată de re-aprobare
@@ -14235,7 +14271,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-10-2030';
+const APP_VERSION = '2026-07-10-2115';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
