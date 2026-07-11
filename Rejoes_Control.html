@@ -1298,9 +1298,15 @@ function pontajProgram(){ if(!DB.programMagazin) DB.programMagazin={};
 function pontajProgFor(magKey){ const p=pontajProgram(); return p[magKey]||{open:'10:00',close:'20:00',tol:15,inchis:[]}; }
 // index zi Luni=0..Duminică=6 dintr-un obiect Date
 function _pjDow(d){ return (d.getDay()+6)%7; }
+// Orele efective ale magazinului pentru o zi anume: aplică orarul special de sâmbătă (satOpen/satClose) dacă e setat
+function pontajOreZi(prog, data){ const r={open:prog.open, close:prog.close};
+  try{ if(_pjDow(new Date(data+'T12:00:00'))===5 && prog.satOpen && prog.satClose){ r.open=prog.satOpen; r.close=prog.satClose; } }catch(e){}
+  return r; }
 async function pontajProgramSave(){ pontajProgram();
   for(const k in PONTAJ_GEO){ const o=document.getElementById('pm_open_'+k), c=document.getElementById('pm_close_'+k), t=document.getElementById('pm_tol_'+k);
     if(o) DB.programMagazin[k].open=o.value||'10:00'; if(c) DB.programMagazin[k].close=c.value||'20:00'; if(t) DB.programMagazin[k].tol=Math.max(0,parseInt(t.value||'15',10)||15);
+    const so=document.getElementById('pm_satopen_'+k), sc=document.getElementById('pm_satclose_'+k);
+    DB.programMagazin[k].satOpen=(so&&so.value)?so.value:''; DB.programMagazin[k].satClose=(sc&&sc.value)?sc.value:'';
     DB.programMagazin[k].inchis=PONTAJ_ZILE.map((_,i)=>i).filter(i=>{ const el=document.getElementById('pm_z_'+k+'_'+i); return el&&el.checked; });
   }
   save(); try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('programMagazin').set(DB.programMagazin);} }catch(e){ console.warn('program cloud',e); }
@@ -1312,6 +1318,7 @@ function renderProgramMag(){ const p=pontajProgram();
       <td style="font-weight:600;padding:8px 6px">${escapeHtml(mag(_pjMagIdByKey(k))||k)}</td>
       <td style="padding:8px 6px"><input type="time" id="pm_open_${k}" value="${g.open}" style="padding:5px;border:1px solid var(--border);border-radius:5px"></td>
       <td style="padding:8px 6px"><input type="time" id="pm_close_${k}" value="${g.close}" style="padding:5px;border:1px solid var(--border);border-radius:5px"></td>
+      <td style="padding:8px 6px;white-space:nowrap"><input type="time" id="pm_satopen_${k}" value="${g.satOpen||''}" style="padding:5px;border:1px solid var(--border);border-radius:5px;width:94px"> – <input type="time" id="pm_satclose_${k}" value="${g.satClose||''}" style="padding:5px;border:1px solid var(--border);border-radius:5px;width:94px"></td>
       <td style="padding:8px 6px"><input type="number" min="0" id="pm_tol_${k}" value="${g.tol}" style="width:64px;padding:5px;border:1px solid var(--border);border-radius:5px"> min</td>
       <td style="padding:8px 6px">${PONTAJ_ZILE.map((z,i)=>`<label style="display:inline-flex;align-items:center;gap:2px;margin-right:6px;font-size:12px"><input type="checkbox" id="pm_z_${k}_${i}" ${g.inchis.includes(i)?'checked':''}> ${z}</label>`).join('')}</td>
     </tr>`; }).join('');
@@ -1319,10 +1326,10 @@ function renderProgramMag(){ const p=pontajProgram();
     <div style="max-width:1000px;margin:0 auto">
       <div class="card">
         <div style="font-weight:700;font-size:16px;margin-bottom:4px">🕒 Program magazine</div>
-        <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px">Orele de deschidere/închidere și toleranța (minute) folosite pentru întârzieri și alarme. „Zile închise” = zilele în care magazinul nu lucrează (nu se declanșează alarme).</div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px">Orele de deschidere/închidere și toleranța (minute) folosite pentru întârzieri, normă și alarme. „Sâmbătă” = orar redus sâmbăta (ex. 09:00–13:00); lasă gol dacă sâmbăta e ca în timpul săptămânii. „Zile închise” = zilele în care magazinul nu lucrează (nu se declanșează alarme, normă 0).</div>
         <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr style="text-align:left;border-bottom:2px solid var(--border)">
-            <th style="padding:6px">Magazin</th><th style="padding:6px">Deschidere</th><th style="padding:6px">Închidere</th><th style="padding:6px">Toleranță</th><th style="padding:6px">Zile închise</th>
+            <th style="padding:6px">Magazin</th><th style="padding:6px">Deschidere</th><th style="padding:6px">Închidere</th><th style="padding:6px">Sâmbătă (desch. – închid.)</th><th style="padding:6px">Toleranță</th><th style="padding:6px">Zile închise</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
@@ -1339,7 +1346,7 @@ const PONTAJ_TOL_ORE = 15;
 function _pjHMtoMin(hm){ if(!hm||hm==='—') return 0; const a=String(hm).split(':').map(Number); return (a[0]||0)*60+(a[1]||0); }
 function pontajNormaMin(magKey, data){ const prog=pontajProgFor(magKey); if(!prog) return 0;
   try{ const dow=_pjDow(new Date(data+'T12:00:00')); if(Array.isArray(prog.inchis)&&prog.inchis.includes(dow)) return 0; }catch(e){}
-  const m=_pjHMtoMin(prog.close)-_pjHMtoMin(prog.open); return m>0?m:0; }
+  const oc=pontajOreZi(prog,data); const m=_pjHMtoMin(oc.close)-_pjHMtoMin(oc.open); return m>0?m:0; }
 function _pjMinH(m){ m=Math.round(Math.abs(m)); const h=Math.floor(m/60), mm=m%60; return h>0?(h+'h '+(mm<10?'0':'')+mm+'m'):(mm+'m'); }
 function pontajRollupPerson(nume, data){
   const punches=pontajList().filter(x=>x.angajat===nume && x.data===data).sort((a,b)=> a.ts<b.ts?-1:1);
@@ -1356,7 +1363,7 @@ function pontajRollupPerson(nume, data){
   const lastOut=[...punches].reverse().find(p=>p.tip==='OUT');
   const oraSfarsit=lastOut? _pjHM(lastOut.ts) : '—';
   const prog=pontajProgFor(magKey);
-  const late=_pjMinutesLate(oraStart, prog.open);
+  const late=_pjMinutesLate(oraStart, pontajOreZi(prog,data).open);
   if(late>prog.tol) anomalii.push('întârziere '+late+' min');
   if(!deschis && ore>0){ if(ore<0.25) anomalii.push('tură foarte scurtă'); if(ore>14) anomalii.push('tură foarte lungă'); }
   const normaMin=pontajNormaMin(magKey, data);
@@ -1501,12 +1508,13 @@ function pontajAnomalies(dateISO){
   const dow=_pjDow(new Date(day+'T12:00:00'));
   for(const k in PONTAJ_GEO){ const prog=pontajProgFor(k);
     if(prog.inchis && prog.inchis.includes(dow)) continue;
-    const openMin=_pjParseHM(prog.open), closeMin=_pjParseHM(prog.close), tol=prog.tol||15;
+    const oc=pontajOreZi(prog,day);
+    const openMin=_pjParseHM(oc.open), closeMin=_pjParseHM(oc.close), tol=prog.tol||15;
     const sp=punches.filter(p=>p.magKey===k || _beKey(p.magazin)===k);
     const magName=mag(_pjMagIdByKey(k))||k;
-    if(isToday && nowMin>=openMin+tol){ if(!sp.some(p=>p.tip==='IN')) anos.push({key:`${day}|R1|${k}`, rule:'R1', magazin:magName, persoana:'', sev:'high', mesaj:`Nicio intrare la ${magName} (deschidere ${prog.open})`}); }
+    if(isToday && nowMin>=openMin+tol){ if(!sp.some(p=>p.tip==='IN')) anos.push({key:`${day}|R1|${k}`, rule:'R1', magazin:magName, persoana:'', sev:'high', mesaj:`Nicio intrare la ${magName} (deschidere ${oc.open})`}); }
     if(isToday && nowMin>=closeMin+tol){ const names=[...new Set(sp.map(p=>p.angajat))];
-      for(const nm of names){ const st=pontajStareFor(nm); if(st.inauntru && st.last && (st.last.magKey===k || _beKey(st.last.magazin)===k)) anos.push({key:`${day}|R2|${k}|${nm}`, rule:'R2', magazin:magName, persoana:nm, sev:'high', mesaj:`${_beFirstName(nm)} încă în tură la ${magName} după închidere (${prog.close})`}); }
+      for(const nm of names){ const st=pontajStareFor(nm); if(st.inauntru && st.last && (st.last.magKey===k || _beKey(st.last.magazin)===k)) anos.push({key:`${day}|R2|${k}|${nm}`, rule:'R2', magazin:magName, persoana:nm, sev:'high', mesaj:`${_beFirstName(nm)} încă în tură la ${magName} după închidere (${oc.close})`}); }
     }
   }
   return anos;
@@ -14281,7 +14289,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-10-2210';
+const APP_VERSION = '2026-07-11-1745';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
