@@ -9770,7 +9770,8 @@ function renderRHActe(){
       {k:'incetare', h:'rhActForm', t:'📕 Decizie de încetare CIM', d:'demisie, acordul părților, perioadă de probă...'}
     ]},
     {titlu:'📋 Document de personal', items:[
-      {k:'fisapost', h:'rhActForm', t:'📋 Fișă de post (lucrător comercial)', d:'versiunea actuală — generată pentru angajatul ales'}
+      {k:'fisapost', h:'rhActForm', t:'📋 Fișă de post (lucrător comercial)', d:'versiunea actuală — generată pentru angajatul ales'},
+      {k:'fisapostSup', h:'rhActForm', t:'📋 Fișă de post (Supervizor magazin)', d:'COR 142003 — funcție de coordonare la nivel de magazin'}
     ]},
     {titlu:'📊 Evaluare', items:[
       {k:'evaluare', h:'rhEvalForm', t:'🧮 Fișă de evaluare profesională', d:'17 criterii, calcul automat, calificativ + reminder pt. următoarea'}
@@ -9900,16 +9901,16 @@ function rhActForm(kind, presetNume){
         <div class="form-field" style="flex:2"><label>Motivele înlăturării apărărilor</label><input id="ra_motive" placeholder="sau: salariatul nu s-a prezentat la cercetare"></div></div>
       <div class="form-row"><div class="form-field" style="flex:3"><label>Motivarea deciziei</label><textarea id="ra_motivare" rows="3" style="width:100%" placeholder="alege un model mai sus sau scrie aici"></textarea></div></div>`;
   }
-  if(kind==='fisapost'){
+  if(kind==='fisapost'||kind==='fisapostSup'){
     body=`<div class="form-row"><div class="form-field" style="flex:2"><label>Angajat</label><select id="ra_ang" onchange="rhFillAng()">${_rhAngOptions(presetNume)}</select></div>
         <div class="form-field"><label>Nr. / data</label><input id="ra_nr"></div></div>
       <div class="form-row"><div class="form-field"><label>CNP</label><input id="ra_cnp"></div>
-        <div class="form-field"><label>Funcția</label><input id="ra_functie" value="Lucrător comercial"></div>
+        <div class="form-field"><label>Funcția</label><input id="ra_functie" value="${kind==='fisapostSup'?'Supervizor magazin':'Lucrător comercial'}"></div>
         <div class="form-field"><label>Nr. CIM</label><input id="ra_cim"></div></div>
       <div class="form-row"><div class="form-field" style="flex:2"><label>Punct de lucru</label>${_rhLocSel('ra_loc')}</div>
         <div class="form-field"><label>Data</label><input type="date" id="ra_data"></div></div>`;
   }
-  const titluri={adeverinta:'Adeverință de salariat', adeverintaVechime:'Adeverință de vechime', incetare:'Decizie de încetare CIM', actaditional:'Act adițional la CIM', sesizare:'Referat de sesizare', convocare:'Convocare la cercetare disciplinară', cercetare:'Proces-verbal de cercetare disciplinară', sanctiune:'Decizie de sancționare disciplinară', fisapost:'Fișă de post — Lucrător comercial'};
+  const titluri={adeverinta:'Adeverință de salariat', adeverintaVechime:'Adeverință de vechime', incetare:'Decizie de încetare CIM', actaditional:'Act adițional la CIM', sesizare:'Referat de sesizare', convocare:'Convocare la cercetare disciplinară', cercetare:'Proces-verbal de cercetare disciplinară', sanctiune:'Decizie de sancționare disciplinară', fisapost:'Fișă de post — Lucrător comercial', fisapostSup:'Fișă de post — Supervizor magazin'};
   openModal(`<div style="max-height:74vh;overflow:auto;padding-right:6px">
     <h3 style="margin-top:0">${titluri[kind]||'Act'}</h3>
     <p style="color:var(--text-muted);font-size:12.5px;margin-top:-4px">Alege angajatul (se pre-completează din aplicație) și completează restul. Ce lași gol apare marcat în document.</p>
@@ -9929,7 +9930,7 @@ function rhFillAng(){
   var _m=(DB.magazine.find(x=>x.id===a.magazin)||{}); set('ev_loc', _m.nume||a.magazin||'');
 }
 /* === Auto-numerotare documente RH: an(2) + inițiale + 3 cifre (ex. 26AS001), contor separat pe tip === */
-function rhDocIni(kind){ return ({adeverinta:'AS',adeverintaVechime:'AV',actaditional:'AA',incetare:'DI',sesizare:'RS',convocare:'CD',cercetare:'PV',sanctiune:'DS',evaluare:'FE',fisapost:'FP'})[kind]||'XX'; }
+function rhDocIni(kind){ return ({adeverinta:'AS',adeverintaVechime:'AV',actaditional:'AA',incetare:'DI',sesizare:'RS',convocare:'CD',cercetare:'PV',sanctiune:'DS',evaluare:'FE',fisapost:'FP',fisapostSup:'FS'})[kind]||'XX'; }
 function rhDocKey(kind){ return String(new Date().getFullYear()).slice(-2)+rhDocIni(kind); }
 function rhNextDocNo(kind){ if(!DB.docCounters) DB.docCounters={}; const k=rhDocKey(kind); return k+String((DB.docCounters[k]||0)+1).padStart(3,'0'); }
 function rhCommitDocNo(kind,used){ if(!DB.docCounters) DB.docCounters={}; const k=rhDocKey(kind); const m=used&&String(used).match(new RegExp('^'+k+'0*(\\d+)')); if(m){ const n=parseInt(m[1],10); if(n>(DB.docCounters[k]||0)){ DB.docCounters[k]=n; save(); } } }
@@ -10078,6 +10079,45 @@ function rhGenAct(kind){
       <h3>XX. Dispoziții finale</h3>
       <p>Prezenta fișă face parte integrantă din Contractul Individual de Muncă. Salariatul declară că a luat la cunoștință conținutul, a înțeles obligațiile și responsabilitățile postului și se obligă să respecte procedurile interne și dispozițiile legale aplicabile.</p>`;
   }
+  else if(kind==='fisapostSup'){
+    titlu='FIȘĂ DE POST'; fname='Fisa_post_Supervizor_'+(ang||'').replace(/[^\w]+/g,'_');
+    inner=`<p style="text-align:right">Nr. ${S(g('ra_nr'),'___')} / ${S(g('ra_data')||todayISO(),'data')}</p>
+      <h2 style="text-align:center;margin:2px 0">FIȘĂ DE POST</h2>
+      <p style="text-align:center;margin:0 0 8px">Supervizor magazin — Cod COR 142003 (Șef serviciu comerț cu ridicata și amănuntul)</p>
+      <h3>I. Date de identificare</h3>
+      <p>Angajator: ${RH_FIRMA.nume}, sediu ${RH_FIRMA.sediu}, C.I.F. ${RH_FIRMA.cif}, Nr. Reg. Com. ${RH_FIRMA.regcom}, administrator ${RH_FIRMA.admin}.</p>
+      <p>Salariat: ${S(ang,'nume salariat')}, CNP ${S(g('ra_cnp'),'___')}, funcția ${S(g('ra_functie')||'Supervizor magazin','funcția')}, CIM nr. ${S(g('ra_cim'),'___')}. Departament: Comercial/Retail; nivel: coordonare operațională (funcție de conducere la nivel de punct de lucru). Punct de lucru: ${S(rhLocVal('ra_loc'),'punctul de lucru')}. Se subordonează conducerii societății (COO / Manager operațional / Administrator).</p>
+      <h3>II. Scopul postului</h3>
+      <p>Coordonarea și buna funcționare de zi cu zi a magazinului repartizat: conducerea echipei de pe locație, organizarea activității, atingerea țintelor de vânzări și menținerea standardului de servire și de imagine a magazinului. Supervizorul este reperul de atitudine și implicare pentru echipă.</p>
+      <h3>III. Relații ierarhice</h3>
+      <p>Se subordonează conducerii societății (COO / Manager operațional / Administrator). Are în subordine lucrătorii comerciali (COR 522303) și personalul repartizat pe magazin. Colaborează cu depozitul, ceilalți supervizori, resurse umane și contabilitate. Poziția în organigramă: Lucrător comercial (522303) → Supervizor magazin (142003) → Conducere.</p>
+      <h3>IV. Cerințele postului</h3>
+      <ul><li>experiență în activitatea comercială / retail;</li><li>capacitate de organizare și de conducere a unei echipe;</li><li>cunoașterea operațiunilor de magazin (vânzare, casă/POS, gestiune);</li><li>comunicare, inițiativă, responsabilitate, orientare spre rezultat și către client;</li><li>apt medical; disponibilitate pentru program în ture/inegal, conform Codului muncii.</li></ul>
+      <h3>V. Atribuții și responsabilități</h3>
+      <p>1. Organizează ziua de lucru a magazinului: program, priorități, repartizarea sarcinilor; toate deciziile organizatorice „on-site" se iau la nivelul Supervizorului. 2. Conduce, îndrumă și motivează echipa; asigură prezența, ținuta și disciplina; este primul punct de contact pentru echipă. 3. Urmărește realizarea țintei de vânzări (break-even) și propune măsuri de creștere; monitorizează încasările zilnice. 4. Asigură expunerea corectă a marfii, reaprovizionarea sălii și semnalarea lipsurilor și a cererilor clienților către conducere/achiziții. 5. Supraveghează operațiunile de casă și corectitudinea încasărilor și a raportărilor zilnice. 6. Menține curățenia, ordinea, standardul de servire și imaginea magazinului. 7. Organizează și participă la inventarele periodice. 8. Raportează conducerii rezultatele, incidentele și propunerile de îmbunătățire, la termenele stabilite. 9. Asigură respectarea de către echipă a procedurilor interne, a ROI și a normelor SSM/PSI. 10. Îndeplinește, la nevoie, și atribuțiile de lucrător comercial, pe care le și supervizează.</p>
+      <h3>VI. Autoritate și limite de decizie</h3>
+      <p>Decide direct organizarea internă a magazinului — program zilnic, repartizarea sarcinilor, aranjarea și prioritățile pe locație. Propune, fără a decide singură: comenzi de marfă, prețuri, angajări/încetări, buget și investiții — acestea rămân la conducere.</p>
+      <h3>VII. Program, prezență și pontaj</h3>
+      <p>Magazinul se deschide la începutul turei și se închide la final, nu mai devreme. Pontarea la intrare/ieșire este obligatorie, inclusiv pentru Supervizor. Programul și graficele de ture respectă planificarea internă, conform Codului muncii, ROI și CIM. Evidența timpului se ține conform art. 119 Codul muncii.</p>
+      <h3>VIII. Comunicare</h3>
+      <p>Supervizorul răspunde de comunicarea zilnică a magazinului pe canalul intern (grupul magazinului) — obiective, rezultate, semnale operaționale — și asigură transmiterea informațiilor între echipă și conducere. Telefon mobil funcțional necesar.</p>
+      <h3>IX. Obligații privind disciplina și loialitatea</h3>
+      <p>Conform art. 39 alin. (2) Codul muncii: respectarea disciplinei muncii; fidelitate față de angajator; respectarea ROI și a procedurilor; confidențialitate; utilizarea cu grijă a bunurilor; conduită profesională. Supervizorul dă exemplu echipei și veghează la respectarea acelorași obligații de către personalul din subordine.</p>
+      <h3>X. Răspunderea patrimonială</h3>
+      <p>Conform art. 254–259 Codul muncii, răspunde patrimonial pentru prejudiciile produse din vina și în legătură cu munca sa, inclusiv în legătură cu organizarea și supravegherea activității magazinului (lipsuri imputabile, diferențe de casă, deteriorarea bunurilor, nerespectarea procedurilor).</p>
+      <h3>XI. SSM / PSI / SU</h3>
+      <p>Respectă și asigură respectarea de către echipă a normelor SSM și PSI; participă la instruiri, utilizează corect echipamentele, raportează incidentele și respectă procedurile de evacuare și prevenire a incendiilor.</p>
+      <h3>XII. GDPR și confidențialitate</h3>
+      <p>Conform Regulamentului UE 2016/679 (GDPR), păstrează confidențialitatea datelor la care are acces și asigură respectarea acelorași reguli de către echipă. Este interzisă divulgarea datelor clienților sau a informațiilor comerciale.</p>
+      <h3>XIII. Monitorizarea activității</h3>
+      <p>Activitatea poate fi monitorizată prin sisteme video, verificări ale operațiunilor comerciale și ale documentelor, inventare și controale interne, cu respectarea legislației privind protecția datelor.</p>
+      <h3>XIV. Evaluarea profesională</h3>
+      <p>Evaluarea se realizează periodic conform ROI (Fișa de evaluare — 17 criterii), având în vedere în plus rezultatele echipei coordonate și capacitatea de organizare și de conducere.</p>
+      <h3>XV. Temeiuri legale</h3>
+      <p>Legea 53/2003 (Codul muncii); Legea 319/2006 (SSM); HG 1425/2006; Legea 307/2006 (incendii); OUG 28/1999 (aparate de marcat); OG 99/2000 (comercializare); Regulamentul UE 2016/679 (GDPR); Regulamentul Intern și procedurile interne.</p>
+      <h3>XVI. Dispoziții finale</h3>
+      <p>Prezenta fișă face parte integrantă din Contractul Individual de Muncă. Salariatul declară că a luat la cunoștință conținutul, a înțeles atribuțiile și responsabilitățile funcției de Supervizor și se obligă să respecte procedurile interne și dispozițiile legale aplicabile.</p>`;
+  }
   // salvăm draft local
   if(!DB.rhActe) DB.rhActe=[];
   DB.rhActe.push({id:'RHA-'+Date.now(), tip:kind, angajat:ang, salvatLa:nowISO()});
@@ -10086,7 +10126,7 @@ function rhGenAct(kind){
   const html=`<div style="font-family:Georgia,'Times New Roman',serif;line-height:1.55;font-size:13.5px;color:#111">${_rhHeader()}${inner}
     <table style="width:100%;margin-top:30px"><tr>
       <td style="width:50%;vertical-align:top">Angajator,<br>${RH_FIRMA.nume}<br>prin ${RH_FIRMA.admin}<br><br>Semnătură și ștampilă: __________</td>
-      <td style="width:50%;vertical-align:top">${(kind==='incetare'||kind==='fisapost')?'Am luat la cunoștință,<br>Salariat':'Salariat,'}<br>${escapeHtml(ang||'____________')}<br><br>Semnătură: __________</td>
+      <td style="width:50%;vertical-align:top">${(kind==='incetare'||kind==='fisapost'||kind==='fisapostSup')?'Am luat la cunoștință,<br>Salariat':'Salariat,'}<br>${escapeHtml(ang||'____________')}<br><br>Semnătură: __________</td>
     </tr></table></div>`;
   _rhLastDoc={fname, html};
   openModal(`<h3 style="margin-top:0">✅ ${titlu} — gata!</h3>
@@ -14289,7 +14329,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-11-1745';
+const APP_VERSION = '2026-07-11-1810';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
