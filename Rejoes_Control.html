@@ -1233,7 +1233,10 @@ async function pontajPunchPhone(tip){ const nume=pontajMe; if(!nume)return;
   let pos; try{ pos=await pontajGetPosition(); }catch(e){ _pjMsg('⚠ '+e.message,'#c4453a'); return; }
   const strict=pontajStrict(nume);
   const st=pontajFindStore(pos.lat,pos.lng,pos.acc,strict);
-  if(!st){ const n=pontajNearest(pos.lat,pos.lng); _pjMsg(`⛔ Trebuie să fii ${strict?'în magazin (max 20 m, fără toleranță)':'la magazin'}. Cel mai apropiat: ${n?n.k+' la ~'+n.d+' m':'—'}${strict?'':` (precizie GPS ±${pos.acc} m)`}.`,'#c4453a'); return; }
+  if(!st){ const n=pontajNearest(pos.lat,pos.lng);
+    const badGps = pos.acc>150;
+    const hint = badGps ? ` ⚠ GPS imprecis (±${pos.acc} m). Pornește „Locație precisă"/Precizie ridicată în setări, deschide lângă o fereastră sau ieși 10 s afară, apoi reîncearcă. Sau folosește PayDesk.` : '';
+    _pjMsg(`⛔ Trebuie să fii ${strict?'în magazin (max 20 m, fără toleranță)':'la magazin'}. Cel mai apropiat: ${n?n.k+' la ~'+n.d+' m':'—'}${strict?'':` (precizie GPS ±${pos.acc} m)`}.${hint}`,'#c4453a'); return; }
   _pjMsg('📸 Fă un selfie pentru confirmare…','#0a7d3b');
   const selfie=await pontajCaptureSelfie();
   if(selfie===null){ _pjMsg('Pontaj anulat — selfie-ul e obligatoriu.','#b45309'); return; }
@@ -14346,7 +14349,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-12-0930';
+const APP_VERSION = '2026-07-12-1015';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
