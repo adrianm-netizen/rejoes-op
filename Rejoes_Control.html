@@ -1124,7 +1124,7 @@ let PONTAJ_GEO = {
   'Lugoj':      {lat:45.6823178, lng:21.8995029, raza:20}
 };
 // NU apar la butoanele de pontaj: Dana(Ursache), Olga(Baraban), Adrian(Marinescu) + plecate din firmă: Ciobanu, Bakaity
-const PONTAJ_EXEMPT_NAMES = ['ursache','baraban','marinescu','ciobanu','bakaity'];
+const PONTAJ_EXEMPT_NAMES = ['ursache','baraban','marinescu','luminita','bakaity']; // 'luminita' (Ciobanu Luminița plecată) — NU 'ciobanu', ca să nu excludă din greșeală pe Ciobanu Gianina (activă)
 function pontajExempt(nume){ const s=_beStrip(String(nume||'').toLowerCase()); return PONTAJ_EXEMPT_NAMES.some(x=>s.includes(x)); }
 // Ana(Onofrei): APARE la butoane (vizibilă pentru echipă) DAR nu pontează efectiv
 const PONTAJ_NOPUNCH_NAMES = ['onofrei'];
@@ -14346,7 +14346,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-11-1840';
+const APP_VERSION = '2026-07-12-0930';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
