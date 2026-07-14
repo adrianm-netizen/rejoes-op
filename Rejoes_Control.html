@@ -1628,7 +1628,10 @@ function renderPontajControl(){ try{pontajPullCloud();}catch(e){} _pjCtrlAnos=po
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
           <div style="font-weight:700;font-size:14px">📸 Pontaje pe zi (cu selfie)</div>
-          <input type="date" value="${day}" onchange="pontajCtrlDate(this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            ${_pjAdm?`<button class="btn btn-primary" style="font-size:12px;padding:6px 10px" onclick="pontajCtrlAddPunch()">➕ Adaugă pontare</button>`:''}
+            <input type="date" value="${day}" onchange="pontajCtrlDate(this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px">
+          </div>
         </div>
         <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr style="text-align:left;border-bottom:2px solid var(--border)"><th style="padding:6px">Ora</th><th style="padding:6px">Tip</th><th style="padding:6px">Persoană</th><th style="padding:6px">Magazin</th><th style="padding:6px">Sursă</th><th style="padding:6px">Selfie</th>${_pjAdm?'<th style="padding:6px">Corectează</th>':''}</tr></thead>
@@ -1686,6 +1689,36 @@ async function pontajCtrlDelPunch(id){
   save(); _pjRefreshFisaForDay(p.data, p.angajat);
   try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('ponch/'+id).remove(); } }catch(e){ console.warn('punch del cloud',e); }
   toast('Pontare ștearsă'); renderPontajControl();
+}
+// --- Adaugă o pontare lipsă (IN/OUT) — DOAR ADMIN. Fără selfie/GPS, marcată ca adăugată de admin. ---
+function pontajCtrlAddPunch(){
+  if(!isAdmin()){ toast('Doar administratorul poate adăuga pontări.'); return; }
+  const emps=pontajEmployees();
+  const opts=emps.map((n,i)=>`<option value="${i}">${escapeHtml(pontajDisplay(n))}</option>`).join('');
+  const mags=Object.keys(PONTAJ_GEO).map(k=>`<option value="${k}">${k}</option>`).join('');
+  const day=_pjCtrlDate||_pjToday();
+  openModal(`<h3 style="margin:0 0 6px">➕ Adaugă pontare (manual)</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px">Pentru o intrare/ieșire lipsă (ex. cineva a uitat să pontese). Fără selfie/GPS — se marchează ca adăugată de admin. Ziua: <b>${day}</b>.</p>
+    <div class="form-field"><label>Persoană</label><select id="pcaPers">${opts}</select></div>
+    <div class="form-field" style="margin-top:8px"><label>Magazin</label><select id="pcaMag">${mags}</select></div>
+    <div class="form-field" style="margin-top:8px"><label>Tip</label><select id="pcaTip"><option value="OUT">Ieșire (OUT)</option><option value="IN">Intrare (IN)</option></select></div>
+    <div class="form-field" style="margin-top:8px"><label>Ora</label><input type="time" id="pcaOra" value="17:00" style="padding:8px;border:1px solid var(--border);border-radius:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Renunță</button><button class="btn btn-primary" onclick="pontajCtrlAddSave()">Salvează</button></div>`);
+}
+async function pontajCtrlAddSave(){
+  if(!isAdmin()){ toast('Doar administratorul poate adăuga pontări.'); return; }
+  const emps=pontajEmployees();
+  const nume=emps[+document.getElementById('pcaPers').value];
+  const key=document.getElementById('pcaMag').value;
+  const tip=document.getElementById('pcaTip').value;
+  const ora=document.getElementById('pcaOra').value;
+  const day=_pjCtrlDate||_pjToday();
+  if(!nume||!key||!ora){ toast('Completează persoana, magazinul și ora'); return; }
+  const magId=_pjMagIdByKey(key);
+  const nd=new Date(day+'T'+ora+':00');
+  await pontajSavePunch({data:day, ora, ts:(isNaN(nd.getTime())?new Date().toISOString():nd.toISOString()), angajat:nume, magazin:magId, magKey:key, tip, sursa:'manual-admin', geoOk:null, ajustatDeAdmin:true, oraOriginal:'—', flag:'adăugat manual de admin'});
+  _pjRefreshFisaForDay(day, nume);
+  closeModal(); toast(`✅ ${tip==='IN'?'Intrare':'Ieșire'} adăugată — ${_beFirstName(nume)}, ${ora}`); renderPontajControl();
 }
 
 // ========== Raport zilnic pe magazine (read-only, pentru Olga) ==========
@@ -14349,7 +14382,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-12-1015';
+const APP_VERSION = '2026-07-14-2130';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
