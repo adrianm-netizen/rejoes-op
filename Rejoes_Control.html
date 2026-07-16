@@ -1714,9 +1714,16 @@ function pontajFixOreModal(){
 }
 function pontajFixPreview(){
   const rows=_pfxMatch(); const to=(document.getElementById('pfxTo')||{}).value;
+  const luna=(document.getElementById('pfxLuna')||{}).value||'';
   const el=document.getElementById('pfxPrev'); if(!el) return;
-  if(!rows.length){ el.innerHTML='Nicio înregistrare găsită pentru luna și valoarea alese.'; return; }
-  el.innerHTML=`<b style="color:var(--text)">${rows.length}</b> înregistrări vor deveni <b style="color:var(--text)">${to}h</b>:<br><br>`
+  // Diagnostic: ce există efectiv în luna aleasă
+  const all=(DB.pontaj||[]).filter(p=>p && String(p.data||'').slice(0,7)===luna);
+  const cnt={};
+  all.forEach(p=>{ const k=(p.oreLucrate===''||p.oreLucrate===null||p.oreLucrate===undefined)?'(gol)':String(p.oreLucrate); cnt[k]=(cnt[k]||0)+1; });
+  const distinct=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).map(k=>`<b style="color:var(--text)">${escapeHtml(k)}</b> × ${cnt[k]}`).join(' &nbsp;·&nbsp; ');
+  const diag=`<div style="border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:8px">În <b style="color:var(--text)">${escapeHtml(luna)}</b> există <b style="color:var(--text)">${all.length}</b> înregistrări în Pontaj.<br>Valori „ore lucrate” găsite: ${all.length?distinct:'—'}</div>`;
+  if(!rows.length){ el.innerHTML=diag+'⚠ Nicio înregistrare nu are exact valoarea căutată. Ia o valoare din lista de mai sus și pune-o în „Înlocuiește orele”.'; return; }
+  el.innerHTML=diag+`<b style="color:var(--text)">${rows.length}</b> înregistrări vor deveni <b style="color:var(--text)">${to}h</b>:<br><br>`
     + rows.slice(0,60).map(p=>`${p.data} · ${escapeHtml(_beFirstName(p.angajat))} · ${escapeHtml(String(p.locatie||''))} · <b>${p.oreLucrate}h</b>`).join('<br>')
     + (rows.length>60?`<br>… și încă ${rows.length-60}`:'');
 }
@@ -14431,7 +14438,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-16-1520';
+const APP_VERSION = '2026-07-16-1545';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
