@@ -1630,6 +1630,7 @@ function renderPontajControl(){ try{pontajPullCloud();}catch(e){} _pjCtrlAnos=po
           <div style="font-weight:700;font-size:14px">📸 Pontaje pe zi (cu selfie)</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             ${_pjAdm?`<button class="btn btn-primary" style="font-size:12px;padding:6px 10px" onclick="pontajCtrlAddPunch()">➕ Adaugă pontare</button>`:''}
+            ${_pjAdm?`<button class="btn" style="font-size:12px;padding:6px 10px" onclick="pontajFixOreModal()">🔧 Corecție ore (lunar)</button>`:''}
             <input type="date" value="${day}" onchange="pontajCtrlDate(this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px">
           </div>
         </div>
@@ -1689,6 +1690,54 @@ async function pontajCtrlDelPunch(id){
   save(); _pjRefreshFisaForDay(p.data, p.angajat);
   try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('ponch/'+id).remove(); } }catch(e){ console.warn('punch del cloud',e); }
   toast('Pontare ștearsă'); renderPontajControl();
+}
+// --- Corecție ore în fișele lunare (Pontaj) — DOAR ADMIN. Înlocuiește o valoare de ore cu alta, pe o lună. ---
+function _pfxNum(v){ if(v===null||v===undefined) return NaN; const s=String(v).replace(',','.').trim(); const n=parseFloat(s); return isNaN(n)?NaN:n; }
+function _pfxMatch(){
+  const luna=(document.getElementById('pfxLuna')||{}).value||'';
+  const from=_pfxNum((document.getElementById('pfxFrom')||{}).value);
+  if(!luna||isNaN(from)) return [];
+  return (DB.pontaj||[]).filter(p=>p && String(p.data||'').slice(0,7)===luna && Math.abs(_pfxNum(p.oreLucrate)-from)<0.001);
+}
+function pontajFixOreModal(){
+  if(!isAdmin()){ toast('Doar administratorul poate face corecții.'); return; }
+  openModal(`<h3 style="margin:0 0 6px">🔧 Corecție ore în pontaj (pe lună)</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px">Înlocuiește o valoare de ore cu alta, în fișele lunare. Ex.: iunie, 7,5 → 7. Se face backup automat înainte de aplicare, iar înregistrările corectate sunt marcate manual (nu se mai suprascriu automat).</p>
+    <div class="form-field"><label>Luna</label><input type="month" id="pfxLuna" value="2026-06" style="padding:8px;border:1px solid var(--border);border-radius:6px"></div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <div class="form-field" style="margin:0;flex:1"><label>Înlocuiește orele</label><input type="number" step="0.25" id="pfxFrom" value="7.5" style="padding:8px;border:1px solid var(--border);border-radius:6px;width:100%"></div>
+      <div class="form-field" style="margin:0;flex:1"><label>Cu</label><input type="number" step="0.25" id="pfxTo" value="7" style="padding:8px;border:1px solid var(--border);border-radius:6px;width:100%"></div>
+    </div>
+    <div style="margin-top:10px"><button class="btn" onclick="pontajFixPreview()">🔍 Previzualizează</button></div>
+    <div id="pfxPrev" style="margin-top:10px;max-height:220px;overflow:auto;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;color:var(--text-muted)">Apasă „Previzualizează” ca să vezi ce se modifică.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeModal()">Renunță</button><button class="btn btn-primary" onclick="pontajFixApply()">Aplică</button></div>`);
+}
+function pontajFixPreview(){
+  const rows=_pfxMatch(); const to=(document.getElementById('pfxTo')||{}).value;
+  const el=document.getElementById('pfxPrev'); if(!el) return;
+  if(!rows.length){ el.innerHTML='Nicio înregistrare găsită pentru luna și valoarea alese.'; return; }
+  el.innerHTML=`<b style="color:var(--text)">${rows.length}</b> înregistrări vor deveni <b style="color:var(--text)">${to}h</b>:<br><br>`
+    + rows.slice(0,60).map(p=>`${p.data} · ${escapeHtml(_beFirstName(p.angajat))} · ${escapeHtml(String(p.locatie||''))} · <b>${p.oreLucrate}h</b>`).join('<br>')
+    + (rows.length>60?`<br>… și încă ${rows.length-60}`:'');
+}
+async function pontajFixApply(){
+  if(!isAdmin()){ toast('Doar administratorul poate face corecții.'); return; }
+  const from=_pfxNum((document.getElementById('pfxFrom')||{}).value);
+  const to=_pfxNum((document.getElementById('pfxTo')||{}).value);
+  const rows=_pfxMatch();
+  if(isNaN(to)){ toast('Pune o valoare validă în „Cu”'); return; }
+  if(!rows.length){ toast('Nicio înregistrare de modificat'); return; }
+  if(!confirm(`Modifici ${rows.length} înregistrări din ${from}h în ${to}h?\n\nSe face backup înainte.`)) return;
+  try{ if(typeof createBackup==='function') createBackup('pre-fix-ore-'+Date.now()); }catch(e){}
+  rows.forEach(p=>{
+    p.oreLucrate=to;
+    if(!isNaN(_pfxNum(p.oreReal)) && Math.abs(_pfxNum(p.oreReal)-from)<0.001) p.oreReal=to;
+    p.corectatManual=true;
+  });
+  try{ _lastLocalChange=Date.now(); }catch(e){}
+  save();
+  closeModal(); toast(`✅ ${rows.length} înregistrări modificate: ${from}h → ${to}h`);
+  renderPontajControl();
 }
 // --- Adaugă o pontare lipsă (IN/OUT) — DOAR ADMIN. Fără selfie/GPS, marcată ca adăugată de admin. ---
 function pontajCtrlAddPunch(){
@@ -14382,7 +14431,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-14-2130';
+const APP_VERSION = '2026-07-16-1520';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
