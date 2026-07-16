@@ -1693,11 +1693,19 @@ async function pontajCtrlDelPunch(id){
 }
 // --- Corecție ore în fișele lunare (Pontaj) — DOAR ADMIN. Înlocuiește o valoare de ore cu alta, pe o lună. ---
 function _pfxNum(v){ if(v===null||v===undefined) return NaN; const s=String(v).replace(',','.').trim(); const n=parseFloat(s); return isNaN(n)?NaN:n; }
+function _pfxExcluded(nume){
+  const raw=((document.getElementById('pfxExcl')||{}).value||'').trim();
+  if(!raw) return false;
+  const n=String(nume||'').toLowerCase();
+  return raw.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean).some(t=>n.includes(t));
+}
 function _pfxMatch(){
   const luna=(document.getElementById('pfxLuna')||{}).value||'';
   const from=_pfxNum((document.getElementById('pfxFrom')||{}).value);
   if(!luna||isNaN(from)) return [];
-  return (DB.pontaj||[]).filter(p=>p && String(p.data||'').slice(0,7)===luna && Math.abs(_pfxNum(p.oreLucrate)-from)<0.001);
+  return (DB.pontaj||[]).filter(p=>p && String(p.data||'').slice(0,7)===luna
+    && Math.abs(_pfxNum(p.oreLucrate)-from)<0.001
+    && !_pfxExcluded(p.angajat));
 }
 function pontajFixOreModal(){
   if(!isAdmin()){ toast('Doar administratorul poate face corecții.'); return; }
@@ -1708,6 +1716,7 @@ function pontajFixOreModal(){
       <div class="form-field" style="margin:0;flex:1"><label>Înlocuiește orele</label><input type="number" step="0.25" id="pfxFrom" value="7.5" style="padding:8px;border:1px solid var(--border);border-radius:6px;width:100%"></div>
       <div class="form-field" style="margin:0;flex:1"><label>Cu</label><input type="number" step="0.25" id="pfxTo" value="7" style="padding:8px;border:1px solid var(--border);border-radius:6px;width:100%"></div>
     </div>
+    <div class="form-field" style="margin-top:8px"><label>Exclude persoanele (nume parțial, separate prin virgulă)</label><input type="text" id="pfxExcl" value="BARABAN, ONOFREI, URSACHE" style="padding:8px;border:1px solid var(--border);border-radius:6px;width:100%"></div>
     <div style="margin-top:10px"><button class="btn" onclick="pontajFixPreview()">🔍 Previzualizează</button></div>
     <div id="pfxPrev" style="margin-top:10px;max-height:220px;overflow:auto;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;color:var(--text-muted)">Apasă „Previzualizează” ca să vezi ce se modifică.</div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeModal()">Renunță</button><button class="btn btn-primary" onclick="pontajFixApply()">Aplică</button></div>`);
@@ -1716,12 +1725,14 @@ function pontajFixPreview(){
   const rows=_pfxMatch(); const to=(document.getElementById('pfxTo')||{}).value;
   const luna=(document.getElementById('pfxLuna')||{}).value||'';
   const el=document.getElementById('pfxPrev'); if(!el) return;
-  // Diagnostic: ce există efectiv în luna aleasă
-  const all=(DB.pontaj||[]).filter(p=>p && String(p.data||'').slice(0,7)===luna);
+  // Diagnostic: ce există efectiv în luna aleasă (fără persoanele excluse)
+  const luna_all=(DB.pontaj||[]).filter(p=>p && String(p.data||'').slice(0,7)===luna);
+  const all=luna_all.filter(p=>!_pfxExcluded(p.angajat));
+  const nExcl=luna_all.length-all.length;
   const cnt={};
   all.forEach(p=>{ const k=(p.oreLucrate===''||p.oreLucrate===null||p.oreLucrate===undefined)?'(gol)':String(p.oreLucrate); cnt[k]=(cnt[k]||0)+1; });
   const distinct=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).map(k=>`<b style="color:var(--text)">${escapeHtml(k)}</b> × ${cnt[k]}`).join(' &nbsp;·&nbsp; ');
-  const diag=`<div style="border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:8px">În <b style="color:var(--text)">${escapeHtml(luna)}</b> există <b style="color:var(--text)">${all.length}</b> înregistrări în Pontaj.<br>Valori „ore lucrate” găsite: ${all.length?distinct:'—'}</div>`;
+  const diag=`<div style="border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:8px">În <b style="color:var(--text)">${escapeHtml(luna)}</b>: <b style="color:var(--text)">${all.length}</b> înregistrări eligibile${nExcl?` (<b style="color:#b45309">${nExcl}</b> excluse)`:''}.<br>Valori „ore lucrate” găsite: ${all.length?distinct:'—'}</div>`;
   if(!rows.length){ el.innerHTML=diag+'⚠ Nicio înregistrare nu are exact valoarea căutată. Ia o valoare din lista de mai sus și pune-o în „Înlocuiește orele”.'; return; }
   el.innerHTML=diag+`<b style="color:var(--text)">${rows.length}</b> înregistrări vor deveni <b style="color:var(--text)">${to}h</b>:<br><br>`
     + rows.slice(0,60).map(p=>`${p.data} · ${escapeHtml(_beFirstName(p.angajat))} · ${escapeHtml(String(p.locatie||''))} · <b>${p.oreLucrate}h</b>`).join('<br>')
@@ -14438,7 +14449,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-16-1545';
+const APP_VERSION = '2026-07-16-1915';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
