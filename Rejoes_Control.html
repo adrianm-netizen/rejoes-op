@@ -1310,6 +1310,9 @@ async function pontajProgramSave(){ pontajProgram();
     if(o) DB.programMagazin[k].open=o.value||'10:00'; if(c) DB.programMagazin[k].close=c.value||'20:00'; if(t) DB.programMagazin[k].tol=Math.max(0,parseInt(t.value||'15',10)||15);
     const so=document.getElementById('pm_satopen_'+k), sc=document.getElementById('pm_satclose_'+k);
     DB.programMagazin[k].satOpen=(so&&so.value)?so.value:''; DB.programMagazin[k].satClose=(sc&&sc.value)?sc.value:'';
+    const nz=document.getElementById('pm_norma_'+k), ns=document.getElementById('pm_normasat_'+k);
+    DB.programMagazin[k].norma=(nz&&nz.value!=='')?parseFloat(nz.value):'';
+    DB.programMagazin[k].normaSat=(ns&&ns.value!=='')?parseFloat(ns.value):'';
     DB.programMagazin[k].inchis=PONTAJ_ZILE.map((_,i)=>i).filter(i=>{ const el=document.getElementById('pm_z_'+k+'_'+i); return el&&el.checked; });
   }
   save(); try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('programMagazin').set(DB.programMagazin);} }catch(e){ console.warn('program cloud',e); }
@@ -1322,6 +1325,8 @@ function renderProgramMag(){ const p=pontajProgram();
       <td style="padding:8px 6px"><input type="time" id="pm_open_${k}" value="${g.open}" style="padding:5px;border:1px solid var(--border);border-radius:5px"></td>
       <td style="padding:8px 6px"><input type="time" id="pm_close_${k}" value="${g.close}" style="padding:5px;border:1px solid var(--border);border-radius:5px"></td>
       <td style="padding:8px 6px;white-space:nowrap"><input type="time" id="pm_satopen_${k}" value="${g.satOpen||''}" style="padding:5px;border:1px solid var(--border);border-radius:5px;width:94px"> – <input type="time" id="pm_satclose_${k}" value="${g.satClose||''}" style="padding:5px;border:1px solid var(--border);border-radius:5px;width:94px"></td>
+      <td style="padding:8px 6px;white-space:nowrap"><input type="number" min="0" step="0.5" id="pm_norma_${k}" value="${(g.norma===''||g.norma===undefined||g.norma===null)?'':g.norma}" placeholder="auto" style="width:64px;padding:5px;border:1px solid var(--border);border-radius:5px"> h</td>
+      <td style="padding:8px 6px;white-space:nowrap"><input type="number" min="0" step="0.5" id="pm_normasat_${k}" value="${(g.normaSat===''||g.normaSat===undefined||g.normaSat===null)?'':g.normaSat}" placeholder="auto" style="width:64px;padding:5px;border:1px solid var(--border);border-radius:5px"> h</td>
       <td style="padding:8px 6px"><input type="number" min="0" id="pm_tol_${k}" value="${g.tol}" style="width:64px;padding:5px;border:1px solid var(--border);border-radius:5px"> min</td>
       <td style="padding:8px 6px">${PONTAJ_ZILE.map((z,i)=>`<label style="display:inline-flex;align-items:center;gap:2px;margin-right:6px;font-size:12px"><input type="checkbox" id="pm_z_${k}_${i}" ${g.inchis.includes(i)?'checked':''}> ${z}</label>`).join('')}</td>
     </tr>`; }).join('');
@@ -1329,10 +1334,10 @@ function renderProgramMag(){ const p=pontajProgram();
     <div style="max-width:1000px;margin:0 auto">
       <div class="card">
         <div style="font-weight:700;font-size:16px;margin-bottom:4px">🕒 Program magazine</div>
-        <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px">Orele de deschidere/închidere și toleranța (minute) folosite pentru întârzieri, normă și alarme. „Sâmbătă” = orar redus sâmbăta (ex. 09:00–13:00); lasă gol dacă sâmbăta e ca în timpul săptămânii. „Zile închise” = zilele în care magazinul nu lucrează (nu se declanșează alarme, normă 0).</div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px">Orele de deschidere/închidere și toleranța (minute) folosite pentru întârzieri, normă și alarme. „Sâmbătă” = orar redus sâmbăta (ex. 09:00–13:00); lasă gol dacă sâmbăta e ca în timpul săptămânii. „Zile închise” = zilele în care magazinul nu lucrează (nu se declanșează alarme, normă 0).<br><b>„Normă zi” / „Normă Sb”</b> = câte ore se contează în pontaj pentru o zi normală, indiferent de orarul de deschidere. Lasă gol („auto”) ca să se calculeze din deschidere–închidere. Ex.: magazine mari <b>11h</b> (pauza e inclusă în timpul de muncă, conform CIM), magazine mici <b>8h</b> + <b>4h</b> sâmbăta. Sub normă se contează norma; peste normă se contează doar cu aprobare (ore suplimentare).</div>
         <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr style="text-align:left;border-bottom:2px solid var(--border)">
-            <th style="padding:6px">Magazin</th><th style="padding:6px">Deschidere</th><th style="padding:6px">Închidere</th><th style="padding:6px">Sâmbătă (desch. – închid.)</th><th style="padding:6px">Toleranță</th><th style="padding:6px">Zile închise</th>
+            <th style="padding:6px">Magazin</th><th style="padding:6px">Deschidere</th><th style="padding:6px">Închidere</th><th style="padding:6px">Sâmbătă (desch. – închid.)</th><th style="padding:6px">Normă zi</th><th style="padding:6px">Normă Sb</th><th style="padding:6px">Toleranță</th><th style="padding:6px">Zile închise</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
@@ -1348,7 +1353,13 @@ function _pjMinutesLate(hmStart, hmOpen){ if(!hmStart||hmStart==='—'||!hmOpen)
 const PONTAJ_TOL_ORE = 15;
 function _pjHMtoMin(hm){ if(!hm||hm==='—') return 0; const a=String(hm).split(':').map(Number); return (a[0]||0)*60+(a[1]||0); }
 function pontajNormaMin(magKey, data){ const prog=pontajProgFor(magKey); if(!prog) return 0;
-  try{ const dow=_pjDow(new Date(data+'T12:00:00')); if(Array.isArray(prog.inchis)&&prog.inchis.includes(dow)) return 0; }catch(e){}
+  let dow=-1;
+  try{ dow=_pjDow(new Date(data+'T12:00:00')); if(Array.isArray(prog.inchis)&&prog.inchis.includes(dow)) return 0; }catch(e){}
+  // Normă zilnică explicită (are prioritate față de orarul de deschidere).
+  // Ex.: magazine mari = 11h (pauza e inclusă în timpul de muncă, conform CIM), mici = 8h + 4h sâmbăta.
+  const nZi=parseFloat(prog.norma), nSat=parseFloat(prog.normaSat);
+  if(dow===5){ if(!isNaN(nSat)&&nSat>0) return Math.round(nSat*60); }
+  else { if(!isNaN(nZi)&&nZi>0) return Math.round(nZi*60); }
   const oc=pontajOreZi(prog,data); const m=_pjHMtoMin(oc.close)-_pjHMtoMin(oc.open); return m>0?m:0; }
 function _pjMinH(m){ m=Math.round(Math.abs(m)); const h=Math.floor(m/60), mm=m%60; return h>0?(h+'h '+(mm<10?'0':'')+mm+'m'):(mm+'m'); }
 function pontajRollupPerson(nume, data){
@@ -14449,7 +14460,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-16-1915';
+const APP_VERSION = '2026-07-16-1940';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
