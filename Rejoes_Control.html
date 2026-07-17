@@ -1642,6 +1642,7 @@ function renderPontajControl(){ try{pontajPullCloud();}catch(e){} _pjCtrlAnos=po
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             ${_pjAdm?`<button class="btn btn-primary" style="font-size:12px;padding:6px 10px" onclick="pontajCtrlAddPunch()">➕ Adaugă pontare</button>`:''}
             ${_pjAdm?`<button class="btn" style="font-size:12px;padding:6px 10px" onclick="pontajFixOreModal()">🔧 Corecție ore (lunar)</button>`:''}
+            ${_pjAdm?`<button class="btn" style="font-size:12px;padding:6px 10px" onclick="pontajRecalcModal()">♻ Recalculează luna</button>`:''}
             <input type="date" value="${day}" onchange="pontajCtrlDate(this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px">
           </div>
         </div>
@@ -1701,6 +1702,73 @@ async function pontajCtrlDelPunch(id){
   save(); _pjRefreshFisaForDay(p.data, p.angajat);
   try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('ponch/'+id).remove(); } }catch(e){ console.warn('punch del cloud',e); }
   toast('Pontare ștearsă'); renderPontajControl();
+}
+// --- Recalculează fișele unei luni din pontajele reale (IN/OUT) — DOAR ADMIN. ---
+// Scoate marcajul „corectat manual” și reface fișa din pontaje, cu norma curentă din Program magazine.
+// Atinge DOAR zilele care au pontaje reale; zilele fără pontaje (ex. iunie, introdus manual) rămân neatinse.
+function _prcRecs(){
+  const luna=((document.getElementById('prcLuna')||{}).value)||'';
+  if(!luna) return [];
+  return (DB.pontaj||[]).filter(p=>p && String(p.data||'').slice(0,7)===luna);
+}
+function _prcAreDrafts(luna){
+  const zile=[...new Set(_prcRecs().map(p=>p.data))];
+  let cu=0, fara=0;
+  zile.forEach(d=>{
+    const drafts=(typeof pontajRollupDay==='function'?(pontajRollupDay(d)||[]):[]);
+    _prcRecs().filter(p=>p.data===d).forEach(p=>{ if(drafts.some(dr=>dr.angajat===p.angajat)) cu++; else fara++; });
+  });
+  return {cu, fara};
+}
+function pontajRecalcModal(){
+  if(!isAdmin()){ toast('Doar administratorul poate recalcula.'); return; }
+  openModal(`<h3 style="margin:0 0 6px">♻ Recalculează luna din pontaje</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px">Reface fișele lunii din pontajele reale de pe telefon, folosind <b>norma curentă</b> din „Program magazine”. Scoate marcajul „corectat manual”, ca zilele să se actualizeze din nou automat.<br><b>Atinge doar zilele care au pontaje reale.</b> Zilele fără pontaje (introduse manual) rămân neatinse. Se face backup automat.</p>
+    <div class="form-field"><label>Luna</label><input type="month" id="prcLuna" value="2026-07" style="padding:8px;border:1px solid var(--border);border-radius:6px"></div>
+    <div style="margin-top:10px"><button class="btn" onclick="pontajRecalcPreview()">🔍 Previzualizează</button></div>
+    <div id="prcPrev" style="margin-top:10px;max-height:200px;overflow:auto;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;color:var(--text-muted)">Apasă „Previzualizează”.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeModal()">Renunță</button><button class="btn btn-primary" onclick="pontajRecalcApply()">Recalculează</button></div>`);
+}
+function pontajRecalcPreview(){
+  const el=document.getElementById('prcPrev'); if(!el) return;
+  const luna=((document.getElementById('prcLuna')||{}).value)||'';
+  const recs=_prcRecs();
+  if(!recs.length){ el.innerHTML=`Nicio fișă în <b style="color:var(--text)">${escapeHtml(luna)}</b>.`; return; }
+  const s=_prcAreDrafts(luna);
+  const manual=recs.filter(p=>p.corectatManual).length;
+  el.innerHTML=`În <b style="color:var(--text)">${escapeHtml(luna)}</b>: <b style="color:var(--text)">${recs.length}</b> fișe.<br>`
+    +`• <b style="color:var(--text)">${s.cu}</b> au pontaje reale → <b>vor fi recalculate</b><br>`
+    +`• <b style="color:var(--text)">${s.fara}</b> nu au pontaje → rămân neatinse<br>`
+    +`• ${manual} sunt marcate „corectat manual” (marcajul se scoate doar la cele recalculate)`;
+}
+async function pontajRecalcApply(){
+  if(!isAdmin()){ toast('Doar administratorul poate recalcula.'); return; }
+  const luna=((document.getElementById('prcLuna')||{}).value)||'';
+  const recs=_prcRecs();
+  if(!recs.length){ toast('Nicio fișă în luna aleasă'); return; }
+  if(!confirm(`Recalculezi fișele din ${luna} pe baza pontajelor reale?\n\nSe face backup înainte. Zilele fără pontaje rămân neatinse.`)) return;
+  try{ if(typeof createBackup==='function') createBackup('pre-recalc-'+luna+'-'+Date.now()); }catch(e){}
+  const zile=[...new Set(recs.map(p=>p.data))];
+  let n=0;
+  zile.forEach(d=>{
+    let drafts=[]; try{ drafts=pontajRollupDay(d)||[]; }catch(e){ drafts=[]; }
+    drafts.forEach(dr=>{
+      const i=(DB.pontaj||[]).findIndex(p=>p && p.data===d && p.angajat===dr.angajat);
+      if(i<0) return;
+      const useReal=DB.pontaj[i].supAprobat;
+      DB.pontaj[i]=Object.assign({},DB.pontaj[i],{
+        oraStart:dr.oraStart, oraSfarsit:dr.oraSfarsit, oreReal:dr.oreReal,
+        oreLucrate:(useReal?dr.oreReal:dr.oreLucrate),
+        normaMin:dr.normaMin, supMin:dr.supMin, deficitMin:dr.deficitMin
+      });
+      delete DB.pontaj[i].corectatManual;
+      n++;
+    });
+  });
+  try{ _lastLocalChange=Date.now(); }catch(e){}
+  save();
+  closeModal(); toast(`♻ ${n} zile recalculate din pontaje (${luna})`);
+  renderPontajControl();
 }
 // --- Corecție ore în fișele lunare (Pontaj) — DOAR ADMIN. Înlocuiește o valoare de ore cu alta, pe o lună. ---
 function _pfxNum(v){ if(v===null||v===undefined) return NaN; const s=String(v).replace(',','.').trim(); const n=parseFloat(s); return isNaN(n)?NaN:n; }
@@ -14460,7 +14528,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-16-1940';
+const APP_VERSION = '2026-07-17-0830';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
