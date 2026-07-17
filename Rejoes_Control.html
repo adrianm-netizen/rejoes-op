@@ -1020,8 +1020,13 @@ function _beFirstName(name){
 }
 function beBonusEvents(fromD,toD){
   const ev=[];
+  // Ziua curentă e PROVIZORIE: raportarea se introduce manual, adesea înainte de ultimele vânzări
+  // (ex. 16.07 Bujorilor: raportat 1.692 la ~20:00, dar au mai intrat bonuri la 20:09 și 20:12 → real 1.724).
+  // Prima se acordă doar pentru zile încheiate, după ce cifra s-a așezat.
+  const _azi=(typeof todayISO==='function'?todayISO():new Date().toISOString().slice(0,10));
   (DB.raportari||[]).forEach(r=>{
     if(!r.data||r.data<fromD||r.data>toD) return;
+    if(r.data>=_azi) return;
     const cas=_beFirstName(r.casier); if(!cas) return;
     const tgt=beTarget(r.magazin,r.data); if(tgt==null||tgt<=0) return;
     const v=+r.vanzari||0; if(v<tgt) return;
@@ -2623,7 +2628,7 @@ function renderRaportare() {
             <td class="num" style="color:${Math.abs(r.diferenta)<1?'var(--success)':Math.abs(r.diferenta)<20?'var(--warning)':'var(--danger)'}">${fmt(r.diferenta)}</td>
             <td class="num">${r.bonuri||0}</td>
             <td><span class="badge ${r.alerta==='OK'?'badge-ok':r.alerta==='CRITIC'?'badge-danger':'badge-warn'}">${r.alerta||'OK'}</span></td>
-            <td>${isAdmin() ? `<button class="btn btn-sm btn-ghost" onclick="delRap(${idx})">×</button>` : '<small style="color:var(--text-muted)">—</small>'}</td>
+            <td style="white-space:nowrap">${isAdmin() ? `<button class="btn btn-sm btn-ghost" title="Corectează cifrele" onclick="rapEditModal(${idx})">✏️</button><button class="btn btn-sm btn-ghost" onclick="delRap(${idx})">×</button>` : '<small style="color:var(--text-muted)">—</small>'}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>`}
@@ -2708,6 +2713,34 @@ function saveRap() {
     });
   }
   save(); resetRap(); renderRaportare(); toast('Raportare salvată');
+}
+// --- Corectează o raportare zilnică (vânzări/POS/predat/bonuri) — DOAR ADMIN. ---
+// Recalculează numerarul teoretic, diferența și alerta, ca reconcilierea de casă să rămână coerentă.
+function rapEditModal(idx){
+  if(!isAdmin()){ toast('Doar administratorul poate corecta raportările.'); return; }
+  const r=(DB.raportari||[])[idx]; if(!r){ toast('Raportare negăsită'); return; }
+  const nf=(id,lab,val)=>`<div class="form-field" style="margin:0;flex:1"><label>${lab}</label><input type="number" step="0.01" id="${id}" value="${val==null?'':val}" style="padding:8px;border:1px solid var(--border);border-radius:6px;width:100%"></div>`;
+  openModal(`<h3 style="margin:0 0 6px">✏️ Corectează raportarea</h3>
+    <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px">${escapeHtml(r.data)} · ${escapeHtml(mag(_magId(r.magazin))||r.magazin||'')} · ${escapeHtml(r.casier||'')}</div>
+    <div style="display:flex;gap:10px">${nf('reVanzari','Vânzări (lei)',r.vanzari)}${nf('rePos','POS / card (lei)',r.pos)}</div>
+    <div style="display:flex;gap:10px;margin-top:8px">${nf('rePredat','Numerar predat (lei)',r.numerarPredat)}${nf('reBonuri','Bonuri',r.bonuri)}</div>
+    <div style="font-size:11.5px;color:var(--text-muted);margin-top:10px">Numerarul teoretic (vânzări − POS), diferența de casă și alerta se recalculează automat la salvare.<br><b>Atenție:</b> dacă urci vânzările, urcă și POS-ul (dacă plata a fost pe card) sau numerarul predat (dacă a fost cash) — altfel apare o diferență de casă falsă.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeModal()">Anulează</button><button class="btn btn-primary" onclick="rapEditSave(${idx})">Salvează</button></div>`);
+}
+function rapEditSave(idx){
+  if(!isAdmin()){ toast('Doar administratorul poate corecta raportările.'); return; }
+  const r=(DB.raportari||[])[idx]; if(!r) return;
+  const num=id=>{ const el=document.getElementById(id); const n=parseFloat(String((el&&el.value)||'').replace(',','.')); return isNaN(n)?0:n; };
+  const v=num('reVanzari'), p=num('rePos'), pr=num('rePredat'), b=Math.round(num('reBonuri'));
+  try{ if(typeof createBackup==='function') createBackup('pre-edit-rap-'+Date.now()); }catch(e){}
+  const teo=v-p, diff=pr-teo;
+  r.vanzari=v; r.pos=p; r.numerarPredat=pr; r.bonuri=b;
+  r.numerarTeoretic=teo; r.diferenta=diff;
+  try{ r.alerta=determinaAlerta(r); }catch(e){}
+  r.corectatLa=(typeof nowISO==='function'?nowISO():new Date().toISOString());
+  try{ _lastLocalChange=Date.now(); }catch(e){}
+  save();
+  closeModal(); toast('✅ Raportare corectată'); renderRaportari();
 }
 function delRap(idx) { if (!isAdmin()) { toast('Ștergerea raportărilor o face doar adminul'); return; } if (!confirm('Ștergi?')) return; DB.raportari.splice(idx,1); save(); renderRaportare(); }
 
@@ -8703,7 +8736,7 @@ async function exportCentralizator(){
     const base=3+nzile, totalCols=base+EXTRA.length;
     sh.mergeCells(1,1,1,Math.min(totalCols,12));
     sh.getCell(1,1).value=titlu; sh.getCell(1,1).font={bold:true,size:13,color:{argb:'FF1F4A3A'}};
-    sh.getCell(2,1).value=`Normă oficială: ${wd*8}h full-time · ${wd} zile L-V · ${nsat} sâmbete · Tichete=ROUND(ore tichet/8) (7h fără sâmbătă, 2+2 cu weekend)`;
+    sh.getCell(2,1).value=`Normă oficială: ${wd*8}h full-time · ${wd} zile L-V · ${nsat} sâmbete · Tichete = 1 per zi lucrată (zilele de 4h de la Jimbolia, Deta, Moravița, Lugoj, Sânnicolau NU dau tichet)`;
     sh.getCell(2,1).font={italic:true,size:10,color:{argb:'FF666666'}};
     const heads=['Nume angajat','Funcție','Punct de lucru']; for(let z=1;z<=nzile;z++) heads.push(z); EXTRA.forEach(e=>heads.push(e));
     heads.forEach((h,j)=>{ const c=sh.getCell(3,j+1); c.value=h; c.font={bold:true,color:{argb:'FFFFFFFF'},size:9}; c.alignment={horizontal:'center',vertical:'middle',wrapText:true}; c.fill=_fill(j<3?'FF1F4A3A':(j>=base?'FF37618A':'FF2D7A55')); c.border=_bord(); });
@@ -8717,8 +8750,13 @@ async function exportCentralizator(){
         sh.getCell(r,1).value=n; sh.getCell(r,1).font={bold:true,size:9};
         sh.getCell(r,2).value=a.rol||''; sh.getCell(r,3).value=p;
         let tot=0, zl=0, co=0, oreTichet=0, zileTichet=0;
+        // Tichete: o zi lucrată = un tichet. Excepție: zilele de 4h de la magazinele mici
+        // (Jimbolia, Deta, Moravița, Lugoj, Sânnicolau) NU dau tichet.
+        const _micTichet=/jimbolia|deta|moravi|lugoj|s[âa]nnicolau/i.test(p||'');
         for(let z=1;z<=nzile;z++){ const rec=byday[n+'|'+z]||['','']; const v=tipCelula(rec[0],rec[1]); const c=sh.getCell(r,3+z); c.value=v; c.alignment={horizontal:'center'}; c.font={size:9}; c.border=_bord(); const dw=dow(z);
-          if(typeof v==='number'){tot+=v; zl++; if(dw<5||cfg.tw){oreTichet+=v; zileTichet++;}}
+          if(typeof v==='number'){tot+=v; zl++;
+            const faraTichet=(_micTichet && v<=4);
+            if(!faraTichet && (dw<5||cfg.tw)){oreTichet+=v; zileTichet++;}}
           else if(v==='NU'){c.font={size:9,color:{argb:'FFAAAAAA'}};}
           else if(v==='CO'){c.fill=_fill('FFFFF3CD'); co++;}
           else if(v==='CM'){c.fill=_fill('FFFDE2E2');}
@@ -8728,7 +8766,8 @@ async function exportCentralizator(){
         const oreTichetCol=_colLetter(base+7), ticheteCol=_colLetter(base+8), valCol=_colLetter(base+9);
         const valTichet=(a.valoareTichet!=null&&a.valoareTichet!=='')?parseFloat(a.valoareTichet):'';
         [[1,Math.round(tot*10)/10],[2,nrm],[3,dif],[4,over?'⚠':''],[5,zl],[6,co],[7,Math.round(oreTichet*10)/10]].forEach(([off,val])=>{ const c=sh.getCell(r,base+off); c.value=val; c.alignment={horizontal:'center'}; c.font={size:9}; c.border=_bord(); });
-        const perZiTichet=(a.tichetPerZi===true||a.tichetPerZi==='true');
+        // Implicit: 1 tichet per zi lucrată. Formula veche ROUND(ore/8) rămâne doar dacă e aleasă explicit în Date HR.
+        const perZiTichet=(a.tichetPerZi!==false && a.tichetPerZi!=='false');
         const tc=sh.getCell(r,base+8); tc.value = perZiTichet ? zileTichet : {formula:`ROUND(${oreTichetCol}${r}/8,0)`}; tc.alignment={horizontal:'center'}; tc.font={size:9,bold:true}; tc.border=_bord();
         const vc=sh.getCell(r,base+9); if(valTichet!=='') vc.value=valTichet; vc.alignment={horizontal:'center'}; vc.font={size:9}; vc.border=_bord();
         const ttc=sh.getCell(r,base+10); ttc.value={formula:`IF(${valCol}${r}="","",${ticheteCol}${r}*${valCol}${r})`}; ttc.alignment={horizontal:'center'}; ttc.font={size:9}; ttc.border=_bord();
@@ -14528,7 +14567,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-17-0830';
+const APP_VERSION = '2026-07-17-1015';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
