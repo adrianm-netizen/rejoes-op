@@ -466,13 +466,15 @@ const SEED = {
   tasks: [],           // {id, titlu, descriere, responsabil, locatie, termen, prioritate, reminder, done, creatLa, doneLa}
   disponibilitate: {},   // { [weekMondayISO]: { [angajatId]: { d:[7 statuses ''|'D'|'I'|'P'], obs, updatedLa } } } — centralizat (Ana)
   users: {
-    ana: { pin: "0798", role: "operator", nume: "Ana" },
-    adrian: { pin: "2016", role: "admin", nume: "Adrian" },
-    gabi: { pin: "5555", role: "manager-depozit", nume: "Gabi" },
-    dana: { pin: "9999", role: "contabil-sef", nume: "Dana" },
-    olga: { pin: "7777", role: "owner", nume: "Olga" },
-    ozan: { pin: "8888", role: "owner", nume: "Ozan" },
-    panou: { pin: "2626", role: "panou", nume: "Panou magazine" }
+    // ⚠ PIN-urile NU se mai țin în clar aici (erau vizibile în „view source" + funcționau ca backdoor pe orice telefon nou).
+    // Sursa de adevăr = hash-uri SHA-256 în cloud (cheia `userPinsJson`). Vezi verifyPin / cloudPushPins / publishPinsBaseline.
+    ana: { pin: "", role: "operator", nume: "Ana" },
+    adrian: { pin: "", role: "admin", nume: "Adrian" },
+    gabi: { pin: "", role: "manager-depozit", nume: "Gabi" },
+    dana: { pin: "", role: "contabil-sef", nume: "Dana" },
+    olga: { pin: "", role: "owner", nume: "Olga" },
+    ozan: { pin: "", role: "owner", nume: "Ozan" },
+    panou: { pin: "", role: "panou", nume: "Panou magazine" }
   },
   session: { user: null, role: null },
   // — Depozit / WMS structures (Faza 1) —
@@ -5202,6 +5204,14 @@ function renderSetari() {
         </div>
         <div id="pinResetMsg" style="font-size:12px;min-height:18px;margin-bottom:8px"></div>
         <button class="btn" onclick="resetUserPin()">Resetează PIN</button>
+      </div>
+      <div class="card" style="margin-top:16px;border-left:4px solid #1b7a3d">
+        <h3 style="font-size:14px;margin-bottom:6px">🔐 Securizează PIN-urile în cloud</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">
+          Publică PIN-urile ca <strong>hash</strong> (nu în clar) ca să funcționeze pe orice telefon nou, iar vechile PIN-uri implicite din cod să nu mai meargă nicăieri. Rulează o dată, de pe acest telefon. Adaugă doar userii care încă n-au hash — nu suprascrie PIN-urile schimbate de alții. După asta, resetează pe rând PIN-ul fiecăruia la o valoare nouă.
+        </p>
+        <div id="pinSecureMsg" style="font-size:12px;min-height:18px;margin-bottom:8px"></div>
+        <button class="btn btn-primary" onclick="securePinsNow()">🔐 Securizează acum</button>
       </div>` : ''}
 
       <div class="card" style="margin-top:16px">
@@ -8423,6 +8433,7 @@ function changePin(user, requireCurrent) {
   if (newp === cur) { msgEl.textContent = 'PIN-ul nou este identic cu cel curent'; return; }
   DB.users[user].pin = newp;
   save();
+  try { cloudPushPins([user]); } catch(e){}   // publică hash-ul în cloud → merge pe orice telefon
   msgEl.style.color = 'var(--success)';
   msgEl.textContent = '✓ PIN schimbat cu succes';
   document.getElementById('pinCur').value = '';
@@ -8440,6 +8451,7 @@ function resetUserPin() {
   if (!confirm(`Sigur resetezi PIN-ul lui ${DB.users[user].nume} la "${newp}"?`)) return;
   DB.users[user].pin = newp;
   save();
+  try { cloudPushPins([user]); } catch(e){}   // publică hash-ul în cloud
   msgEl.style.color = 'var(--success)';
   msgEl.textContent = `✓ PIN-ul lui ${DB.users[user].nume} resetat`;
   document.getElementById('pinResetNew').value = '';
@@ -8916,11 +8928,12 @@ function backToUserPick() {
   document.getElementById('loginUserPick').style.display = 'grid';
   document.getElementById('loginPinForm').style.display = 'none';
 }
-function doLogin() {
+async function doLogin() {
   const pin = document.getElementById('loginPin').value;
-  if (!DB.users[pickedUser] || DB.users[pickedUser].pin !== pin) {
+  const _ok = await verifyPin(pickedUser, pin);
+  if (!_ok) {
     document.getElementById('loginErr').textContent = 'PIN incorect, încearcă din nou';
-    return;
+    return false;
   }
   DB.session = { user: pickedUser, role: DB.users[pickedUser].role };
   save();
@@ -8935,6 +8948,7 @@ function doLogin() {
   toast(`Bun venit, ${DB.users[pickedUser].nume}!`);
   setTimeout(checkReminders, 800);
   setTimeout(startGlobalMessageListener, 1000);
+  return true;
 }
 
 // Acces administrativ discret — 5× tap pe titlul „Op. Management" ascunde admin/owner din listă
@@ -8950,11 +8964,11 @@ function _adminTap(){
     setTimeout(()=>{ var el=document.getElementById('loginAdminUser'); if(el) el.focus(); }, 50);
   }
 }
-function doAdminLogin(){
+async function doAdminLogin(){
   const u=(document.getElementById('loginAdminUser').value||'').trim().toLowerCase();
   const pin=document.getElementById('loginAdminPin').value;
   const allowed=['adrian','olga','ozan','dana'];
-  if(!allowed.includes(u) || !DB.users[u] || DB.users[u].pin!==pin){
+  if(!allowed.includes(u) || !DB.users[u] || !(await verifyPin(u, pin))){
     document.getElementById('loginAdminErr').textContent='Utilizator sau PIN incorect';
     return;
   }
@@ -14567,7 +14581,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-17-1015';
+const APP_VERSION = '2026-07-18-1130';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
@@ -15182,6 +15196,82 @@ async function cloudStatus() {
     </div>`).join('') + '</div>';
 }
 
+// ========== PIN securizat — hash SHA-256 în cloud (sursă de adevăr), fără PIN în clar în sursă ==========
+// Bug reparat (18 iul 2026): PIN-urile default erau hardcodate în SEED (vizibile în „view source") și
+// NU se sincronizau; un telefon nou pornea cu PIN-ul din cod → oricine cu PIN-ul default se putea loga.
+// Acum: verificarea la login se face contra hash-ului din cloud (`userPinsJson`); SEED are PIN gol.
+let PIN_HASHES = null;        // { user: hashHex } — cache din cloud
+let _pinHashesLoaded = false;
+async function pinHash(user, pin){
+  const data = new TextEncoder().encode('rejoes-pin::' + user + '::' + pin);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+async function cloudPullPins(){
+  if(!window.FB || !window.FB.db) return;
+  try{
+    await ensureFirebaseAuth();
+    const raw = (await window.FB.db.ref('userPinsJson').once('value')).val();
+    PIN_HASHES = raw ? JSON.parse(raw) : {};
+    _pinHashesLoaded = true;
+  }catch(e){ console.error('cloudPullPins failed:', e); }
+}
+// Publică/actualizează hash-urile pentru anumiți useri (MERGE — nu șterge ce există deja în cloud).
+async function cloudPushPins(onlyUsers){
+  if(!window.FB || !window.FB.db) return false;
+  try{
+    await ensureFirebaseAuth();
+    const raw = (await window.FB.db.ref('userPinsJson').once('value')).val();
+    const cur = raw ? JSON.parse(raw) : {};
+    const list = (onlyUsers && onlyUsers.length) ? onlyUsers : Object.keys(DB.users);
+    for(const u of list){
+      const pin = DB.users[u] && DB.users[u].pin;
+      if(pin) cur[u] = await pinHash(u, pin);
+    }
+    await window.FB.db.ref('userPinsJson').set(JSON.stringify(cur));
+    PIN_HASHES = cur; _pinHashesLoaded = true;
+    return true;
+  }catch(e){ console.error('cloudPushPins failed:', e); return false; }
+}
+// Baseline anti-lockout: adaugă în cloud DOAR userii care încă n-au hash (nu suprascrie nimic existent).
+async function publishPinsBaseline(){
+  if(!window.FB || !window.FB.db){ return -1; }
+  try{
+    await ensureFirebaseAuth();
+    const raw = (await window.FB.db.ref('userPinsJson').once('value')).val();
+    const cur = raw ? JSON.parse(raw) : {};
+    let added = 0;
+    for(const u of Object.keys(DB.users)){
+      if(cur[u]) continue;                          // are deja hash → nu atinge
+      const pin = DB.users[u] && DB.users[u].pin;
+      if(pin){ cur[u] = await pinHash(u, pin); added++; }
+    }
+    await window.FB.db.ref('userPinsJson').set(JSON.stringify(cur));
+    PIN_HASHES = cur; _pinHashesLoaded = true;
+    return added;
+  }catch(e){ console.error('publishPinsBaseline failed:', e); return -1; }
+}
+async function verifyPin(user, pin){
+  if(!DB.users[user]) return false;
+  if(!_pinHashesLoaded){ try{ await cloudPullPins(); }catch(e){} }
+  if(PIN_HASHES && PIN_HASHES[user]){
+    try{ return (await pinHash(user, pin)) === PIN_HASHES[user]; }catch(e){}
+  }
+  // fallback: pre-migrare / offline / user încă fără hash. PIN gol NU dă acces.
+  return DB.users[user].pin !== '' && DB.users[user].pin === pin;
+}
+// Buton admin din Setări → Cont
+async function securePinsNow(){
+  const el = document.getElementById('pinSecureMsg');
+  if(el){ el.style.color='var(--text-muted)'; el.textContent='Se publică în cloud...'; }
+  const n = await publishPinsBaseline();
+  if(el){
+    if(n < 0){ el.style.color='var(--danger)'; el.textContent='Eroare — Firebase neconectat sau fără internet (vezi consola, F12).'; }
+    else { el.style.color='var(--success)'; el.textContent = '✓ PIN-uri securizate în cloud' + (n ? (' — ' + n + ' publicate.') : ' (erau deja publicate).'); }
+  }
+  try{ toast('🔐 PIN-uri securizate în cloud'); }catch(e){}
+}
+
 // ---------- INIT ----------
 if (!DB.users) DB.users = JSON.parse(JSON.stringify(SEED.users));
 if (!DB.session) DB.session = { user: null, role: null };
@@ -15192,11 +15282,10 @@ Object.keys(SEED.users).forEach(u => {
   if (!DB.users[u]) {
     DB.users[u] = JSON.parse(JSON.stringify(SEED.users[u]));
   } else {
-    // Force role + nume from SEED (PIN-ul rămâne ce a setat utilizatorul)
+    // Force role + nume from SEED (PIN-ul rămâne ce a setat utilizatorul / vine din cloud hash)
     DB.users[u].role = SEED.users[u].role;
     DB.users[u].nume = SEED.users[u].nume;
-    // Ana: PIN gestionat central de admin — se forțează din SEED
-    if (u === 'ana') DB.users[u].pin = SEED.users[u].pin;
+    // (Ana NU mai e forțată din SEED — PIN-ul ei e gestionat prin cloud hash, la fel ca la ceilalți)
   }
 });
 // Dacă sesiunea curentă are un user, actualizează și role în session
@@ -15225,6 +15314,18 @@ try {
 
 // Etapa 11C — auto-restaurare din cloud la pornire dacă local e gol (profil gestionat șterge datele)
 setTimeout(() => { try { autoRestoreIfEmpty(); } catch(e){} }, 2000);
+
+// PIN securizat (18 iul 2026) — pre-încarcă hash-urile din cloud + bootstrap automat de pe device-ul adminului
+setTimeout(async () => {
+  try{
+    await cloudPullPins();
+    // Dacă în cloud încă nu există niciun hash și acest device e logat ca admin, publică baseline-ul local (anti-lockout).
+    if(DB.session && DB.session.role === 'admin' && PIN_HASHES && Object.keys(PIN_HASHES).length === 0){
+      const n = await publishPinsBaseline();
+      if(n > 0){ try{ toast('🔐 PIN-uri securizate în cloud'); }catch(e){} }
+    }
+  }catch(e){ console.error('pin bootstrap failed:', e); }
+}, 1600);
 
 // ===== Format dată România (dd/mm/yyyy) PESTE TOT, dintr-un singur loc =====
 // Orice dată afișată ca text în format ISO (2026-06-08) sau ISO+oră devine 08/06/2026.
