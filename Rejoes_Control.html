@@ -741,6 +741,32 @@ function applyMobileMode(){
 }
 let _mmTimer=null;
 window.addEventListener('resize', ()=>{ clearTimeout(_mmTimer); _mmTimer=setTimeout(applyMobileMode, 150); });
+// ===== Anunț: cea mai bună comercială a lunii (banner sus, toate rolurile) =====
+let _announceDismissed = false;
+function dismissAnnounce(){ _announceDismissed = true; const el = document.getElementById('announceBanner'); if(el) el.remove(); }
+function renderAnnounceBanner(){
+  const content = document.getElementById('content'); if(!content) return;
+  let el = document.getElementById('announceBanner');
+  if(_announceDismissed){ if(el) el.remove(); return; }
+  if(!document.getElementById('announceMarqueeStyle')){ const s=document.createElement('style'); s.id='announceMarqueeStyle'; s.textContent='@keyframes announceMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}@keyframes announceGlow{0%,100%{box-shadow:0 0 6px rgba(255,224,138,.25)}50%{box-shadow:0 0 18px rgba(255,224,138,.7)}}'; document.head.appendChild(s); }
+  if(!el){ el = document.createElement('div'); el.id = 'announceBanner'; content.parentNode.insertBefore(el, content); }
+  const msg = `🏆 Angajatul lunii — Iulie 2026: <strong style="color:#ffe08a">CLAUDIA (DETA)</strong> &nbsp;•&nbsp; Singura din rețea care a atins <strong>break-even</strong> lunar (<strong>124%</strong> din țintă) &nbsp;•&nbsp; 💰 Primă câștigată: <strong style="color:#ffe08a">1.025 lei</strong> (14 zile peste țintă) &nbsp;•&nbsp; Felicitări, Claudia! 👏 &nbsp;&nbsp;&nbsp;&nbsp;`;
+  el.innerHTML = `<div style="margin:0 0 8px;background:linear-gradient(90deg,#1B5E3A,#2e8b57);border-radius:12px;overflow:hidden;color:#fff;position:relative;display:flex;align-items:center;min-height:64px;animation:announceGlow 2.4s ease-in-out infinite">
+    <img src="claudia.jpg" alt="Claudia" style="width:54px;height:54px;border-radius:50%;object-fit:cover;border:2px solid #ffe08a;margin:5px 2px 5px 10px;flex-shrink:0;z-index:2" onerror="this.style.display='none'">
+    <div style="flex:1;overflow:hidden;white-space:nowrap;position:relative;height:64px">
+      <div style="position:absolute;top:0;white-space:nowrap;will-change:transform;animation:announceMarquee 24s linear infinite;font-size:14px;font-weight:600;line-height:64px"><span>${msg}</span><span>${msg}</span></div>
+    </div>
+    <button onclick="dismissAnnounce()" style="flex-shrink:0;background:transparent;border:none;color:#d9efe2;font-size:20px;cursor:pointer;line-height:1;padding:0 12px;z-index:2" aria-label="Închide">×</button>
+  </div>
+  <div style="margin:0 0 14px;background:linear-gradient(90deg,#7a1f5c,#b5327f);border-radius:12px;color:#fff;position:relative;display:flex;align-items:center;padding:9px 12px;gap:12px">
+    <img src="echipa_sibiu.jpg" alt="Claudia și Ana la Sibiu" style="width:66px;height:66px;border-radius:10px;object-fit:cover;border:2px solid #ffd6ef;flex-shrink:0" onerror="this.style.display='none'">
+    <div style="flex:1;min-width:0;font-size:13px;line-height:1.5">
+      <div style="font-weight:800;font-size:15px;margin-bottom:2px">💜 Mulțumim, Claudia și Ana! 🙌</div>
+      <div style="color:#fbe9f4">10 zile de muncă intensă la <strong>relansarea magazinului Sibiu</strong> — reamenajare și reboostare. Apreciem enorm implicarea și toate eforturile depuse! 👏</div>
+    </div>
+    <button onclick="dismissAnnounce()" style="flex-shrink:0;align-self:flex-start;background:transparent;border:none;color:#ffd6ef;font-size:20px;cursor:pointer;line-height:1;padding:0 4px" aria-label="Închide">×</button>
+  </div>`;
+}
 function go(view) {
   currentView = view;
   if (window.innerWidth <= 700) toggleSidebar(false); // închide sertarul pe mobil la navigare
@@ -760,6 +786,7 @@ function go(view) {
   }
   ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, disponibilitate:renderDisponibilitate, programmag:renderProgramMag, aprobarepontaj:renderAprobarePontaj, absente:renderAbsente, pontajcontrol:renderPontajControl, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, cashbanca:renderCashBanca, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
     diferente:renderDiferente, inventar:renderInventar, alerte:renderAlerte, import:renderImport, setari:renderSetari, panou:renderPanou})[view]();
+  try{ renderAnnounceBanner(); }catch(e){}
 }
 
 function openModal(html) {
@@ -14581,7 +14608,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-07-18-1130';
+const APP_VERSION = '2026-08-04-1030';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
