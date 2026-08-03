@@ -750,7 +750,7 @@ function renderAnnounceBanner(){
   if(_announceDismissed){ if(el) el.remove(); return; }
   if(!document.getElementById('announceMarqueeStyle')){ const s=document.createElement('style'); s.id='announceMarqueeStyle'; s.textContent='@keyframes announceMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}@keyframes announceGlow{0%,100%{box-shadow:0 0 6px rgba(255,224,138,.25)}50%{box-shadow:0 0 18px rgba(255,224,138,.7)}}'; document.head.appendChild(s); }
   if(!el){ el = document.createElement('div'); el.id = 'announceBanner'; content.parentNode.insertBefore(el, content); }
-  const msg = `🏆 Angajatul lunii — Iulie 2026: <strong style="color:#ffe08a">CLAUDIA (DETA)</strong> &nbsp;•&nbsp; Singura din rețea care a atins <strong>break-even</strong> lunar (<strong>124%</strong> din țintă) &nbsp;•&nbsp; 💰 Primă câștigată: <strong style="color:#ffe08a">1.025 lei</strong> (14 zile peste țintă) &nbsp;•&nbsp; Felicitări, Claudia! 👏 &nbsp;&nbsp;&nbsp;&nbsp;`;
+  const msg = `🏆 Angajatul lunii — iulie 2026: <strong style="color:#ffe08a">Claudia (Deta)</strong> &nbsp;·&nbsp; singura din întreaga rețea care și-a atins pragul de rentabilitate — <strong>124%</strong> din țintă &nbsp;·&nbsp; 💰 recompensă binemeritată: <strong style="color:#ffe08a">1.025 lei</strong>, pentru 14 zile de excelență &nbsp;·&nbsp; Felicitări, Claudia! 👏 &nbsp;&nbsp;&nbsp;&nbsp;`;
   el.innerHTML = `<div style="margin:0 0 8px;background:linear-gradient(90deg,#1B5E3A,#2e8b57);border-radius:12px;overflow:hidden;color:#fff;position:relative;display:flex;align-items:center;min-height:64px;animation:announceGlow 2.4s ease-in-out infinite">
     <img src="claudia.jpg" alt="Claudia" style="width:54px;height:54px;border-radius:50%;object-fit:cover;border:2px solid #ffe08a;margin:5px 2px 5px 10px;flex-shrink:0;z-index:2" onerror="this.style.display='none'">
     <div style="flex:1;overflow:hidden;white-space:nowrap;position:relative;height:64px">
@@ -758,11 +758,11 @@ function renderAnnounceBanner(){
     </div>
     <button onclick="dismissAnnounce()" style="flex-shrink:0;background:transparent;border:none;color:#d9efe2;font-size:20px;cursor:pointer;line-height:1;padding:0 12px;z-index:2" aria-label="Închide">×</button>
   </div>
-  <div style="margin:0 0 14px;background:linear-gradient(90deg,#7a1f5c,#b5327f);border-radius:12px;color:#fff;position:relative;display:flex;align-items:center;padding:9px 12px;gap:12px">
-    <img src="echipa_sibiu.jpg" alt="Claudia și Ana la Sibiu" style="width:66px;height:66px;border-radius:10px;object-fit:cover;border:2px solid #ffd6ef;flex-shrink:0" onerror="this.style.display='none'">
-    <div style="flex:1;min-width:0;font-size:13px;line-height:1.5">
-      <div style="font-weight:800;font-size:15px;margin-bottom:2px">💜 Mulțumim, Claudia și Ana! 🙌</div>
-      <div style="color:#fbe9f4">10 zile de muncă intensă la <strong>relansarea magazinului Sibiu</strong> — reamenajare și reboostare. Apreciem enorm implicarea și toate eforturile depuse! 👏</div>
+  <div style="margin:0 0 14px;background:linear-gradient(90deg,#7a1f5c,#b5327f);border-radius:12px;color:#fff;position:relative;display:flex;align-items:flex-start;padding:11px 12px;gap:12px">
+    <img src="echipa_sibiu.jpg" alt="Claudia și Ana la Sibiu" style="width:74px;height:74px;border-radius:10px;object-fit:cover;border:2px solid #ffd6ef;flex-shrink:0" onerror="this.style.display='none'">
+    <div style="flex:1;min-width:0;font-size:12.5px;line-height:1.55">
+      <div style="font-weight:800;font-size:15px;margin-bottom:3px">💜 Recunoștință pentru Ana și Claudia 🙌</div>
+      <div style="color:#fbe9f4">Renașterea magazinului din <strong>Sibiu</strong> vi se datorează în cea mai mare măsură. Zece zile de muncă neîntreruptă, departe de cei dragi, transformate într-un rezultat pe care îl prețuim profund — iar <strong>recompensa va fi pe măsura efortului</strong>. O amintim cu aceeași căldură și pe <strong>Diana</strong>, pentru contribuția ei la acest proiect. Suntem convinși că aceste zile vor rămâne <strong>memorabile</strong>, iar mândria voastră pentru ceea ce ați clădit va fi la fel de durabilă. Așteptăm cu entuziasm următorul proiect și ne dorim ca fiecare membru al echipei <strong>S-Colect (Rejoes)</strong> să și-l dorească cu aceeași dăruire și optimism. Ușa este mereu deschisă. 👏</div>
     </div>
     <button onclick="dismissAnnounce()" style="flex-shrink:0;align-self:flex-start;background:transparent;border:none;color:#ffd6ef;font-size:20px;cursor:pointer;line-height:1;padding:0 4px" aria-label="Închide">×</button>
   </div>`;
@@ -14608,7 +14608,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-04-1030';
+const APP_VERSION = '2026-08-04-1130';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
