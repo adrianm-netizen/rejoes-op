@@ -741,15 +741,58 @@ function applyMobileMode(){
 }
 let _mmTimer=null;
 window.addEventListener('resize', ()=>{ clearTimeout(_mmTimer); _mmTimer=setTimeout(applyMobileMode, 150); });
-// ===== Anunț: cea mai bună comercială a lunii (banner sus, toate rolurile) =====
+// ===== Anunț: angajatul lunii + mulțumiri Sibiu (banner sus, toate rolurile) + mesaje =====
 let _announceDismissed = false;
+let _annMsgs = { be: [], sibiu: [] };
+let _annMsgLoaded = false, _annListenerSet = false;
+const _annAllowed = {
+  be:    { claudia: '3544e4cccea6a15edd164a83014569f95d2ea5cdf39cf81d06161af6a3985ba8' },
+  sibiu: { ana: '73b1f65d102726c96ad7002cb00a7816a4ab3f6cfa78f70147930f8805cfb68e', claudia: '3544e4cccea6a15edd164a83014569f95d2ea5cdf39cf81d06161af6a3985ba8' }
+};
+const _annNume = { claudia: 'Claudia', ana: 'Ana' };
 function dismissAnnounce(){ _announceDismissed = true; const el = document.getElementById('announceBanner'); if(el) el.remove(); }
+async function _annHash(user, code){
+  const b = new TextEncoder().encode('rejoes-msg::'+user+'::'+code);
+  const h = await crypto.subtle.digest('SHA-256', b);
+  return Array.from(new Uint8Array(h)).map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+function announceLoadMsgs(){
+  if(_annListenerSet) return;
+  if(!(window.FB && window.FB.db)){ _annMsgLoaded = true; return; }
+  _annListenerSet = true;
+  ensureFirebaseAuth().then(()=>{
+    window.FB.db.ref('announceMsg').on('value', s=>{
+      const v = s.val()||{};
+      _annMsgs.be = Object.values(v.be||{}).sort((a,b)=>a.ts-b.ts);
+      _annMsgs.sibiu = Object.values(v.sibiu||{}).sort((a,b)=>a.ts-b.ts);
+      _annMsgLoaded = true; renderAnnounceBanner();
+    });
+  }).catch(()=>{ _annMsgLoaded = true; });
+}
+function announceToggleForm(which){ const f=document.getElementById('annForm_'+which); if(f){ f.style.display=(f.style.display==='none'?'block':'none'); const c=document.getElementById('annCode_'+which); if(c && f.style.display==='block') c.focus(); } }
+async function announcePost(which){
+  const codeEl=document.getElementById('annCode_'+which), textEl=document.getElementById('annText_'+which);
+  const code=((codeEl&&codeEl.value)||'').trim(), text=((textEl&&textEl.value)||'').trim();
+  if(!text){ toast('Scrie un mesaj'); return; }
+  const allowed=_annAllowed[which]||{}; let who=null;
+  for(const u in allowed){ if(await _annHash(u, code)===allowed[u]){ who=u; break; } }
+  if(!who){ toast('⚠ Cod incorect'); return; }
+  try{ await ensureFirebaseAuth(); await window.FB.db.ref('announceMsg/'+which).push({ who:_annNume[who]||who, text:text, ts:Date.now() }); }
+  catch(e){ toast('⚠ Nu am putut trimite mesajul'); return; }
+  toast('✓ Mesaj trimis. Mulțumim! 💜');
+}
+function _annSection(which, accent){
+  const arr=_annMsgs[which]||[];
+  const list = arr.length ? '<div style="margin:2px 0 6px">'+arr.map(m=>`<div style="font-size:12.5px;margin:3px 0;color:#0C3B23"><strong style="color:${accent}">💬 ${escapeHtml(m.who)}:</strong> ${escapeHtml(m.text)}</div>`).join('')+'</div>' : '';
+  return `<div style="margin:-2px 0 14px;padding:0 4px">${list}<button onclick="announceToggleForm('${which}')" style="background:transparent;border:1px solid ${accent};color:${accent};border-radius:999px;padding:3px 12px;font-size:12px;cursor:pointer">✍️ Lasă un mesaj</button><div id="annForm_${which}" style="display:none;margin-top:8px;background:#fff;border:1px solid #e2e8e5;border-radius:10px;padding:10px;max-width:520px"><div style="font-size:11.5px;color:#5b6b62;margin-bottom:6px">Doar persoana desemnată poate posta — introdu codul tău personal.</div><input id="annCode_${which}" type="password" inputmode="numeric" placeholder="cod" style="width:110px;padding:7px;border:1px solid #cdd8d2;border-radius:6px;font-size:14px;letter-spacing:3px;text-align:center"><textarea id="annText_${which}" rows="2" placeholder="Mesajul tău…" style="width:100%;margin-top:8px;padding:8px;border:1px solid #cdd8d2;border-radius:6px;font-size:13px;box-sizing:border-box;resize:vertical"></textarea><div style="margin-top:8px;text-align:right"><button onclick="announcePost('${which}')" style="background:${accent};color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;cursor:pointer;font-weight:600">Trimite</button></div></div></div>`;
+}
 function renderAnnounceBanner(){
   const content = document.getElementById('content'); if(!content) return;
   let el = document.getElementById('announceBanner');
   if(_announceDismissed){ if(el) el.remove(); return; }
   if(!document.getElementById('announceMarqueeStyle')){ const s=document.createElement('style'); s.id='announceMarqueeStyle'; s.textContent='@keyframes announceMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}@keyframes announceGlow{0%,100%{box-shadow:0 0 6px rgba(255,224,138,.25)}50%{box-shadow:0 0 18px rgba(255,224,138,.7)}}'; document.head.appendChild(s); }
   if(!el){ el = document.createElement('div'); el.id = 'announceBanner'; content.parentNode.insertBefore(el, content); }
+  if(!_annMsgLoaded) announceLoadMsgs();
   const msg = `🏆 Angajatul lunii — iulie 2026: <strong style="color:#ffe08a">Claudia (Deta)</strong> &nbsp;·&nbsp; singura din întreaga rețea care și-a atins pragul de rentabilitate — <strong>124%</strong> din țintă &nbsp;·&nbsp; 💰 recompensă binemeritată: <strong style="color:#ffe08a">1.025 lei</strong>, pentru 14 zile de excelență &nbsp;·&nbsp; Felicitări, Claudia! 👏 &nbsp;&nbsp;&nbsp;&nbsp;`;
   el.innerHTML = `<div style="margin:0 0 8px;background:linear-gradient(90deg,#1B5E3A,#2e8b57);border-radius:12px;overflow:hidden;color:#fff;position:relative;display:flex;align-items:center;min-height:64px;animation:announceGlow 2.4s ease-in-out infinite">
     <img src="claudia.jpg" alt="Claudia" style="width:54px;height:54px;border-radius:50%;object-fit:cover;border:2px solid #ffe08a;margin:5px 2px 5px 10px;flex-shrink:0;z-index:2" onerror="this.style.display='none'">
@@ -757,15 +800,14 @@ function renderAnnounceBanner(){
       <div style="position:absolute;top:0;white-space:nowrap;will-change:transform;animation:announceMarquee 24s linear infinite;font-size:14px;font-weight:600;line-height:64px"><span>${msg}</span><span>${msg}</span></div>
     </div>
     <button onclick="dismissAnnounce()" style="flex-shrink:0;background:transparent;border:none;color:#d9efe2;font-size:20px;cursor:pointer;line-height:1;padding:0 12px;z-index:2" aria-label="Închide">×</button>
-  </div>
-  <div style="margin:0 0 14px;background:linear-gradient(90deg,#7a1f5c,#b5327f);border-radius:12px;color:#fff;position:relative;display:flex;align-items:flex-start;padding:11px 12px;gap:12px">
+  </div>` + _annSection('be','#1B5E3A') + `<div style="margin:0 0 8px;background:linear-gradient(90deg,#7a1f5c,#b5327f);border-radius:12px;color:#fff;position:relative;display:flex;align-items:flex-start;padding:11px 12px;gap:12px">
     <img src="echipa_sibiu.jpg" alt="Claudia și Ana la Sibiu" style="width:74px;height:74px;border-radius:10px;object-fit:cover;border:2px solid #ffd6ef;flex-shrink:0" onerror="this.style.display='none'">
     <div style="flex:1;min-width:0;font-size:12.5px;line-height:1.55">
       <div style="font-weight:800;font-size:15px;margin-bottom:3px">💜 Recunoștință pentru Ana și Claudia 🙌</div>
       <div style="color:#fbe9f4">Renașterea magazinului din <strong>Sibiu</strong> vi se datorează în cea mai mare măsură. Zece zile de muncă neîntreruptă, departe de cei dragi, transformate într-un rezultat pe care îl prețuim profund — iar <strong>recompensa va fi pe măsura efortului</strong>. O amintim cu aceeași căldură și pe <strong>Diana</strong>, pentru contribuția ei la acest proiect. Suntem convinși că aceste zile vor rămâne <strong>memorabile</strong>, iar mândria voastră pentru ceea ce ați clădit va fi la fel de durabilă. Așteptăm cu entuziasm următorul proiect și ne dorim ca fiecare membru al echipei <strong>S-Colect (Rejoes)</strong> să și-l dorească cu aceeași dăruire și optimism. Ușa este mereu deschisă. 👏</div>
     </div>
     <button onclick="dismissAnnounce()" style="flex-shrink:0;align-self:flex-start;background:transparent;border:none;color:#ffd6ef;font-size:20px;cursor:pointer;line-height:1;padding:0 4px" aria-label="Închide">×</button>
-  </div>`;
+  </div>` + _annSection('sibiu','#b5327f');
 }
 function go(view) {
   currentView = view;
@@ -14608,7 +14650,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-04-1130';
+const APP_VERSION = '2026-08-04-1200';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
