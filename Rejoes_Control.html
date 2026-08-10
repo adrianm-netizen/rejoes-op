@@ -447,14 +447,15 @@ const SEED = {
     {id:"ANG-006", nume:"CIOBANICA GABRIELA", prenume:"", rol:"manager depozit", magazin:"DEP-001", program:"8h/zi L-V", status:"Activ", nrContract:"13", cnp:"2860516350081", obs:"Gabi", serieCard:"9602607531"},
     {id:"ANG-007", nume:"CIOBANU GIANINA", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"10h, 2+2", status:"Activ", nrContract:"40", cnp:"2900103350046", serieCard:"9603170077"},
     {id:"ANG-008", nume:"CIOBANU LUMINITA", prenume:"", rol:"lucrător comercial", magazin:"MAG-004", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"35", cnp:"2750603057068", serieCard:"9603083191"},
-    {id:"ANG-009", nume:"CUCU PETRONELA", prenume:"", rol:"lucrător comercial", magazin:"MAG-002", program:"10h, 2+2", status:"Activ", nrContract:"48", cnp:"6021003114540", serieCard:"9603194760"},
+    {id:"ANG-009", nume:"CUCU PETRONELA", prenume:"", rol:"lucrător comercial", magazin:"MAG-002", program:"10h, 2+2", status:"Inactiv", nrContract:"48", cnp:"6021003114540", serieCard:"9603194760", obs:"începe activitate Uber — înlocuită de Yasmine (aug. 2026)"},
     {id:"ANG-010", nume:"IONASCU VERONICA", prenume:"", rol:"lucrător comercial", magazin:"MAG-002", program:"10h, 2+2", status:"Activ", nrContract:"25", cnp:"2680601354763", serieCard:"9602906924"},
     {id:"ANG-011", nume:"ONOFREI ANAMARIA", prenume:"", rol:"manager", magazin:"MAG-001", program:"8h/zi L-V", status:"Activ", nrContract:"27", cnp:"2981107020111", serieCard:"9602951899"},
     {id:"ANG-012", nume:"DIANA POP", prenume:"", rol:"lucrător comercial", magazin:"MAG-003", program:"10h, 2+2", status:"Activ", nrContract:"49", cnp:"2730402323920", serieCard:"9603241632"},
     {id:"ANG-013", nume:"MIHAELA ROMAN", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"10h, 2+2", status:"Activ", nrContract:"51", cnp:"2830929044442", serieCard:"9603241633"},
     {id:"ANG-014", nume:"SPINU ALEXIA", prenume:"", rol:"lucrător comercial", magazin:"MAG-007", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"45", cnp:"6060826350031", serieCard:"9603170078"},
     {id:"ANG-015", nume:"URSACHE LUCIA-DANIELA", prenume:"", rol:"contabil șef", magazin:"DEP-001", program:"4h/zi L-V", status:"Activ", nrContract:"50", cnp:"2900331244488", obs:"Dana — ½ normă", serieCard:"9603241634"},
-    {id:"ANG-016", nume:"ZDROBA VASILICA-NATALIA", prenume:"", rol:"lucrător comercial", magazin:"MAG-005", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"52", cnp:"2771124354771", serieCard:"9603241635"}
+    {id:"ANG-016", nume:"ZDROBA VASILICA-NATALIA", prenume:"", rol:"lucrător comercial", magazin:"MAG-005", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"52", cnp:"2771124354771", serieCard:"9603241635"},
+    {id:"ANG-017", nume:"ABOUHELAL YASMINE", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"10h, 2+2", status:"Activ", nrContract:"", cnp:"8970907350028", serieCard:"", obs:"revenită în echipă (aug. 2026), la Aradului — o înlocuiește pe Petronela"}
   ],
   setari: {
     prag_diff_alerta: 20, prag_diff_critica: 100, prag_stoc_alerta: 5,
@@ -801,7 +802,14 @@ function renderAnnounceBanner(){
       <div style="position:absolute;top:0;white-space:nowrap;will-change:transform;animation:announceMarquee 24s linear infinite;font-size:14px;font-weight:600;line-height:64px"><span>${msg}</span><span>${msg}</span></div>
     </div>
     <button onclick="dismissAnnounce()" style="flex-shrink:0;background:transparent;border:none;color:#d9efe2;font-size:20px;cursor:pointer;line-height:1;padding:0 12px;z-index:2" aria-label="Închide">×</button>
-  </div>` + _annSection('be','#1B5E3A') + `<div style="margin:0 0 8px;background:linear-gradient(90deg,#7a1f5c,#b5327f);border-radius:12px;color:#fff;position:relative;display:flex;align-items:flex-start;padding:11px 12px;gap:12px">
+  </div>` + _annSection('be','#1B5E3A') + `<div style="margin:0 0 8px;background:linear-gradient(120deg,#0f5132,#1B5E3A 55%,#2e8b57);border-radius:12px;color:#fff;position:relative;display:flex;align-items:flex-start;padding:12px;gap:13px;animation:announceGlow 2.8s ease-in-out infinite">
+    <img src="yasmine.jpg" alt="Yasmine" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #ffe08a;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.28)" onerror="this.style.display='none'">
+    <div style="flex:1;min-width:0;font-size:12.5px;line-height:1.55">
+      <div style="font-weight:800;font-size:16px;margin-bottom:3px">💐 Bine ai revenit, <span style="color:#ffe08a">Yasmine</span>! 🌟</div>
+      <div style="color:#eaf7ef">Ne bucurăm din toată inima să te avem din nou alături. <strong>Energia</strong> ta, <strong>vibe-ul</strong> inconfundabil și <strong>entuziasmul</strong> molipsitor ne-au lipsit cu adevărat — sunt exact ingredientele care dau viață unui magazin. Avem convingerea că aceste calități ne vor aduce un binemeritat <strong>„refresh"</strong> și un <strong>boost comercial</strong> pe măsură. Te primim cu drag, cu ușa (și inima) deschisă, și abia așteptăm să scriem împreună un nou capitol plin de zâmbete, rezultate frumoase și energie bună. <strong>Bine ai revenit acasă</strong>, la echipa <strong>S-Colect (Rejoes)</strong>! ✨</div>
+    </div>
+    <button onclick="dismissAnnounce()" style="flex-shrink:0;align-self:flex-start;background:transparent;border:none;color:#ffe08a;font-size:20px;cursor:pointer;line-height:1;padding:0 4px" aria-label="Închide">×</button>
+  </div>` + `<div style="margin:0 0 8px;background:linear-gradient(90deg,#7a1f5c,#b5327f);border-radius:12px;color:#fff;position:relative;display:flex;align-items:flex-start;padding:11px 12px;gap:12px">
     <img src="echipa_sibiu.jpg" alt="Claudia și Ana la Sibiu" style="width:74px;height:74px;border-radius:10px;object-fit:cover;border:2px solid #ffd6ef;flex-shrink:0" onerror="this.style.display='none'">
     <div style="flex:1;min-width:0;font-size:12.5px;line-height:1.55">
       <div style="font-weight:800;font-size:15px;margin-bottom:3px">💜 Recunoștință pentru Ana și Claudia 🙌</div>
@@ -14682,7 +14690,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-11-1200';
+const APP_VERSION = '2026-08-11-1500';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
@@ -15395,6 +15403,16 @@ if (DB.session && DB.session.user && DB.users[DB.session.user]) {
 }
 save();
 console.log('Users synced:', Object.keys(DB.users).map(u => u+'='+DB.users[u].role).join(', '));
+// Reactivare Yasmine Abouhelal (revenită aug. 2026, la Aradului) + Petronela trecută inactivă (începe Uber) — o singură dată, nu se repetă
+try{
+  if(!DB._reactYasmine2026 && Array.isArray(DB.angajati)){
+    if(!DB.angajati.some(a=>a&&a.cnp==='8970907350028'))
+      DB.angajati.push({id:"ANG-017", nume:"ABOUHELAL YASMINE", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"10h, 2+2", status:"Activ", nrContract:"", cnp:"8970907350028", serieCard:"", obs:"revenită în echipă (aug. 2026), la Aradului — o înlocuiește pe Petronela"});
+    const _pet=DB.angajati.find(a=>a&&a.cnp==='6021003114540'); if(_pet && _pet.status!=='Inactiv'){ _pet.status='Inactiv'; if(!_pet.obs) _pet.obs='începe activitate Uber — înlocuită de Yasmine (aug. 2026)'; }
+    DB._reactYasmine2026=true; save();
+    console.log('Reactivare Yasmine + Petronela inactivă aplicate.');
+  }
+}catch(e){ console.warn('reactivare Yasmine', e); }
 
 // Backup automat zilnic (creează snapshot dacă ultimul e din ziua anterioară)
 try { autoBackupIfNeeded(); } catch(e) { console.error('Auto-backup failed:', e); }
