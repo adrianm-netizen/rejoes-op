@@ -447,7 +447,7 @@ const SEED = {
     {id:"ANG-006", nume:"CIOBANICA GABRIELA", prenume:"", rol:"manager depozit", magazin:"DEP-001", program:"8h/zi L-V", status:"Activ", nrContract:"13", cnp:"2860516350081", obs:"Gabi", serieCard:"9602607531"},
     {id:"ANG-007", nume:"CIOBANU GIANINA", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"10h, 2+2", status:"Activ", nrContract:"40", cnp:"2900103350046", serieCard:"9603170077"},
     {id:"ANG-008", nume:"CIOBANU LUMINITA", prenume:"", rol:"lucrător comercial", magazin:"MAG-004", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"35", cnp:"2750603057068", serieCard:"9603083191"},
-    {id:"ANG-009", nume:"CUCU PETRONELA", prenume:"", rol:"lucrător comercial", magazin:"MAG-002", program:"10h, 2+2", status:"Inactiv", nrContract:"48", cnp:"6021003114540", serieCard:"9603194760", obs:"începe activitate Uber — înlocuită de Yasmine (aug. 2026)"},
+    {id:"ANG-009", nume:"CUCU PETRONELA", prenume:"", rol:"lucrător comercial", magazin:"MAG-002", program:"10h, 2+2", status:"Activ", nrContract:"48", cnp:"6021003114540", serieCard:"9603194760", obs:"mai are 2 zile de lucru (11–12 aug 2026), apoi pleacă (Uber) — locul preluat de Yasmine"},
     {id:"ANG-010", nume:"IONASCU VERONICA", prenume:"", rol:"lucrător comercial", magazin:"MAG-002", program:"10h, 2+2", status:"Activ", nrContract:"25", cnp:"2680601354763", serieCard:"9602906924"},
     {id:"ANG-011", nume:"ONOFREI ANAMARIA", prenume:"", rol:"manager", magazin:"MAG-001", program:"8h/zi L-V", status:"Activ", nrContract:"27", cnp:"2981107020111", serieCard:"9602951899"},
     {id:"ANG-012", nume:"DIANA POP", prenume:"", rol:"lucrător comercial", magazin:"MAG-003", program:"10h, 2+2", status:"Activ", nrContract:"49", cnp:"2730402323920", serieCard:"9603241632"},
@@ -587,7 +587,15 @@ function load() {
   } catch(e){}
   return JSON.parse(JSON.stringify(SEED));
 }
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
+// ===== Selfie-uri păstrate în IndexedDB (nu mai încarcă localStorage → evită „Memorie plină") =====
+// localStorage salvează DB FĂRĂ câmpul 'selfie' (replacer); pozele stau în IndexedDB (spațiu mare) + în cloud.
+function _dbReplacer(k,v){ return k==='selfie' ? undefined : v; }
+let _idbP=null;
+function _idb(){ if(_idbP) return _idbP; _idbP=new Promise((res,rej)=>{ try{ const r=indexedDB.open('rejoes_media',1); r.onupgradeneeded=()=>{ const d=r.result; if(!d.objectStoreNames.contains('selfies')) d.createObjectStore('selfies'); }; r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error||new Error('idb')); }catch(e){ rej(e); } }); return _idbP; }
+async function idbPutSelfie(id,data){ if(!id||!data) return; try{ const db=await _idb(); await new Promise((res,rej)=>{ const t=db.transaction('selfies','readwrite'); t.objectStore('selfies').put(data,id); t.oncomplete=res; t.onerror=()=>rej(t.error); }); }catch(e){} }
+async function idbGetSelfie(id){ try{ const db=await _idb(); return await new Promise(res=>{ const t=db.transaction('selfies','readonly'); const rq=t.objectStore('selfies').get(id); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>res(null); }); }catch(e){ return null; } }
+async function idbAllSelfies(){ try{ const db=await _idb(); return await new Promise(res=>{ const out={}; const t=db.transaction('selfies','readonly'); const cur=t.objectStore('selfies').openCursor(); cur.onsuccess=e=>{ const c=e.target.result; if(c){ out[c.key]=c.value; c.continue(); } else res(out); }; cur.onerror=()=>res(out); }); }catch(e){ return {}; } }
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB, _dbReplacer)); }
 
 function toast(msg) {
   const t = document.getElementById('toast');
@@ -1249,7 +1257,7 @@ function pontajEmployees(){ const active=(DB.angajati||[]).filter(a=>a.status===
 function pontajFindStore(lat,lng,acc,strict){ let best=null; for(const k in PONTAJ_GEO){ const g=PONTAJ_GEO[k]; const d=_haversineM(g.lat,g.lng,lat,lng); const tol=strict?0:Math.min(acc||0,60); if(d<=g.raza+tol&&(!best||d<best.dist)) best={key:k,dist:d,raza:g.raza}; } return best; }
 function pontajNearest(lat,lng){ let n=null; for(const k in PONTAJ_GEO){ const g=PONTAJ_GEO[k]; const d=_haversineM(g.lat,g.lng,lat,lng); if(!n||d<n.d)n={k,d}; } return n; }
 function _pjMagIdByKey(key){ const m=(DB.magazine||[]).find(x=>_beKey(x.id)===key); return m?m.id:key; }
-async function pontajSavePunch(rec){ if(!DB.ponch)DB.ponch=[]; rec.id='pj-'+Date.now()+'-'+Math.random().toString(36).slice(2,7); rec.salvatLa=new Date().toISOString(); DB.ponch.push(rec); try{ _lastLocalChange=Date.now(); }catch(e){} save(); try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('ponch/'+rec.id).set(rec);} }catch(e){ console.warn('pontaj cloud',e); } }
+async function pontajSavePunch(rec){ if(!DB.ponch)DB.ponch=[]; rec.id='pj-'+Date.now()+'-'+Math.random().toString(36).slice(2,7); rec.salvatLa=new Date().toISOString(); DB.ponch.push(rec); try{ if(rec.selfie) await idbPutSelfie(rec.id, rec.selfie); }catch(e){} try{ _lastLocalChange=Date.now(); }catch(e){} save(); try{ if(window.FB&&window.FB.db){ await ensureFirebaseAuth(); await window.FB.db.ref('ponch/'+rec.id).set(rec);} }catch(e){ console.warn('pontaj cloud',e); } }
 // Sincronizare descendentă: trage pontajele din cloud (de pe telefoanele fetelor) în DB.ponch local
 let _pjPulling=false;
 async function pontajPullCloud(){
@@ -1262,7 +1270,7 @@ async function pontajPullCloud(){
     if(!DB.ponch)DB.ponch=[];
     const have=new Set(DB.ponch.map(p=>p&&p.id));
     let added=0;
-    Object.keys(cloud).forEach(k=>{ const r=cloud[k]; if(r&&r.id&&!have.has(r.id)){ DB.ponch.push(r); have.add(r.id); added++; } });
+    Object.keys(cloud).forEach(k=>{ const r=cloud[k]; if(r&&r.id&&!have.has(r.id)){ DB.ponch.push(r); have.add(r.id); added++; try{ if(r.selfie) idbPutSelfie(r.id, r.selfie); }catch(e){} } });
     if(added>0){ try{save();}catch(e){}
       const map={aprobarepontaj:renderAprobarePontaj, pontajcontrol:renderPontajControl, panou:renderPanou};
       if(typeof currentView!=='undefined' && map[currentView]){ try{ map[currentView](); }catch(e){} }
@@ -14690,7 +14698,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-11-1500';
+const APP_VERSION = '2026-08-11-1700';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
@@ -14950,7 +14958,7 @@ function save() {
   // iar setItem aruncă eroare → pontajul NU se salvează și modalul rămâne deschis.
   // Fix: când e plin, tăiem backup-urile vechi și reîncercăm; nu pierdem niciodată datele curente.
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DB, _dbReplacer));
   } catch (e) {
     const isQuota = e && (e.name === 'QuotaExceededError' || e.code === 22 || /quota/i.test(e.message||''));
     if (!isQuota) throw e;
@@ -14958,13 +14966,13 @@ function save() {
     try {
       // Pasul 1: păstrează doar cele mai noi 3 snapshot-uri
       if (Array.isArray(DB._backups) && DB._backups.length > 3) DB._backups.length = 3;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DB, _dbReplacer));
       console.warn('[save] OK după ce am redus _backups la 3.');
     } catch (e2) {
       try {
         // Pasul 2: dacă tot e plin, renunță complet la backup-urile locale (rămân cele din cloud)
         DB._backups = [];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(DB, _dbReplacer));
         console.warn('[save] OK după ce am golit _backups.');
         try { toast('💾 Am eliberat spațiu (backup-uri vechi) ca să pot salva.'); } catch(_){}
       } catch (e3) {
@@ -15413,6 +15421,29 @@ try{
     console.log('Reactivare Yasmine + Petronela inactivă aplicate.');
   }
 }catch(e){ console.warn('reactivare Yasmine', e); }
+// Corecție 11 aug 2026: Petronela revine în pontaj (mai are 2 zile de lucru, 11–12 aug) — o singură dată
+try{
+  if(!DB._petroBack2026 && Array.isArray(DB.angajati)){
+    const _p=DB.angajati.find(a=>a&&a.cnp==='6021003114540'); if(_p){ _p.status='Activ'; _p.obs='mai are 2 zile de lucru (11–12 aug 2026), apoi pleacă (Uber) — locul preluat de Yasmine'; }
+    DB._petroBack2026=true; save();
+    console.log('Petronela reactivată în pontaj.');
+  }
+}catch(e){ console.warn('petro back', e); }
+// Migrare selfie-uri în IndexedDB + eliberare localStorage (rezolvă „Memorie plină" pe telefoanele fetelor).
+// Rulează la fiecare încărcare: mută pozele rămase în localStorage → IndexedDB, apoi hidratează memoria pt afișare.
+(async function _migrateSelfies(){
+  try{
+    if(!Array.isArray(DB.ponch)) return;
+    let moved=0;
+    for(const p of DB.ponch){ if(p && p.selfie){ await idbPutSelfie(p.id, p.selfie); moved++; } }
+    if(moved>0){ try{ save(); }catch(e){} }   // rescrie localStorage FĂRĂ selfie → eliberează spațiu
+    const all=await idbAllSelfies();
+    let hy=0;
+    for(const p of DB.ponch){ if(p && !p.selfie && all[p.id]){ p.selfie=all[p.id]; hy++; } }
+    if(hy>0){ try{ const m={aprobarepontaj:renderAprobarePontaj,pontajcontrol:renderPontajControl,panou:renderPanou}; if(typeof currentView!=='undefined'&&m[currentView]) m[currentView](); }catch(e){} }
+    console.log('[selfie] IndexedDB → mutate:'+moved+', hidratate:'+hy);
+  }catch(e){ console.warn('migrare selfie', e); }
+})();
 
 // Backup automat zilnic (creează snapshot dacă ultimul e din ziua anterioară)
 try { autoBackupIfNeeded(); } catch(e) { console.error('Auto-backup failed:', e); }
