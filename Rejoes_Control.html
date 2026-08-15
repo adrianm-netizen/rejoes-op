@@ -1541,57 +1541,29 @@ function _pjZileLucrateIul(nume){
   return set;
 }
 function pontajNormalizeIulie(){
-  const an=2026, luna=7, nz=31;
-  const isLV=d=>{ const x=new Date(an,luna-1,d).getDay(); return x>=1&&x<=5; };
-  const R={
-    '2860516350081':{h:10,mode:'worked',from:10}, // Ciobanica Gabriela — din 10 iul
-    '2900331244488':{h:4, mode:'allLV'},          // Ursache (Dana)
-    '2771022354836':{h:8, mode:'allLV'},          // Baraban Olga
-    '2981107020111':{h:8, mode:'allLV'},          // Onofrei (Ana)
-    '2900103350046':{h:10,mode:'worked'},         // Ciobanu Gianina
-    '6021003114540':{h:10,mode:'worked'},         // Cucu Petronela
-    '2680601354763':{h:10,mode:'worked'},         // Ionascu Veronica
-    '2730402323920':{h:10,mode:'worked'},         // Diana Pop
-    '2941017324793':{h:10,mode:'worked'},         // Alexandru Anca
-    '2771124354771':{h:8, mode:'workedLV'},       // Zdroba
-    '2770509350316':{h:8, mode:'workedLV'},       // Brstyak Claudia
-    '6060826350031':{h:8, mode:'workedLV'}        // Spinu Alexia
-  };
-  const isLeave=r=>{ const t=String(r&&r.tipZi||'')+String(r&&r.oreLucrate||''); return /CO|concediu|CM|medical|Liber|Învoire|Invoire/i.test(t); };
-  if(!confirm('Normalizez orele pe IULIE 2026 conform regulilor (Gabriela 10h din 10 iul; Dana 4h L-V; Baraban+Ana 8h L-V; Gianina/Petronela/Veronica/Diana/Anca 10h/zi lucrată; Zdroba/Brstyak/Spinu 8h zi lucrată L-V).\n\nFac întâi un backup. Continui?')) return;
-  try{ createBackup('Înainte normalizare ore iulie 2026'); }catch(e){}
-  const setRec=(nume,magName,d,h)=>{
-    const data=`${an}-07-${String(d).padStart(2,'0')}`;
-    let r=DB.pontaj.find(p=>p.data===data&&p.angajat===nume);
-    if(r && isLeave(r)) return false; // păstrează CO/CM/liber
-    const val=String(h);
-    if(!r){ r={data,angajat:nume,locatie:magName||''}; DB.pontaj.push(r); }
-    r.tipZi='Lucrat 🟢'; r.oreLucrate=val; r.oreReal=val; if(magName&&!r.locatie) r.locatie=magName;
-    r.observatii='Ore normalizate (reguli iulie 2026)'; r.corectatManual=true; r.dinPontajIO=true;
-    return true;
-  };
-  const rap=[]; const gol=[];
-  for(const cnp in R){
-    const a=(DB.angajati||[]).find(x=>x&&x.cnp===cnp); if(!a) continue;
-    const nume=a.nume, magName=(typeof mag==='function'?mag(a.magazin):'')||a.magazin||''; const cfg=R[cnp]; let n=0;
-    if(cfg.mode==='allLV'){
-      for(let d=1;d<=nz;d++){ if(isLV(d) && setRec(nume,magName,d,cfg.h)) n++; }
-    } else {
-      const zile=_pjZileLucrateIul(nume);
-      zile.forEach(d=>{
-        if(cfg.from && d<cfg.from) return;
-        if(cfg.mode==='workedLV' && !isLV(d)) return;
-        if(setRec(nume,magName,d,cfg.h)) n++;
-      });
-    }
-    rap.push(`${_beFirstName?_beFirstName(nume):nume}: ${n} zile × ${cfg.h}h`);
-    if(n===0) gol.push(_beFirstName?_beFirstName(nume):nume);
-  }
+  const an=2026,luna=7,nz=31;
+  const dow=d=>new Date(an,luna-1,d).getDay();
+  const isLV=d=>{const x=dow(d);return x>=1&&x<=5;};
+  const isSat=d=>dow(d)===6;
+  const BIG=/aradului|bujorilor|sibiu/i, SMALL=/jimbolia|deta|moravi|lugoj|s[âa]nnicolau/i;
+  const FIXED={'2771022354836':'lv8','2981107020111':'lv8','2900331244488':'lv4','6060826350031':'small_full'};
+  const isLeave=r=>{const t=String(r&&r.tipZi||'')+String(r&&r.oreLucrate||'');return /CO|concediu|CM|medical|Liber|Învoire|Invoire/i.test(t);};
+  if(!confirm('Normalizez orele pe IULIE 2026 — magazine MARI (Aradului/Bujorilor/Sibiu): 10h/zi lucrată · magazine MICI: 8h L-V + 4h sâmbăta · Baraban+Ana: 8h L-V · Dana: 4h L-V · Spinu: 8h L-V + 4h Sb toată luna. Weekend liber, CO/CM păstrate. Fac backup întâi. Continui?')) return;
+  try{createBackup('Înainte normalizare ore iulie 2026');}catch(e){}
+  const magNameOf=a=>{try{return (typeof mag==='function'?mag(a.magazin):'')||a.magazin||'';}catch(e){return a.magazin||'';}};
+  const setRec=(nume,magName,d,h)=>{const data=`${an}-07-${String(d).padStart(2,'0')}`;let r=DB.pontaj.find(p=>p.data===data&&p.angajat===nume);if(r&&isLeave(r))return false;if(!r){r={data,angajat:nume,locatie:magName||''};DB.pontaj.push(r);}r.tipZi='Lucrat 🟢';r.oreLucrate=String(h);r.oreReal=String(h);if(magName&&!r.locatie)r.locatie=magName;r.observatii='Ore normalizate (reguli iulie 2026)';r.corectatManual=true;r.dinPontajIO=true;return true;};
+  const domLoc=nume=>{const c={};(DB.ponch||[]).forEach(p=>{if(p&&p.angajat===nume&&String(p.data||'').startsWith('2026-07')){let nm='';try{const id=(typeof _pjMagIdByKey==='function')?_pjMagIdByKey(p.magKey||(typeof _beKey==='function'?_beKey(p.magazin):p.magazin)):p.magazin;nm=(typeof mag==='function'?mag(id):'')||p.magazin||p.magKey||'';}catch(e){nm=p.magazin||p.magKey||'';}c[nm]=(c[nm]||0)+1;}});let best='',n=-1;for(const k in c){if(c[k]>n){n=c[k];best=k;}}return best;};
+  const rap=[],gol=[];
+  (DB.angajati||[]).filter(a=>a&&a.status==='Activ').forEach(a=>{
+    const nume=a.nume,cnp=a.cnp,magName=magNameOf(a);let n=0;
+    if(FIXED[cnp]){const t=FIXED[cnp];for(let d=1;d<=nz;d++){if((t==='lv8')&&isLV(d)){if(setRec(nume,magName,d,8))n++;}else if((t==='lv4')&&isLV(d)){if(setRec(nume,magName,d,4))n++;}else if(t==='small_full'){if(isLV(d)){if(setRec(nume,magName,d,8))n++;}else if(isSat(d)){if(setRec(nume,magName,d,4))n++;}}}}
+    else{const zile=_pjZileLucrateIul(nume);if(!zile.size)return;let locStr=magName;if(!BIG.test(locStr)&&!SMALL.test(locStr)){locStr=domLoc(nume)||magName;}const big=BIG.test(locStr),small=SMALL.test(locStr);if(!big&&!small){gol.push((typeof _beFirstName==='function'?_beFirstName(nume):nume)+' (loc?)');return;}zile.forEach(d=>{if(big){if(setRec(nume,magName,d,10))n++;}else{if(isLV(d)){if(setRec(nume,magName,d,8))n++;}else if(isSat(d)){if(setRec(nume,magName,d,4))n++;}}});}
+    if(n>0)rap.push((typeof _beFirstName==='function'?_beFirstName(nume):nume)+' ('+magName+'): '+n+' zile');
+  });
   save();
-  toast('✅ Ore iulie normalizate. '+(gol.length?('⚠ fără zile: '+gol.join(', ')):''));
-  console.log('[normalizare iulie]\n'+rap.join('\n'));
-  try{ renderAprobarePontaj(); }catch(e){}
-  if(gol.length) alert('Normalizare aplicată.\n\n⚠ Fără nicio zi (de completat manual): '+gol.join(', ')+'.\n\nDetalii complete în consolă.');
+  toast('✅ Ore iulie normalizate.'+(gol.length?(' ⚠ verifică loc: '+gol.join(', ')):''));
+  console.log('[normalizare iulie 2026] '+rap.join(' | '));
+  try{renderAprobarePontaj();}catch(e){}
 }
 function pontajShowSelfie(di,si){ const d=_pjDrafts[di]; if(!d||!d.selfies[si])return; const s=d.selfies[si];
   openModal(`<div style="text-align:center"><div style="font-weight:700;margin-bottom:8px">${escapeHtml(d.angajat)} — ${s.tip==='IN'?'Intrare':'Ieșire'} ${s.ora}</div><img src="${s.selfie}" style="max-width:100%;border-radius:10px"><div style="font-size:12px;color:var(--text-muted);margin-top:8px">${s.sursa==='telefon'?('📍 '+(s.dist!=null?s.dist+' m față de magazin':'GPS')):'PayDesk (fără selfie/GPS)'}</div><div style="margin-top:12px"><button class="btn" onclick="closeModal()">Închide</button></div></div>`); }
