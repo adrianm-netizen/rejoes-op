@@ -441,12 +441,12 @@ const SEED = {
   angajati: [
     {id:"ANG-001", nume:"ALEXANDRU ANCA", prenume:"", rol:"lucrător comercial", magazin:"MAG-003", program:"10h, 2+2", status:"Activ", nrContract:"24", cnp:"2941017324793", serieCard:"9602905875"},
     {id:"ANG-002", nume:"BARABAN OLGA", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"8h/zi L-V", status:"Activ", nrContract:"37", cnp:"2771022354836", serieCard:"9602579978"},
-    {id:"ANG-003", nume:"BAKAITY EDINA", prenume:"", rol:"lucrător comercial", magazin:"MAG-005", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"", cnp:"2951003350036", serieCard:"9603111997"},
+    {id:"ANG-003", nume:"BAKAITY EDINA", prenume:"", rol:"lucrător comercial", magazin:"MAG-005", program:"8h L-V + 4h Sb", status:"Inactiv", nrContract:"", cnp:"2951003350036", serieCard:"9603111997", obs:"plecată — nu mai lucrează, exclusă din pontaj"},
     {id:"ANG-004", nume:"ANDREEA BOSINCEANU", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"8h/zi L-V", status:"Concediu maternitate", nrContract:"7", cnp:"2871009020109", obs:"fostă BOTAS, în concediu de maternitate", serieCard:"9602579974"},
     {id:"ANG-005", nume:"BRSTYAK CLAUDIA", prenume:"", rol:"lucrător comercial", magazin:"MAG-006", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"44", cnp:"2770509350316", serieCard:"9603170076"},
     {id:"ANG-006", nume:"CIOBANICA GABRIELA", prenume:"", rol:"manager depozit", magazin:"DEP-001", program:"8h/zi L-V", status:"Activ", nrContract:"13", cnp:"2860516350081", obs:"Gabi", serieCard:"9602607531"},
     {id:"ANG-007", nume:"CIOBANU GIANINA", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"10h, 2+2", status:"Activ", nrContract:"40", cnp:"2900103350046", serieCard:"9603170077"},
-    {id:"ANG-008", nume:"CIOBANU LUMINITA", prenume:"", rol:"lucrător comercial", magazin:"MAG-004", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"35", cnp:"2750603057068", serieCard:"9603083191"},
+    {id:"ANG-008", nume:"CIOBANU LUMINITA", prenume:"", rol:"lucrător comercial", magazin:"MAG-004", program:"8h L-V + 4h Sb", status:"Inactiv", nrContract:"35", cnp:"2750603057068", serieCard:"9603083191", obs:"plecată — exclusă din pontaj"},
     {id:"ANG-009", nume:"CUCU PETRONELA", prenume:"", rol:"lucrător comercial", magazin:"MAG-002", program:"10h, 2+2", status:"Activ", nrContract:"48", cnp:"6021003114540", serieCard:"9603194760", obs:"mai are 2 zile de lucru (11–12 aug 2026), apoi pleacă (Uber) — locul preluat de Yasmine"},
     {id:"ANG-010", nume:"IONASCU VERONICA", prenume:"", rol:"lucrător comercial", magazin:"MAG-002", program:"10h, 2+2", status:"Activ", nrContract:"25", cnp:"2680601354763", serieCard:"9602906924"},
     {id:"ANG-011", nume:"ONOFREI ANAMARIA", prenume:"", rol:"manager", magazin:"MAG-001", program:"8h/zi L-V", status:"Activ", nrContract:"27", cnp:"2981107020111", serieCard:"9602951899"},
@@ -455,7 +455,7 @@ const SEED = {
     {id:"ANG-014", nume:"SPINU ALEXIA", prenume:"", rol:"lucrător comercial", magazin:"MAG-007", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"45", cnp:"6060826350031", serieCard:"9603170078"},
     {id:"ANG-015", nume:"URSACHE LUCIA-DANIELA", prenume:"", rol:"contabil șef", magazin:"DEP-001", program:"4h/zi L-V", status:"Activ", nrContract:"50", cnp:"2900331244488", obs:"Dana — ½ normă", serieCard:"9603241634"},
     {id:"ANG-016", nume:"ZDROBA VASILICA-NATALIA", prenume:"", rol:"lucrător comercial", magazin:"MAG-005", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"52", cnp:"2771124354771", serieCard:"9603241635"},
-    {id:"ANG-017", nume:"ABOUHELAL YASMINE", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"10h, 2+2", status:"Activ", nrContract:"", cnp:"8970907350028", serieCard:"", obs:"revenită în echipă (aug. 2026), la Aradului — o înlocuiește pe Petronela"}
+    {id:"ANG-017", nume:"ABOUHELAL YASMINE", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"10h, 2+2", status:"Activ", nrContract:"", cnp:"8970907350028", serieCard:"", dataAngajare:"2026-08-10", obs:"revenită în echipă (aug. 2026), la Aradului — o înlocuiește pe Petronela"}
   ],
   setari: {
     prag_diff_alerta: 20, prag_diff_critica: 100, prag_stoc_alerta: 5,
@@ -8854,7 +8854,8 @@ async function exportCentralizator(){
   const dow=d=>{const x=new Date(an,luna-1,d).getDay(); return (x+6)%7;};
   const wd=zileLucrOficiale(an,luna), nsat=sambeteLuna(an,luna);
   const recs=DB.pontaj.filter(p=>isLunaSelectata(p.data,an,luna));
-  const activi=DB.angajati.filter(a=>a.status==='Activ');
+  const _mEndYMD=`${an}-${String(luna).padStart(2,'0')}-${String(nzile).padStart(2,'0')}`;
+  const activi=DB.angajati.filter(a=>a.status==='Activ' && (!a.dataAngajare || a.dataAngajare<=_mEndYMD));
   const byday={}; recs.forEach(r=>{ const zi=parseInt(String(r.data).slice(8,10)); byday[r.angajat+'|'+zi]=[r.tipZi,r.oreLucrate]; });
   const grup={}; activi.forEach(a=>{ const p=mag(a.magazin)||a.magazin||'(fără punct)'; (grup[p]=grup[p]||[]).push(a); });
   const puncte=Object.keys(grup).sort();
@@ -8926,7 +8927,8 @@ async function exportPontajIndividual(){
   const ZIRO=['Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă','Duminică'];
   const dow=d=>{const x=new Date(an,luna-1,d).getDay(); return (x+6)%7;};
   const recs=DB.pontaj.filter(p=>isLunaSelectata(p.data,an,luna));
-  const activi=DB.angajati.filter(a=>a.status==='Activ');
+  const _mEndYMD=`${an}-${String(luna).padStart(2,'0')}-${String(nzile).padStart(2,'0')}`;
+  const activi=DB.angajati.filter(a=>a.status==='Activ' && (!a.dataAngajare || a.dataAngajare<=_mEndYMD));
   const byday={}; recs.forEach(r=>{ const zi=parseInt(String(r.data).slice(8,10)); byday[r.angajat+'|'+zi]=r; });
   const grup={}; activi.forEach(a=>{ const p=mag(a.magazin)||a.magazin||'(fără punct)'; (grup[p]=grup[p]||[]).push(a); });
   const puncte=Object.keys(grup).sort();
@@ -14698,7 +14700,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-11-1700';
+const APP_VERSION = '2026-08-14-1000';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
@@ -15415,7 +15417,7 @@ console.log('Users synced:', Object.keys(DB.users).map(u => u+'='+DB.users[u].ro
 try{
   if(!DB._reactYasmine2026 && Array.isArray(DB.angajati)){
     if(!DB.angajati.some(a=>a&&a.cnp==='8970907350028'))
-      DB.angajati.push({id:"ANG-017", nume:"ABOUHELAL YASMINE", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"10h, 2+2", status:"Activ", nrContract:"", cnp:"8970907350028", serieCard:"", obs:"revenită în echipă (aug. 2026), la Aradului — o înlocuiește pe Petronela"});
+      DB.angajati.push({id:"ANG-017", nume:"ABOUHELAL YASMINE", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"10h, 2+2", status:"Activ", nrContract:"", cnp:"8970907350028", serieCard:"", dataAngajare:"2026-08-10", obs:"revenită în echipă (aug. 2026), la Aradului — o înlocuiește pe Petronela"});
     const _pet=DB.angajati.find(a=>a&&a.cnp==='6021003114540'); if(_pet && _pet.status!=='Inactiv'){ _pet.status='Inactiv'; if(!_pet.obs) _pet.obs='începe activitate Uber — înlocuită de Yasmine (aug. 2026)'; }
     DB._reactYasmine2026=true; save();
     console.log('Reactivare Yasmine + Petronela inactivă aplicate.');
@@ -15429,6 +15431,15 @@ try{
     console.log('Petronela reactivată în pontaj.');
   }
 }catch(e){ console.warn('petro back', e); }
+// Corecție stat iulie 2026: Bakaity + Ciobanu Luminița plecate → Inactiv; Yasmine cu data angajării (10.08.2026, exclusă din iulie) — o singură dată
+try{
+  if(!DB._rosterFixIul2026 && Array.isArray(DB.angajati)){
+    ['2951003350036','2750603057068'].forEach(cnp=>{ const x=DB.angajati.find(a=>a&&a.cnp===cnp); if(x) x.status='Inactiv'; });
+    const y=DB.angajati.find(a=>a&&a.cnp==='8970907350028'); if(y) y.dataAngajare='2026-08-10';
+    DB._rosterFixIul2026=true; save();
+    console.log('Stat iulie curățat: Bakaity+Luminița inactive, Yasmine dataAngajare=10.08.2026.');
+  }
+}catch(e){ console.warn('roster fix iulie', e); }
 // Migrare selfie-uri în IndexedDB + eliberare localStorage (rezolvă „Memorie plină" pe telefoanele fetelor).
 // Rulează la fiecare încărcare: mută pozele rămase în localStorage → IndexedDB, apoi hidratează memoria pt afișare.
 (async function _migrateSelfies(){
