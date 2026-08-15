@@ -804,7 +804,14 @@ function renderAnnounceBanner(){
   if(!el){ el = document.createElement('div'); el.id = 'announceBanner'; content.parentNode.insertBefore(el, content); }
   if(!_annMsgLoaded) announceLoadMsgs();
   const msg = `🏆 Angajatul lunii — iulie 2026: <strong style="color:#ffe08a">Claudia (Deta)</strong> &nbsp;·&nbsp; singura din întreaga rețea care și-a atins pragul de rentabilitate — <strong>124%</strong> din țintă &nbsp;·&nbsp; 💰 recompensă binemeritată: <strong style="color:#ffe08a">1.025 lei</strong>, pentru 14 zile de excelență &nbsp;·&nbsp; Felicitări, Claudia! 👏 &nbsp;&nbsp;&nbsp;&nbsp;`;
-  el.innerHTML = `<div style="margin:0 0 8px;background:linear-gradient(90deg,#1B5E3A,#2e8b57);border-radius:12px;overflow:hidden;color:#fff;position:relative;display:flex;align-items:center;min-height:64px;animation:announceGlow 2.4s ease-in-out infinite">
+  el.innerHTML = `<div style="margin:0 0 10px;background:linear-gradient(135deg,#0f5132,#1B5E3A);border-radius:14px;color:#fff;overflow:hidden;position:relative;animation:announceGlow 3s ease-in-out infinite">
+    <button onclick="dismissAnnounce()" style="position:absolute;top:6px;right:10px;background:rgba(0,0,0,.28);border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:1px 10px;border-radius:8px;z-index:3" aria-label="Închide">×</button>
+    <img src="bani_ordine.jpg" alt="Bani sortați pe valori, în ordine" style="width:100%;height:150px;object-fit:cover;display:block;border-bottom:3px solid #ffe08a" onerror="this.style.display='none'">
+    <div style="padding:13px 16px;font-size:12.8px;line-height:1.6">
+      <div style="font-weight:800;font-size:16px;margin-bottom:5px">💚 Dragi colege</div>
+      <div style="color:#eaf7ef">În primul rând, vă mulțumim pentru tot ce faceți zi de zi. Mesajul acesta este un <strong>reminder al unor reguli elementare</strong>, pe care ne dorim să le readucem în prim-plan — pentru că țin de felul în care ne prezentăm, ca echipă.<br><br>Curățenia din magazine trebuie să fie <strong>impecabilă</strong> — nu doar „curat", ci la superlativ. Vă rugăm ca <strong>de fiecare dată când închideți magazinul</strong>, totul să rămână în ordine, lucrurile aranjate și puse la locul lor. Gândiți-vă la colegele care vin după voi — și, mai presus de orice, la <strong>imaginea pe care o lăsați clienților</strong>, fiindcă ea spune totul despre noi.<br><br>Aceeași grijă vă rugăm s-o păstrați și la bani, la închidere: <strong>fiecare zi cu Z-ul ei</strong>, pus în punga zip împreună cu numerarul, iar banii <strong>sortați pe valori</strong> și așezați frumos, în ordine.<br><br>Știm că par lucruri mărunte, dar tocmai ele fac diferența. Per ansamblu nu vă cerem multe — tocmai de aceea credem că măcar acestea, curățenia și ordinea, pot fi respectate întocmai. Iar când sunt, totul funcționează firesc și arată în cel mai civilizat și elegant mod cu putință.<br><br>Vă mulțumim și avem toată încrederea în voi. 💚</div>
+    </div>
+  </div>` + `<div style="margin:0 0 8px;background:linear-gradient(90deg,#1B5E3A,#2e8b57);border-radius:12px;overflow:hidden;color:#fff;position:relative;display:flex;align-items:center;min-height:64px;animation:announceGlow 2.4s ease-in-out infinite">
     <img src="claudia.jpg" alt="Claudia" style="width:54px;height:54px;border-radius:50%;object-fit:cover;border:2px solid #ffe08a;margin:5px 2px 5px 10px;flex-shrink:0;z-index:2" onerror="this.style.display='none'">
     <div style="flex:1;overflow:hidden;white-space:nowrap;position:relative;height:64px">
       <div style="position:absolute;top:0;white-space:nowrap;will-change:transform;animation:announceMarquee 24s linear infinite;font-size:14px;font-weight:600;line-height:64px"><span>${msg}</span><span>${msg}</span></div>
@@ -14733,7 +14740,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-14-1100';
+const APP_VERSION = '2026-08-15-1000';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
