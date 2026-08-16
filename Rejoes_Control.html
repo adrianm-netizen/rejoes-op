@@ -981,8 +981,8 @@ const BE_DOW = {
   'Sibiu':      [1457,1749,1479,1261,2280,3701,4802],
   'Bujorilor':  [1684,1882,2045,1893,2084,3267,2435],
   'Aradului':   [1454,1776,1596,1649,1772,2518,2343],
-  'Jimbolia':   [876,671,880,820,989,517,0],
-  'Deta':       [943,579,617,631,713,551,0],
+  'Jimbolia':   [1007,772,1012,943,1137,595,0],
+  'Deta':       [1084,666,710,726,820,634,0],
   'Lugoj':      [756,464,494,506,571,442,0],
   // NOTĂ internă (nu se afișează): țintele magazinelor mici includ o marjă peste break-even-ul real.
   // BE REAL/lună: Jimbolia 19.136, Lugoj 11.726, Deta 10.166, Sânnicolau ~24.419.
@@ -2077,7 +2077,7 @@ function renderRaportZilnic() {
         <strong>TOTAL rețea</strong>
         <span style="white-space:nowrap"><strong>${fmt(beTotR)}</strong> / ${fmt(beTotT)} lei · <span style="color:${beTotR>=beTotT?'#0a7d3b':'#dc2626'};font-weight:800">${beTotT>0?Math.round(beTotR/beTotT*100):0}%</span> · ${beTotR-beTotT>=0?'+':''}${fmt(beTotR-beTotT)} lei</span>
       </div>
-      ${(typeof isAdmin==='function' && (isAdmin()||(DB.session&&DB.session.role==='owner'))) ? `<div style="margin-top:8px;border-top:1px dashed #c9a24b;padding-top:6px;font-size:10.5px;color:#8a6a20;line-height:1.5">🔒 Doar admin — țintă afișată vs break-even REAL (mag. mici, lei/lună): Jimbolia BE ${fmt(19136,0)} → țintă ${fmt(20667,0)} (+8%) · Lugoj BE ${fmt(11726,0)} → țintă ${fmt(14071,0)} (+20%) · Deta BE ${fmt(10166,0)} → țintă ${fmt(14775,0)} (+45%) · Sânnicolau BE ${fmt(24419,0)} — rampă 21.700→24.419 până în dec. Marja e ascunsă echipei.</div>` : ''}
+      ${(typeof isAdmin==='function' && (isAdmin()||(DB.session&&DB.session.role==='owner'))) ? `<div style="margin-top:8px;border-top:1px dashed #c9a24b;padding-top:6px;font-size:10.5px;color:#8a6a20;line-height:1.5">🔒 Doar admin — țintă afișată vs break-even REAL (mag. mici, lei/lună): Jimbolia BE ${fmt(19136,0)} → țintă ${fmt(23767,0)} (+24%) · Lugoj BE ${fmt(11726,0)} → țintă ${fmt(14071,0)} (+20%) · Deta BE ${fmt(10166,0)} → țintă ${fmt(16991,0)} (+67%) · Sânnicolau BE ${fmt(24419,0)} — rampă 21.700→24.419 până în dec. Marja e ascunsă echipei.</div>` : ''}
     </div>` : '';
   document.getElementById('content').innerHTML = `
     <div style="max-width:920px;margin:0 auto">
@@ -14740,7 +14740,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-15-1000';
+const APP_VERSION = '2026-08-15-1100';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
