@@ -806,7 +806,16 @@ function renderAnnounceBanner(){
   if(!el){ el = document.createElement('div'); el.id = 'announceBanner'; content.parentNode.insertBefore(el, content); }
   if(!_annMsgLoaded) announceLoadMsgs();
   const msg = `🏆 Angajatul lunii — iulie 2026: <strong style="color:#ffe08a">Claudia (Deta)</strong> &nbsp;·&nbsp; singura din întreaga rețea care și-a atins pragul de rentabilitate — <strong>124%</strong> din țintă &nbsp;·&nbsp; 💰 recompensă binemeritată: <strong style="color:#ffe08a">1.025 lei</strong>, pentru 14 zile de excelență &nbsp;·&nbsp; Felicitări, Claudia! 👏 &nbsp;&nbsp;&nbsp;&nbsp;`;
-  el.innerHTML = `<div style="margin:0 0 10px;background:linear-gradient(135deg,#0f5132,#1B5E3A);border-radius:14px;color:#fff;overflow:hidden;position:relative;animation:announceGlow 3s ease-in-out infinite">
+  el.innerHTML = `<div style="margin:0 0 10px;background:linear-gradient(135deg,#124a2f,#2e8b57);border-radius:14px;color:#fff;position:relative;padding:14px 16px;animation:announceGlow 3s ease-in-out infinite">
+    <button onclick="dismissAnnounce()" style="position:absolute;top:6px;right:10px;background:rgba(0,0,0,.28);border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:1px 10px;border-radius:8px;z-index:3" aria-label="Închide">×</button>
+    <div style="display:flex;align-items:flex-start;gap:13px">
+      <img src="alin.jpg" alt="Alin" style="width:82px;height:82px;border-radius:50%;object-fit:cover;border:3px solid #ffe08a;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.28)" onerror="this.style.display='none'">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:17px;margin-bottom:4px">👋 Bun venit, Alin!</div>
+        <div style="font-size:12.8px;line-height:1.6;color:#eaf7ef">Dragă echipă, avem un nou coleg la <strong>Sibiu — Alin</strong>! 🎉 Ni s-a alăturat cu multă energie și cu dorința reală de a pune umărul. Primiți-l cu căldura care vă caracterizează — un cuvânt bun, un sfat, un zâmbet contează enorm în primele zile. <strong>Bun venit în echipa S-Colect (Rejoes), Alin!</strong> Suntem tare bucuroși că ești alături de noi. 💚<br><span style="opacity:.85">— Ana</span></div>
+      </div>
+    </div>
+  </div>` + `<div style="margin:0 0 10px;background:linear-gradient(135deg,#0f5132,#1B5E3A);border-radius:14px;color:#fff;overflow:hidden;position:relative;animation:announceGlow 3s ease-in-out infinite">
     <button onclick="dismissAnnounce()" style="position:absolute;top:6px;right:10px;background:rgba(0,0,0,.28);border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:1px 10px;border-radius:8px;z-index:3" aria-label="Închide">×</button>
     <img src="bani_ordine.jpg" alt="Bani sortați pe valori, în ordine" style="width:100%;height:150px;object-fit:cover;display:block;border-bottom:3px solid #ffe08a" onerror="this.style.display='none'">
     <div style="padding:13px 16px;font-size:12.8px;line-height:1.6">
@@ -14785,7 +14794,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-15-1200';
+const APP_VERSION = '2026-08-15-1300';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
