@@ -648,6 +648,7 @@ const VIEWS_ALL = [
   {id:'disponibilitate', label:'🗓️ Disponibilitate', icon:'M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 16l2 2 4-4', roles:['admin','operator']},
   {id:'programmag', label:'🕒 Program magazine', icon:'M12 6v6l4 2 M12 22a10 10 0 100-20 10 10 0 000 20z', roles:['admin','operator']},
   {id:'aprobarepontaj', label:'✅ Pontaj de aprobat', icon:'M9 12l2 2 4-4 M12 22a10 10 0 100-20 10 10 0 000 20z', roles:['admin','operator']},
+  {id:'social', label:'📱 TikTok / Social', icon:'M23 7a4 4 0 00-3-3.87 M9 3v12a3 3 0 11-3-3 M9 3h4a5 5 0 005 5', roles:['admin','operator'], users:['adrian','ana']},
   {id:'absente', label:'🏖️ Concedii / Absențe', icon:'M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', roles:['admin','operator']},
   {id:'pontajcontrol', label:'🚨 Pontaj — Control', icon:'M12 9v4 M12 17h.01 M10.3 3.9l-8 14A2 2 0 004 21h16a2 2 0 001.7-3l-8-14a2 2 0 00-3.4 0z', roles:['admin','operator']},
   {id:'raportare', label:'Raportare zilnică', icon:'M9 17v-6h6v6M3 7l9-4 9 4M5 7v14h14V7', roles:['admin','owner','operator','contabil-sef']},
@@ -674,6 +675,7 @@ function renderNav() {
   VIEWS = VIEWS_ALL.filter(v => {
     if (!DB.session.role) return true;
     if (!v.roles.includes(DB.session.role)) return false;
+    if (v.users && !v.users.includes(DB.session.user)) return false; // secțiuni restrânse la anumiți useri (ex: TikTok — doar Adrian + Ana)
     if (DB.session.role === 'owner') return OWNER_VIEWS.includes(v.id); // Olga: meniu simplificat
     return true;
   });
@@ -833,11 +835,53 @@ function renderAnnounceBanner(){
     <button onclick="dismissAnnounce()" style="flex-shrink:0;align-self:flex-start;background:transparent;border:none;color:#ffd6ef;font-size:20px;cursor:pointer;line-height:1;padding:0 4px" aria-label="Închide">×</button>
   </div>` + _annSection('sibiu','#b5327f');
 }
+function renderSocial(){
+  var reguli=[
+    'Format vertical 9:16, filmat cu telefonul pe verticală. Durată 7–20 sec.',
+    'HOOK în primele 2 secunde: text mare + imagine care oprește scrollul.',
+    'Sunet în trend (CapCut → Sunete → Trending). Subtitrări auto (Captions).',
+    'Lumină bună + fundal ordonat (impecabil, ca în magazin).',
+    'CTA final: „Vino la Rejoes [Oraș]” / „Salvează” / „Scrie-ne pe DM”.',
+    'Cadență 4–5 clipuri/săptămână/magazin. Un singur cont central, cu orașul menționat.'
+  ];
+  var prog=[['Luni','Piesa zilei'],['Marți','SERIAL (episod)'],['Miercuri','Tocmai a intrat'],['Joi','Ținută sub 50 lei'],['Vineri','SERIAL (episod)'],['Sâmbătă','Haul / BTS'],['Duminică','Liber / Best of']];
+  var rubrici=[
+    ['Piesa zilei','„Piesa zilei la [X] lei”, piesa din 2–3 unghiuri, o probezi, spui prețul.'],
+    ['Tocmai a intrat','„Tocmai au intrat astea”, 3–5 piese noi pe ritm, „Vino azi”.'],
+    ['Ținută sub 50 lei','Adaugi piesă cu piesă, prețul fiecăreia, total la final.'],
+    ['Înainte & După','Piesa singură, apoi aceeași piesă asortată complet.'],
+    ['Haul','„Ce comori am găsit azi”, grămada + 3 favorite.'],
+    ['Behind the scenes','„Așa ajung hainele la voi”, echipa la sortare, uman.']
+  ];
+  var serial=[
+    {t:'Ep. 1 — Provocarea (setup)',hook:'„Am 4 evenimente săptămâna asta și 200 de lei. Ajutor!”',cadre:['Eroina intră grăbită, se prinde de cap.','„Luni interviu, miercuri întâlnire, sâmbătă nuntă, duminică brunch. Buget 200 lei.”','Stilista: „Provocare acceptată.”','Cadru rapid prin magazin, muzica în crescendo.','Text: „Începem cu interviul.”'],cap:'Ep.1 — 4 evenimente, 200 lei, tot second-hand 👀',cta:'„Urmărește-ne să vezi cum reușim 👇”'},
+    {t:'Ep. 2 — Ținuta de INTERVIU',hook:'„Ținută de interviu care inspiră încredere, sub 60 lei”',cadre:['Stilista: „Ne trebuie ceva curat și profesional.”','Alege blazer + bluză + pantalon, arată prețul fiecăreia.','Eroina probează, se învârte.','Prim-plan pe detalii.','Text total (ex. 54 lei) + „Urmează întâlnirea.”'],cap:'Ep.2 — ținuta de interviu, 54 lei 💼',cta:'„Salvează pentru interviul tău 💚”'},
+    {t:'Ep. 3 — Ținuta de ÎNTÂLNIRE',hook:'„Ținută de întâlnire care întoarce priviri, buget mic”',cadre:['Stilista: „Ceva feminin, dar comod.”','Rochie/top + o piesă statement, arată prețurile.','Eroina probează, moment wow.','Detaliu: cum asortează accesoriul.','Text total + „Urmează nunta.”'],cap:'Ep.3 — ținuta de întâlnire 😍',cta:'„Ce zici, merge? Comentează 👇”'},
+    {t:'Ep. 4 — Ținuta de NUNTĂ',hook:'„Ținută de nuntă din second-hand — nimeni nu-și dă seama”',cadre:['Stilista: „Nuntă, dar cu buget.”','Rochie elegantă + poșetă + piesă-cheie, prețurile.','Eroina iese în ținuta completă, reveal, învârtită.','Prim-plan pe detalii elegante.','Text total (ex. 69 lei) + „Ultimul: brunch-ul.”'],cap:'Ep.4 — ținută de nuntă, 69 lei 👰',cta:'„Ai ghicit prețul? 👀”'},
+    {t:'Ep. 5 — Brunch + MARELE TOTAL (final)',hook:'„4 ținute, o săptămână, cât am cheltuit de fapt?”',cadre:['Stilista: „Ultima — brunch relaxat.”','Eroina o probează, veselă.','Recap rapid: cele 4 ținute pe rând.','Text mare: „TOTAL: 4 ținute = 187 lei”.','Împreună: „Tot second-hand. Tot de la Rejoes.”'],cap:'FINAL 🎉 4 ținute, 187 lei, tot second-hand',cta:'„Vino la Rejoes [Oraș] 💚”'}
+  ];
+  var mag=[
+    ['Sibiu','energie nouă, magazin relansat','Descoperă noul Rejoes Sibiu'],
+    ['Bujorilor','stil de oraș, prețuri de second-hand','Stil de oraș, buget mic'],
+    ['Aradului','valoare maximă, buget minim','Cât de mult iei cu puțin'],
+    ['Jimbolia','cald, prietenos, de comunitate','Comorile din Jimbolia'],
+    ['Deta','piese unice, alese cu drag','Piesa unică a zilei'],
+    ['Lugoj','abia deschis, hype de deschidere','Cel mai nou Rejoes']
+  ];
+  var h='';
+  h+='<div class="card" style="border-left:5px solid #1B5E3A"><div style="font-weight:800;font-size:18px;color:#1B5E3A">📱 Agendă TikTok / Social</div><div style="font-size:12px;color:#8a5e0c;margin-top:2px">🔒 Vizibil doar pentru Adrian și Ana</div><div style="font-size:12.5px;color:#4b5c53;margin-top:8px">Fișierele complete sunt în folderul <b>DUTY</b>: „Agenda_TikTok_Rejoes.docx” (scenarii detaliate) și „Tracker_TikTok_Rejoes.xlsx” (bife de progres).</div></div>';
+  h+='<div class="card"><div style="font-weight:700;color:#2D7A55;margin-bottom:6px">1. Reguli de bază</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6">'+reguli.map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul></div>';
+  h+='<div class="card"><div style="font-weight:700;color:#2D7A55;margin-bottom:6px">2. Program săptămânal fix</div><table style="width:100%;border-collapse:collapse;font-size:13px"><tbody>'+prog.map(function(r){return '<tr><td style="padding:5px 8px;border-bottom:1px solid #eee;font-weight:600;width:95px">'+r[0]+'</td><td style="padding:5px 8px;border-bottom:1px solid #eee">'+r[1]+'</td></tr>';}).join('')+'</tbody></table></div>';
+  h+='<div class="card"><div style="font-weight:700;color:#2D7A55;margin-bottom:6px">3. Rubrici</div>'+rubrici.map(function(r){return '<div style="margin:4px 0;font-size:13px"><b>'+r[0]+':</b> '+r[1]+'</div>';}).join('')+'</div>';
+  h+='<div class="card"><div style="font-weight:700;color:#2D7A55;margin-bottom:6px">4. Serial — „Misiune: ținuta perfectă” (marți & vineri)</div>'+serial.map(function(e){return '<div style="margin:8px 0;padding:9px 11px;background:#f4f8f5;border-radius:8px"><div style="font-weight:700;color:#1B5E3A">'+e.t+'</div><div style="font-size:12.5px;margin:3px 0"><b>Hook:</b> '+e.hook+'</div><ol style="margin:2px 0;padding-left:18px;font-size:12.5px;line-height:1.5">'+e.cadre.map(function(c){return '<li>'+c+'</li>';}).join('')+'</ol><div style="font-size:12px;color:#4b5c53"><b>Caption:</b> '+e.cap+' &nbsp;·&nbsp; '+e.cta+'</div></div>';}).join('')+'</div>';
+  h+='<div class="card"><div style="font-weight:700;color:#2D7A55;margin-bottom:6px">5. Pe fiecare magazin</div>'+mag.map(function(m){return '<div style="margin:4px 0;font-size:13px"><b>'+m[0]+'</b> — '+m[1]+' · slogan: „'+m[2]+'”</div>';}).join('')+'<div style="font-size:12px;color:#4b5c53;margin-top:6px">Fiecare magazin urmează programul fix + serialul. Calendarul cu bife (per magazin) e în „Tracker_TikTok_Rejoes.xlsx”.</div></div>';
+  document.getElementById('content').innerHTML='<div style="max-width:1000px;margin:0 auto">'+h+'</div>';
+}
 function go(view) {
   currentView = view;
   if (window.innerWidth <= 700) toggleSidebar(false); // închide sertarul pe mobil la navigare
   renderNav();
-  const titles = {panou:'🏆 Break-even & Premii', analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', disponibilitate:'🗓️ Disponibilitate', programmag:'🕒 Program magazine', aprobarepontaj:'✅ Pontaj de aprobat', absente:'🏖️ Concedii / Absențe', pontajcontrol:'🚨 Pontaj — Control', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', cashbanca:'💵 Cash încasat vs Depuneri bancă', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
+  const titles = {panou:'🏆 Break-even & Premii', analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', disponibilitate:'🗓️ Disponibilitate', programmag:'🕒 Program magazine', aprobarepontaj:'✅ Pontaj de aprobat', social:'📱 TikTok / Social', absente:'🏖️ Concedii / Absențe', pontajcontrol:'🚨 Pontaj — Control', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', cashbanca:'💵 Cash încasat vs Depuneri bancă', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
     diferente:'Diferențe casă', inventar:'Inventar', alerte:'Alerte automate',
     import:'Import / Export date', setari:'Setări'};
   document.getElementById('pageTitle').textContent = titles[view];
@@ -845,12 +889,13 @@ function go(view) {
   // Role check: if current view not allowed for role, redirect
   const v = VIEWS_ALL.find(x => x.id === view);
   const ownerBlocked = DB.session.role === 'owner' && !OWNER_VIEWS.includes(view);
-  if (v && DB.session.role && (!v.roles.includes(DB.session.role) || ownerBlocked)) {
+  const userBlocked = v && v.users && !v.users.includes(DB.session.user);
+  if (v && DB.session.role && (!v.roles.includes(DB.session.role) || ownerBlocked || userBlocked)) {
     currentView = DB.session.role === 'panou' ? 'panou' : (DB.session.role === 'operator' ? 'pontaj' : (DB.session.role === 'manager-depozit' ? 'depozit' : DB.session.role === 'contabil-sef' ? 'pontaj' : (DB.session.role === 'owner' ? 'analize' : 'dashboard')));
     renderNav();
     return go(currentView);
   }
-  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, disponibilitate:renderDisponibilitate, programmag:renderProgramMag, aprobarepontaj:renderAprobarePontaj, absente:renderAbsente, pontajcontrol:renderPontajControl, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, cashbanca:renderCashBanca, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
+  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, disponibilitate:renderDisponibilitate, programmag:renderProgramMag, aprobarepontaj:renderAprobarePontaj, social:renderSocial, absente:renderAbsente, pontajcontrol:renderPontajControl, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, cashbanca:renderCashBanca, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
     diferente:renderDiferente, inventar:renderInventar, alerte:renderAlerte, import:renderImport, setari:renderSetari, panou:renderPanou})[view]();
   try{ renderAnnounceBanner(); }catch(e){}
 }
@@ -14740,7 +14785,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-15-1100';
+const APP_VERSION = '2026-08-15-1200';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
