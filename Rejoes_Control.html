@@ -14804,7 +14804,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-17-1000';
+const APP_VERSION = '2026-08-17-1100';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
@@ -15536,6 +15536,18 @@ try{
     console.log('Maria Rogojinaru adăugată (Lugoj).');
   }
 }catch(e){ console.warn('add Maria', e); }
+// Import unic vânzări Lugoj (e:Corg, 20 iul–17 aug 2026) în raportări — ca să apară BE Lugoj
+try{
+  if(!DB._lugojBackfill2026 && Array.isArray(DB.raportari)){
+    const _lug=[["2026-07-20",142,7],["2026-07-21",675,23],["2026-07-22",704,17],["2026-07-23",697,18],["2026-07-24",1134,14],["2026-07-25",307,9],["2026-07-27",1007,22],["2026-07-28",558,15],["2026-07-29",672,15],["2026-07-30",434,14],["2026-07-31",604,21],["2026-08-01",169,6],["2026-08-03",394,12],["2026-08-04",441,11],["2026-08-05",207,7],["2026-08-06",378,11],["2026-08-07",420,13],["2026-08-08",187,4],["2026-08-10",508,16],["2026-08-11",225,7],["2026-08-12",336,10],["2026-08-13",1310,51],["2026-08-14",1016,44],["2026-08-17",660,21]];
+    const _mid=a=>(typeof _magId==='function')?_magId(a):String(a||'').trim().split(/\s+/)[0];
+    const _exist=new Set(DB.raportari.filter(r=>_mid(r.magazin)==='MAG-008').map(r=>r.data));
+    let _n=0;
+    _lug.forEach(([d,v,b])=>{ if(!_exist.has(d)){ DB.raportari.push({data:d, magazin:"MAG-008", casier:"Maria", vanzari:v, pos:'', numerarTeoretic:'', numerarPredat:'', diferenta:0, bonuri:b, anulari:0, retururi:0, difStoc:0, alerta:'OK', motiv:'', detalii:'', observatii:'import e:Corg iul-aug 2026', salvatLa:(typeof nowISO==='function'?nowISO():new Date().toISOString()), auto:true}); _n++; } });
+    DB._lugojBackfill2026=true; save();
+    console.log('Backfill Lugoj: '+_n+' zile importate.');
+  }
+}catch(e){ console.warn('lugoj backfill', e); }
 // Corecție 11 aug 2026: Petronela revine în pontaj (mai are 2 zile de lucru, 11–12 aug) — o singură dată
 try{
   if(!DB._petroBack2026 && Array.isArray(DB.angajati)){
