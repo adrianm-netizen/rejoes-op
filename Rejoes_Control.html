@@ -807,7 +807,16 @@ function renderAnnounceBanner(){
   if(!el){ el = document.createElement('div'); el.id = 'announceBanner'; content.parentNode.insertBefore(el, content); }
   if(!_annMsgLoaded) announceLoadMsgs();
   const msg = `🏆 Angajatul lunii — iulie 2026: <strong style="color:#ffe08a">Claudia (Deta)</strong> &nbsp;·&nbsp; singura din întreaga rețea care și-a atins pragul de rentabilitate — <strong>124%</strong> din țintă &nbsp;·&nbsp; 💰 recompensă binemeritată: <strong style="color:#ffe08a">1.025 lei</strong>, pentru 14 zile de excelență &nbsp;·&nbsp; Felicitări, Claudia! 👏 &nbsp;&nbsp;&nbsp;&nbsp;`;
-  el.innerHTML = `<div style="margin:0 0 10px;background:linear-gradient(135deg,#124a2f,#2e8b57);border-radius:14px;color:#fff;position:relative;padding:14px 16px;animation:announceGlow 3s ease-in-out infinite">
+  el.innerHTML = `<div style="margin:0 0 10px;background:linear-gradient(135deg,#155a37,#39a06a);border-radius:14px;color:#fff;position:relative;padding:14px 16px;animation:announceGlow 3s ease-in-out infinite">
+    <button onclick="dismissAnnounce()" style="position:absolute;top:6px;right:10px;background:rgba(0,0,0,.28);border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:1px 10px;border-radius:8px;z-index:3" aria-label="Închide">×</button>
+    <div style="display:flex;align-items:flex-start;gap:13px">
+      <img src="mary.jpg" alt="Mary" style="width:82px;height:82px;border-radius:50%;object-fit:cover;border:3px solid #ffe08a;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.28)" onerror="this.style.display='none'">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:17px;margin-bottom:4px">👋 Bun venit, Mary!</div>
+        <div style="font-size:12.8px;line-height:1.6;color:#eaf7ef">Dragă echipă, vă fac cunoștință — cam târziu, recunosc! 😊 — cu <strong>Mary</strong>, noua noastră colegă de la <strong>Lugoj</strong> (str. Grozăvescu, colț cu Mocioni, nr. 2 — chiar în centru). A început de aproape o lună, însă, din cauza unor probleme tehnice, nu am reușit s-o prezint cum se cuvine până acum. Îmi cer scuze, Mary — meritai o primire pe cinste chiar din prima zi!<br><br>O facem acum, cu drag: Mary ține magazinul din Lugoj și se descurcă de minune — Lugoj merge frumos. 👏 Dacă treceți prin centrul Lugojului, opriți-vă s-o salutați! Primiți-o în gașcă așa cum știți voi cel mai bine: cu căldură, răbdare și un zâmbet.<br><br><strong>Bun venit oficial în echipa S-Colect (Rejoes), Mary!</strong> Mă bucur tare mult că ești alături de noi. 💚<br><span style="opacity:.85">— Ana</span></div>
+      </div>
+    </div>
+  </div>` + `<div style="margin:0 0 10px;background:linear-gradient(135deg,#124a2f,#2e8b57);border-radius:14px;color:#fff;position:relative;padding:14px 16px;animation:announceGlow 3s ease-in-out infinite">
     <button onclick="dismissAnnounce()" style="position:absolute;top:6px;right:10px;background:rgba(0,0,0,.28);border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:1px 10px;border-radius:8px;z-index:3" aria-label="Închide">×</button>
     <div style="display:flex;align-items:flex-start;gap:13px">
       <img src="alin.jpg" alt="Alin" style="width:82px;height:82px;border-radius:50%;object-fit:cover;border:3px solid #ffe08a;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.28)" onerror="this.style.display='none'">
