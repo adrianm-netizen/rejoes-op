@@ -661,6 +661,7 @@ const VIEWS_ALL = [
   {id:'depozit', label:'Depozit', icon:'M21 8a2 2 0 00-1-1.7l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.7l7 4a2 2 0 002 0l7-4A2 2 0 0021 16zM3.3 7L12 12l8.7-5 M12 22V12', roles:['admin','owner','manager-depozit']},
   {id:'miscari', label:'Mișcări marfă', icon:'M7 17l-5-5 5-5M17 7l5 5-5 5M2 12h20', roles:['admin','owner','operator','manager-depozit']},
   {id:'mesaje', label:'Mesaje', icon:'M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8z', roles:['admin','owner','operator','manager-depozit']},
+  {id:'privchat', label:'🔒 Privat', icon:'M12 15v2 M6 10V7a6 6 0 1112 0v3 M5 10h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z', roles:['admin','operator'], users:['adrian','ana']},
   {id:'preturi', label:'Prețuri produse', icon:'M12 8c-1.66 0-3 .9-3 2s1.34 2 3 2 3 .9 3 2-1.34 2-3 2m0-8V6m0 12v2', roles:['admin','owner','operator']},
   {id:'edenred', label:'Edenred', icon:'M12 2L4 7v10c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V7l-8-5z M9 12l2 2 4-4', roles:['admin','owner','contabil-sef']},
   {id:'setari', label:'Setări', icon:'M10.3 3.3a1 1 0 011.4 0l1 1a1 1 0 00.7.3h1.5a1 1 0 011 1V7a1 1 0 00.3.7l1 1a1 1 0 010 1.4l-1 1a1 1 0 00-.3.7v1.5a1 1 0 01-1 1H14a1 1 0 00-.7.3l-1 1a1 1 0 01-1.4 0l-1-1a1 1 0 00-.7-.3H7.6a1 1 0 01-1-1V14a1 1 0 00-.3-.7l-1-1a1 1 0 010-1.4l1-1A1 1 0 006.6 9V7.6a1 1 0 011-1H9a1 1 0 00.7-.3l1-1zM10 13a3 3 0 100-6 3 3 0 000 6z', roles:['admin','owner']}
@@ -900,7 +901,7 @@ function go(view) {
   currentView = view;
   if (window.innerWidth <= 700) toggleSidebar(false); // închide sertarul pe mobil la navigare
   renderNav();
-  const titles = {panou:'🏆 Break-even & Premii', analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', disponibilitate:'🗓️ Disponibilitate', programmag:'🕒 Program magazine', aprobarepontaj:'✅ Pontaj de aprobat', social:'📱 TikTok / Social', absente:'🏖️ Concedii / Absențe', pontajcontrol:'🚨 Pontaj — Control', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', cashbanca:'💵 Cash încasat vs Depuneri bancă', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
+  const titles = {panou:'🏆 Break-even & Premii', analize:'📊 Analize', raportzilnic:'📋 Raport zilnic pe magazine', dashboard:'Dashboard', briefing:'Briefing', profit:'Profit & analiză', disponibilitate:'🗓️ Disponibilitate', programmag:'🕒 Program magazine', aprobarepontaj:'✅ Pontaj de aprobat', social:'📱 TikTok / Social', absente:'🏖️ Concedii / Absențe', pontajcontrol:'🚨 Pontaj — Control', pontaj:'Pontaj', raportare:'Raportare zilnică', tasks:'Tasks', dosare:'📁 Dosare deschidere magazine', rh:'📋 RH / Resurse umane', cashbanca:'💵 Cash încasat vs Depuneri bancă', depozit:'Depozit / Achiziții', miscari:'Mișcări marfă', mesaje:'Mesaje', privchat:'🔒 Privat (criptat)', preturi:'Prețuri produse', edenred:'Edenred — Tichete masă',
     diferente:'Diferențe casă', inventar:'Inventar', alerte:'Alerte automate',
     import:'Import / Export date', setari:'Setări'};
   document.getElementById('pageTitle').textContent = titles[view];
@@ -914,7 +915,7 @@ function go(view) {
     renderNav();
     return go(currentView);
   }
-  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, disponibilitate:renderDisponibilitate, programmag:renderProgramMag, aprobarepontaj:renderAprobarePontaj, social:renderSocial, absente:renderAbsente, pontajcontrol:renderPontajControl, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, cashbanca:renderCashBanca, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, preturi:renderPreturi, edenred:renderEdenredView,
+  ({analize:renderAnalize, raportzilnic:renderRaportZilnic, dashboard:renderDashboard, briefing:renderBriefing, profit:renderProfit, disponibilitate:renderDisponibilitate, programmag:renderProgramMag, aprobarepontaj:renderAprobarePontaj, social:renderSocial, absente:renderAbsente, pontajcontrol:renderPontajControl, pontaj:renderPontaj, raportare:renderRaportare, tasks:renderTasks, dosare:renderDosare, rh:renderRH, cashbanca:renderCashBanca, depozit:renderDepozit, miscari:renderMiscari, mesaje:renderMesaje, privchat:renderPrivChat, preturi:renderPreturi, edenred:renderEdenredView,
     diferente:renderDiferente, inventar:renderInventar, alerte:renderAlerte, import:renderImport, setari:renderSetari, panou:renderPanou})[view]();
   try{ renderAnnounceBanner(); }catch(e){}
 }
@@ -9250,6 +9251,7 @@ function logout() {
   } catch(e){}
   DB.session = { user: null, role: null };
   save();
+  try { _pcLock(); if(_pcIdleTimer){ clearInterval(_pcIdleTimer); _pcIdleTimer=null; } } catch(e){}  // blochează chat-ul privat la logout
   try { toggleSidebar(false); } catch(e){}              // închide sertarul mobil (altfel acoperă login-ul)
   try { document.body.classList.remove('simple'); } catch(e){}  // ascunde bara de jos
   showLoginScreen();
@@ -12937,6 +12939,172 @@ function deleteMessage(id){
   window.FB.db.ref('messages/'+id).remove().then(()=>refreshMessagesOnce()).catch(()=>toast('⚠ Nu am putut șterge'));
 }
 
+// ============================================================
+//  CHAT PRIVAT E2E — doar Adrian ↔ Ana.
+//  Criptare end-to-end (AES-GCM 256, cheie derivată PBKDF2 din parola comună).
+//  Parola NU se salvează nicăieri — doar în memorie. Auto-blocare la 5 min inactivitate,
+//  la logout și la închiderea aplicației. În cloud (nod 'privchat') ajunge DOAR text cifrat.
+// ============================================================
+const PC_NODE = 'privchat';
+const PC_REST_BASE = 'https://rejoes-op-default-rtdb.europe-west1.firebasedatabase.app/privchat.json';
+const PC_VERIFIER_REST = 'https://rejoes-op-default-rtdb.europe-west1.firebasedatabase.app/privchat_meta/verifier.json';
+const PC_SENTINEL = 'REJOES-PRIVCHAT-OK-v1';
+const PC_SALT = 'rejoes-privchat::salt::v1';
+const PC_IDLE_MS = 5*60*1000;
+let _pcKey = null;            // CryptoKey în memorie (niciodată salvat pe disc/cloud)
+let _pcLockAt = 0, _pcIdleTimer = null, _pcPollTimer = null, _pcLastSig = '', _pcBusyUnlock = false;
+
+function _pcAllowed(){ return DB.session && (DB.session.user==='adrian' || DB.session.user==='ana'); }
+async function _pcToken(){ try{ if(window.FB && window.FB.auth && window.FB.auth.currentUser) return await window.FB.auth.currentUser.getIdToken(); }catch(e){} return ''; }
+async function _pcDeriveKey(pass){
+  const enc = new TextEncoder();
+  const base = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name:'PBKDF2', salt: enc.encode(PC_SALT), iterations: 200000, hash:'SHA-256' },
+    base, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']);
+}
+function _pcB64(buf){ return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))); }
+function _pcUnB64(s){ return Uint8Array.from(atob(s), c=>c.charCodeAt(0)); }
+async function _pcEnc(text){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, _pcKey, new TextEncoder().encode(text));
+  const out = new Uint8Array(iv.length + ct.byteLength); out.set(iv,0); out.set(new Uint8Array(ct), iv.length);
+  return _pcB64(out);
+}
+async function _pcDec(b64){
+  const raw = _pcUnB64(b64); const iv = raw.slice(0,12); const data = raw.slice(12);
+  const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv}, _pcKey, data);
+  return new TextDecoder().decode(pt);
+}
+function _pcLock(){ _pcKey=null; if(_pcPollTimer){ clearInterval(_pcPollTimer); _pcPollTimer=null; } _pcLastSig=''; }
+function _pcActivity(){ _pcLockAt = Date.now() + PC_IDLE_MS; }
+function _pcStartIdleWatch(){
+  if(_pcIdleTimer) clearInterval(_pcIdleTimer);
+  _pcIdleTimer = setInterval(()=>{
+    if(_pcKey && Date.now() > _pcLockAt){
+      _pcLock(); try{ toast('🔒 Chat privat blocat (inactivitate).'); }catch(e){}
+      if(typeof currentView!=='undefined' && currentView==='privchat') renderPrivChat();
+    }
+  }, 15000);
+}
+// Deblocare: verifică parola contra unui sentinel cifrat comun în cloud (prima parolă introdusă îl creează).
+async function _pcUnlock(){
+  const inp=document.getElementById('pcPass'), msg=document.getElementById('pcUnlockMsg');
+  const pass = inp ? inp.value : '';
+  if(!pass || pass.length<4){ if(msg){ msg.style.color='#c4453a'; msg.textContent='Parola trebuie să aibă cel puțin 4 caractere.'; } return; }
+  if(_pcBusyUnlock) return; _pcBusyUnlock=true;
+  if(msg){ msg.style.color='#5b6b62'; msg.textContent='Se verifică...'; }
+  try{
+    _pcKey = await _pcDeriveKey(pass);
+    const token = await _pcToken();
+    let vraw=null;
+    try{ const r=await fetch(PC_VERIFIER_REST + (token?('?auth='+encodeURIComponent(token)):''), {cache:'no-store'}); if(r.ok) vraw=await r.json(); }catch(e){}
+    if(vraw){
+      let ok=false; try{ ok=(await _pcDec(vraw))===PC_SENTINEL; }catch(e){ ok=false; }
+      if(!ok){ _pcKey=null; _pcBusyUnlock=false; if(msg){ msg.style.color='#c4453a'; msg.textContent='Parolă greșită.'; } return; }
+    } else {
+      const ct = await _pcEnc(PC_SENTINEL);
+      try{ await window.FB.db.ref('privchat_meta/verifier').set(ct); }catch(e){ _pcKey=null; _pcBusyUnlock=false; if(msg){ msg.style.color='#c4453a'; msg.textContent='Nu am putut stabili parola (fără internet?).'; } return; }
+      try{ toast('🔒 Parola privată a fost stabilită. Spune-i Anei aceeași parolă.'); }catch(_){}
+    }
+    _pcBusyUnlock=false; _pcActivity(); renderPrivChat();
+  }catch(e){ _pcKey=null; _pcBusyUnlock=false; if(msg){ msg.style.color='#c4453a'; msg.textContent='Eroare: '+((e&&e.message)||e); } }
+}
+function renderPrivChat(){
+  if(!_pcAllowed()){ document.getElementById('content').innerHTML='<div class="card">Acces restricționat.</div>'; return; }
+  if(!window.FB){ document.getElementById('content').innerHTML='<div class="card" style="background:#fef9f0;border-left:4px solid var(--warning)"><h3 style="color:#8a5e0c">⚠ Firebase nu este conectat</h3></div>'; return; }
+  _pcStartIdleWatch();
+  if(!_pcKey){
+    if(_pcPollTimer){ clearInterval(_pcPollTimer); _pcPollTimer=null; }
+    document.getElementById('content').innerHTML = `
+      <div style="max-width:420px;margin:6vh auto">
+        <div class="card" style="text-align:center;padding:28px 24px">
+          <div style="font-size:40px">🔒</div>
+          <h3 style="margin:8px 0 4px">Chat privat criptat</h3>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">Doar tu și Ana. Introdu parola secretă comună ca să deblochezi. Parola nu se salvează nicăieri — se cere din nou după 5 minute de inactivitate.</p>
+          <input type="password" id="pcPass" placeholder="Parolă secretă" readonly onfocus="this.removeAttribute('readonly')" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false" onkeydown="if(event.key==='Enter')_pcUnlock()" style="width:100%;padding:12px;border:1px solid #cdd8d2;border-radius:8px;font-size:16px;text-align:center;letter-spacing:4px;box-sizing:border-box">
+          <div id="pcUnlockMsg" style="min-height:18px;font-size:12px;margin:8px 0"></div>
+          <button class="btn btn-primary" style="width:100%;padding:12px" onclick="_pcUnlock()">🔓 Deblochează</button>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:12px">Dacă e prima dată, parola pe care o pui acum devine parola comună — spune-i-o Anei exact la fel.</p>
+        </div>
+      </div>`;
+    return;
+  }
+  _pcActivity();
+  const other = DB.session.user==='adrian' ? 'Ana' : 'Adrian';
+  document.getElementById('content').innerHTML = `
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="background:linear-gradient(135deg,#3a1e5e 0%,#6a2d8f 100%);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
+        <div><strong style="font-size:15px">🔒 Privat — ${escapeHtml(other)}</strong><div style="font-size:11px;opacity:.85;margin-top:2px">criptat end-to-end · se blochează la 5 min</div></div>
+        <button onclick="_pcLock();renderPrivChat()" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">🔒 Blochează</button>
+      </div>
+      <div id="pcList" onscroll="_pcActivity()" style="height:60vh;min-height:380px;overflow-y:auto;padding:14px;background:#f4f6f4;display:flex;flex-direction:column;gap:8px"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:20px">Se decriptează…</div></div>
+      <div style="background:#fff;border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:6px;align-items:center">
+        <input type="text" id="pcInput" placeholder="Mesaj privat…" onkeyup="_pcActivity()" onkeydown="if(event.key==='Enter')_pcSend()" style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:20px;font-size:14px;font-family:inherit">
+        <button class="btn btn-primary" onclick="_pcSend()" style="border-radius:20px;padding:8px 18px">Trimite</button>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:8px">🔐 Mesajele sunt cifrate pe telefon. În cloud se salvează doar text indescifrabil — nimeni fără parolă nu le poate citi.</p>`;
+  _pcLoad();
+}
+function _pcLoad(){
+  if(_pcPollTimer) clearInterval(_pcPollTimer);
+  _pcPollTimer = setInterval(()=>{ if(!document.getElementById('pcList')){ clearInterval(_pcPollTimer); _pcPollTimer=null; return; } _pcRefreshOnce(); }, 3000);
+  _pcRefreshOnce();
+}
+async function _pcRefreshOnce(){
+  if(!_pcKey || !window.FB || !window.FB.db) return;
+  try{
+    const token = await _pcToken();
+    const r = await fetch(PC_REST_BASE + (token?('?auth='+encodeURIComponent(token)):''), {cache:'no-store'});
+    if(!r.ok) return; const data = await r.json();
+    const listEl = document.getElementById('pcList'); if(!listEl){ if(_pcPollTimer){ clearInterval(_pcPollTimer); _pcPollTimer=null; } return; }
+    const raw = [];
+    if(data && typeof data==='object') Object.keys(data).forEach(k=>{ const v=data[k]||{}; raw.push({id:k, from:v.from, ts:v.ts, ct:v.ct}); });
+    raw.sort((a,b)=>(a.ts||0)-(b.ts||0));
+    const msgs = [];
+    for(const m of raw){ let txt=''; try{ txt = m.ct ? await _pcDec(m.ct) : ''; }catch(e){ txt='🔒 [nu pot decripta]'; } msgs.push({id:m.id, from:m.from, ts:m.ts, text:txt}); }
+    _pcRender(msgs);
+  }catch(e){}
+}
+function _pcRender(msgs){
+  const listEl = document.getElementById('pcList'); if(!listEl) return;
+  const sig = msgs.map(m=>m.id+':'+(m.ts||0)+':'+m.text).join('|');
+  if(sig===_pcLastSig) return; _pcLastSig=sig;
+  const nearBottom = (listEl.scrollHeight-listEl.scrollTop-listEl.clientHeight) < 120;
+  if(!msgs.length){ listEl.innerHTML='<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:40px">Niciun mesaj încă. Scrie primul — e doar între voi doi. 🔒</div>'; return; }
+  const me = DB.session.user; let lastDate=''; let html='';
+  msgs.forEach(m=>{
+    const d=new Date(m.ts||0); const dStr=d.toLocaleDateString('ro-RO',{day:'numeric',month:'long'});
+    if(dStr!==lastDate){ html+=`<div style="text-align:center;font-size:11px;color:var(--text-muted);margin:8px 0;padding:4px 10px;background:#e8ede9;border-radius:10px;align-self:center">${dStr}</div>`; lastDate=dStr; }
+    const isMe=m.from===me; const time=d.toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'});
+    const name=(DB.users[m.from]&&DB.users[m.from].nume)||m.from;
+    html+=`<div style="display:flex;${isMe?'justify-content:flex-end':'justify-content:flex-start'};max-width:80%;${isMe?'align-self:flex-end':''}">
+      <div style="background:${isMe?'#6a2d8f':'#fff'};color:${isMe?'#fff':'#0f1d17'};padding:8px 12px;border-radius:14px;${isMe?'border-bottom-right-radius:4px':'border-bottom-left-radius:4px'};box-shadow:0 1px 2px rgba(0,0,0,.06)">
+        ${!isMe?`<div style="font-size:11px;font-weight:600;color:#6a2d8f;margin-bottom:2px">${escapeHtml(name)}</div>`:''}
+        <div style="font-size:14px;word-wrap:break-word;white-space:pre-wrap">${escapeHtml(m.text)}</div>
+        <div style="font-size:10px;opacity:.6;margin-top:3px;text-align:right">${time}${isMe?` <span style="cursor:pointer" title="Șterge" onclick="_pcDelete('${m.id}')">🗑</span>`:''}</div>
+      </div></div>`;
+  });
+  listEl.innerHTML=html;
+  if(nearBottom) listEl.scrollTop=listEl.scrollHeight;
+}
+async function _pcSend(){
+  if(!_pcKey) return; _pcActivity();
+  const inp=document.getElementById('pcInput'); const text=inp?inp.value.trim():''; if(!text) return;
+  if(!window.FB || !window.FB.db){ toast('⚠ Firebase nu e conectat'); return; }
+  try{
+    const ct = await _pcEnc(text);
+    const ref = window.FB.db.ref(PC_NODE).push({ from: DB.session.user, ts: Date.now(), ct });
+    if(inp){ inp.value=''; inp.focus(); }
+    ref.then(()=>_pcRefreshOnce()).catch(()=>{ toast('⚠ Eroare la trimitere'); if(inp) inp.value=text; });
+  }catch(e){ toast('⚠ Eroare la criptare'); }
+}
+function _pcDelete(id){
+  if(!window.FB || !window.FB.db) return; _pcActivity();
+  if(!confirm('Ștergi mesajul (pentru amândoi)?')) return;
+  window.FB.db.ref(PC_NODE+'/'+id).remove().then(()=>_pcRefreshOnce()).catch(()=>toast('⚠ Nu am putut șterge'));
+}
+
 // Listen for new messages globally (to toast + notify when not on Mesaje view)
 let msgGlobalListener = null;
 let knownMsgIds = new Set();
@@ -14820,7 +14988,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-19-1100';
+const APP_VERSION = '2026-08-19-1200';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
