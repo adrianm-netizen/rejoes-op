@@ -323,14 +323,13 @@ body.simple .sidebar-backdrop.show { display: block; }
       <div style="font-size:12px;color:#5b6b62;margin-top:8px">S Colect REC S.R.L.</div>
     </div>
     <div id="loginUserPick" style="display:grid;gap:10px;margin-bottom:18px">
-      <button class="btn btn-primary" style="padding:14px;font-size:15px" onclick="pickUser('ana')">👤 Ana — Operations Management</button>
       <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#2d6a4f;border-color:#2d6a4f" onclick="pickUser('gabi')">📦 Gabi — manager depozit</button>
       <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#1f6b4c;border-color:#1f6b4c" onclick="pickUser('panou')">🏆 Panou magazine (break-even &amp; premii)</button>
     </div>
     <div id="loginAdminBox" style="display:none;margin-bottom:18px">
       <div style="font-size:12px;color:#5b6b62;text-align:center;margin-bottom:8px">Acces administrativ</div>
-      <input type="text" id="loginAdminUser" autocomplete="off" placeholder="utilizator" style="width:100%;padding:12px;border:1px solid #cdd8d2;border-radius:6px;margin-bottom:8px;font-size:14px;box-sizing:border-box">
-      <input type="password" id="loginAdminPin" autocomplete="off" placeholder="PIN" onkeydown="if(event.key==='Enter')doAdminLogin()" style="width:100%;padding:12px;border:1px solid #cdd8d2;border-radius:6px;font-size:16px;text-align:center;letter-spacing:6px;box-sizing:border-box">
+      <input type="text" id="loginAdminUser" placeholder="utilizator" readonly onfocus="this.removeAttribute('readonly')" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="width:100%;padding:12px;border:1px solid #cdd8d2;border-radius:6px;margin-bottom:8px;font-size:14px;box-sizing:border-box">
+      <input type="password" id="loginAdminPin" placeholder="PIN" readonly onfocus="this.removeAttribute('readonly')" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false" onkeydown="if(event.key==='Enter')doAdminLogin()" style="width:100%;padding:12px;border:1px solid #cdd8d2;border-radius:6px;font-size:16px;text-align:center;letter-spacing:6px;box-sizing:border-box">
       <button class="btn btn-primary" style="width:100%;padding:12px;margin-top:8px" onclick="doAdminLogin()">Intră</button>
       <button class="btn" style="width:100%;padding:10px;margin-top:6px" onclick="document.getElementById('loginAdminBox').style.display='none';document.getElementById('loginUserPick').style.display='grid';">← Înapoi</button>
       <div id="loginAdminErr" style="margin-top:8px;color:#c4453a;font-size:12px;text-align:center;min-height:16px"></div>
@@ -9185,14 +9184,23 @@ function _adminTap(){
     _adminTaps=0;
     var up=document.getElementById('loginUserPick'); if(up) up.style.display='none';
     var b=document.getElementById('loginAdminBox'); if(b) b.style.display='block';
-    setTimeout(()=>{ var el=document.getElementById('loginAdminUser'); if(el) el.focus(); }, 50);
+    // golește câmpurile + re-blochează (fără autofill/istoric până la tastare manuală)
+    var uEl=document.getElementById('loginAdminUser'); if(uEl){ uEl.value=''; uEl.setAttribute('readonly','readonly'); }
+    var pEl=document.getElementById('loginAdminPin'); if(pEl){ pEl.value=''; pEl.setAttribute('readonly','readonly'); }
+    var er=document.getElementById('loginAdminErr'); if(er) er.textContent='';
   }
 }
 async function doAdminLogin(){
-  const u=(document.getElementById('loginAdminUser').value||'').trim().toLowerCase();
+  let u=(document.getElementById('loginAdminUser').value||'').trim().toLowerCase();
   const pin=document.getElementById('loginAdminPin').value;
-  const allowed=['adrian','olga','ozan','dana'];
-  if(!allowed.includes(u) || !DB.users[u] || !(await verifyPin(u, pin))){
+  const aliases={ oana:'ana', adim:'adrian' };               // Ana → „OAna", Adrian → „adim"
+  const allowedTyped=['adim','olga','ozan','dana','oana'];
+  if(!allowedTyped.includes(u)){
+    document.getElementById('loginAdminErr').textContent='Utilizator sau PIN incorect';
+    return;
+  }
+  u=aliases[u]||u;
+  if(!DB.users[u] || !(await verifyPin(u, pin))){
     document.getElementById('loginAdminErr').textContent='Utilizator sau PIN incorect';
     return;
   }
@@ -14805,7 +14813,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-19-0900';
+const APP_VERSION = '2026-08-19-1000';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
