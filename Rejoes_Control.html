@@ -456,7 +456,8 @@ const SEED = {
     {id:"ANG-015", nume:"URSACHE LUCIA-DANIELA", prenume:"", rol:"contabil șef", magazin:"DEP-001", program:"4h/zi L-V", status:"Activ", nrContract:"50", cnp:"2900331244488", obs:"Dana — ½ normă", serieCard:"9603241634"},
     {id:"ANG-016", nume:"ZDROBA VASILICA-NATALIA", prenume:"", rol:"lucrător comercial", magazin:"MAG-005", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"52", cnp:"2771124354771", serieCard:"9603241635"},
     {id:"ANG-017", nume:"ABOUHELAL YASMINE", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"10h, 2+2", status:"Activ", nrContract:"", cnp:"8970907350028", serieCard:"", dataAngajare:"2026-08-10", obs:"revenită în echipă (aug. 2026), la Aradului — o înlocuiește pe Petronela"},
-    {id:"ANG-018", nume:"ROGOJINARU MARIA", prenume:"", rol:"lucrător comercial", magazin:"MAG-008", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"53", cnp:"2680416352622", serieCard:"", dataAngajare:"2026-07-21", obs:"Lugoj — normă întreagă 8/40 (09:00–17:30), CIM 53/20.07.2026"}
+    {id:"ANG-018", nume:"ROGOJINARU MARIA", prenume:"", rol:"lucrător comercial", magazin:"MAG-008", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"53", cnp:"2680416352622", serieCard:"", dataAngajare:"2026-07-21", obs:"Lugoj — normă întreagă 8/40 (09:00–17:30), CIM 53/20.07.2026"},
+    {id:"ANG-019", nume:"TILEAGĂ ALIN", prenume:"", rol:"lucrător comercial", magazin:"MAG-003", program:"10h, 2+2", status:"Activ", nrContract:"55", cnp:"1950808324816", serieCard:"", dataAngajare:"2026-08-18", obs:"Sibiu — normă întreagă 8/40, împreună cu Diana; CIM 55/17.08.2026"}
   ],
   setari: {
     prag_diff_alerta: 20, prag_diff_critica: 100, prag_stoc_alerta: 5,
@@ -14804,7 +14805,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-17-1100';
+const APP_VERSION = '2026-08-19-0900';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
@@ -15536,16 +15537,32 @@ try{
     console.log('Maria Rogojinaru adăugată (Lugoj).');
   }
 }catch(e){ console.warn('add Maria', e); }
+// Adăugare Alin Tileagă (Sibiu, angajat 18.08.2026, cu Diana) — o singură dată
+try{
+  if(!DB._addAlin2026 && Array.isArray(DB.angajati)){
+    if(!DB.angajati.some(a=>a&&a.cnp==='1950808324816'))
+      DB.angajati.push({id:"ANG-019", nume:"TILEAGĂ ALIN", prenume:"", rol:"lucrător comercial", magazin:"MAG-003", program:"10h, 2+2", status:"Activ", nrContract:"55", cnp:"1950808324816", serieCard:"", dataAngajare:"2026-08-18", obs:"Sibiu — normă întreagă 8/40, împreună cu Diana; CIM 55/17.08.2026"});
+    DB._addAlin2026=true; save();
+    console.log('Alin Tileagă adăugat (Sibiu).');
+  }
+}catch(e){ console.warn('add Alin', e); }
 // Import unic vânzări Lugoj (e:Corg, 20 iul–17 aug 2026) în raportări — ca să apară BE Lugoj
 try{
-  if(!DB._lugojBackfill2026 && Array.isArray(DB.raportari)){
+  if(!DB._lugojBackfill2026b && Array.isArray(DB.raportari)){
     const _lug=[["2026-07-20",142,7],["2026-07-21",675,23],["2026-07-22",704,17],["2026-07-23",697,18],["2026-07-24",1134,14],["2026-07-25",307,9],["2026-07-27",1007,22],["2026-07-28",558,15],["2026-07-29",672,15],["2026-07-30",434,14],["2026-07-31",604,21],["2026-08-01",169,6],["2026-08-03",394,12],["2026-08-04",441,11],["2026-08-05",207,7],["2026-08-06",378,11],["2026-08-07",420,13],["2026-08-08",187,4],["2026-08-10",508,16],["2026-08-11",225,7],["2026-08-12",336,10],["2026-08-13",1310,51],["2026-08-14",1016,44],["2026-08-17",660,21]];
     const _mid=a=>(typeof _magId==='function')?_magId(a):String(a||'').trim().split(/\s+/)[0];
     const _exist=new Set(DB.raportari.filter(r=>_mid(r.magazin)==='MAG-008').map(r=>r.data));
-    let _n=0;
-    _lug.forEach(([d,v,b])=>{ if(!_exist.has(d)){ DB.raportari.push({data:d, magazin:"MAG-008", casier:"Maria", vanzari:v, pos:'', numerarTeoretic:'', numerarPredat:'', diferenta:0, bonuri:b, anulari:0, retururi:0, difStoc:0, alerta:'OK', motiv:'', detalii:'', observatii:'import e:Corg iul-aug 2026', salvatLa:(typeof nowISO==='function'?nowISO():new Date().toISOString()), auto:true}); _n++; } });
-    DB._lugojBackfill2026=true; save();
-    console.log('Backfill Lugoj: '+_n+' zile importate.');
+    const _mMag=(DB.magazine||[]).find(m=>m&&m.id==='MAG-008'); const _loc=_mMag?('MAG-008 '+_mMag.nume):'MAG-008';
+    const _mAng=(DB.angajati||[]).find(a=>a&&a.cnp==='2680416352622'); const _mNume=_mAng?_mAng.nume:'ROGOJINARU MARIA'; const _mProg=_mAng?_mAng.program:'8h L-V + 4h Sb';
+    const _pk=new Set((DB.pontaj||[]).map(p=>p.data+'|'+p.angajat));
+    const _now=(typeof nowISO==='function'?nowISO():new Date().toISOString());
+    let _n=0,_np=0;
+    _lug.forEach(([d,v,b])=>{
+      if(!_exist.has(d)){ DB.raportari.push({data:d, magazin:"MAG-008", casier:_mNume, vanzari:v, pos:'', numerarTeoretic:'', numerarPredat:'', diferenta:0, bonuri:b, anulari:0, retururi:0, difStoc:0, alerta:'OK', motiv:'', detalii:'', observatii:'import e:Corg iul-aug 2026', salvatLa:_now, auto:true}); _n++; }
+      if(Array.isArray(DB.pontaj) && !_pk.has(d+'|'+_mNume)){ const dow=new Date(d+'T00:00:00').getDay(); const h=(typeof _bfDayHours==='function')?_bfDayHours(_mProg,dow):{s:'9:00',e:'17:00',o:'8'}; DB.pontaj.push({data:d, angajat:_mNume, locatie:_loc, tipZi:'Lucrat 🟢', oraStart:h.s, oraSfarsit:h.e, oreLucrate:h.o, observatii:'auto e:Corg', salvatLa:_now}); _np++; }
+    });
+    DB._lugojBackfill2026b=true; save();
+    console.log('Backfill Lugoj: '+_n+' raportări + '+_np+' pontaje (Maria) importate.');
   }
 }catch(e){ console.warn('lugoj backfill', e); }
 // Corecție 11 aug 2026: Petronela revine în pontaj (mai are 2 zile de lucru, 11–12 aug) — o singură dată
