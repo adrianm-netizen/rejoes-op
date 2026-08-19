@@ -8642,7 +8642,7 @@ function renderEdenredPreview() {
       </tr>`).join('')}</tbody>
     </table></div>`;
 }
-function changePin(user, requireCurrent) {
+async function changePin(user, requireCurrent) {
   const msgEl = document.getElementById('pinMsg');
   const cur = document.getElementById('pinCur').value;
   const newp = document.getElementById('pinNew').value;
@@ -8654,15 +8654,17 @@ function changePin(user, requireCurrent) {
   if (newp === cur) { msgEl.textContent = 'PIN-ul nou este identic cu cel curent'; return; }
   DB.users[user].pin = newp;
   save();
-  try { cloudPushPins([user]); } catch(e){}   // publică hash-ul în cloud → merge pe orice telefon
+  msgEl.style.color = 'var(--text-muted)'; msgEl.textContent = 'Se salvează în cloud...';
+  let ok=false; try { ok = await cloudPushPins([user]); } catch(e){}   // AȘTEAPTĂ confirmarea din cloud
+  if(!ok){ msgEl.style.color='var(--danger)'; msgEl.textContent='⚠ PIN salvat local, dar NU în cloud (fără internet/Firebase). Reîncearcă când ești online — altfel vechiul PIN rămâne valabil pe alte telefoane.'; return; }
   msgEl.style.color = 'var(--success)';
-  msgEl.textContent = '✓ PIN schimbat cu succes';
+  msgEl.textContent = '✓ PIN schimbat și salvat în cloud';
   document.getElementById('pinCur').value = '';
   document.getElementById('pinNew').value = '';
   document.getElementById('pinConf').value = '';
   toast('PIN-ul a fost actualizat');
 }
-function resetUserPin() {
+async function resetUserPin() {
   const msgEl = document.getElementById('pinResetMsg');
   const user = document.getElementById('pinUser').value;
   const newp = document.getElementById('pinResetNew').value;
@@ -8672,9 +8674,11 @@ function resetUserPin() {
   if (!confirm(`Sigur resetezi PIN-ul lui ${DB.users[user].nume} la "${newp}"?`)) return;
   DB.users[user].pin = newp;
   save();
-  try { cloudPushPins([user]); } catch(e){}   // publică hash-ul în cloud
+  msgEl.style.color = 'var(--text-muted)'; msgEl.textContent = 'Se salvează în cloud...';
+  let ok=false; try { ok = await cloudPushPins([user]); } catch(e){}   // AȘTEAPTĂ confirmarea din cloud
+  if(!ok){ msgEl.style.color='var(--danger)'; msgEl.textContent='⚠ PIN salvat local, dar NU în cloud (fără internet/Firebase). Vechiul PIN rămâne valabil pe telefonul ei până se salvează în cloud. Reîncearcă când ești online.'; return; }
   msgEl.style.color = 'var(--success)';
-  msgEl.textContent = `✓ PIN-ul lui ${DB.users[user].nume} resetat`;
+  msgEl.textContent = `✓ PIN-ul lui ${DB.users[user].nume} resetat și salvat în cloud. Ea trebuie să închidă complet și să redeschidă aplicația.`;
   document.getElementById('pinResetNew').value = '';
   toast(`PIN resetat pentru ${DB.users[user].nume}`);
 }
@@ -9254,6 +9258,9 @@ function showLoginScreen() {
   const ls = document.getElementById('loginScreen');
   ls.style.zIndex = '3000';   // deasupra sertarului (1200) și a barei de jos (1000)
   ls.style.display = 'flex';
+  // Reîncarcă hash-urile PIN din cloud la fiecare login → o resetare de pe alt telefon
+  // intră în vigoare imediat (fără să mai rămână PIN-ul vechi din sesiunea veche).
+  try { _pinHashesLoaded = false; cloudPullPins(); } catch(e){}
   backToUserPick();
 }
 
@@ -14813,7 +14820,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-19-1000';
+const APP_VERSION = '2026-08-19-1100';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
