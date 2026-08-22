@@ -817,7 +817,25 @@ function renderAnnounceBanner(){
   if(!el){ el = document.createElement('div'); el.id = 'announceBanner'; content.parentNode.insertBefore(el, content); }
   if(!_annMsgLoaded) announceLoadMsgs();
   const msg = `🏆 Angajatul lunii — iulie 2026: <strong style="color:#ffe08a">Claudia (Deta)</strong> &nbsp;·&nbsp; singura din întreaga rețea care și-a atins pragul de rentabilitate — <strong>124%</strong> din țintă &nbsp;·&nbsp; 💰 recompensă binemeritată: <strong style="color:#ffe08a">1.025 lei</strong>, pentru 14 zile de excelență &nbsp;·&nbsp; Felicitări, Claudia! 👏 &nbsp;&nbsp;&nbsp;&nbsp;`;
-  el.innerHTML = `<div style="margin:0 0 10px;background:linear-gradient(135deg,#155a37,#39a06a);border-radius:14px;color:#fff;position:relative;padding:14px 16px;animation:announceGlow 3s ease-in-out infinite">
+  el.innerHTML = `<div style="margin:0 0 10px;background:linear-gradient(135deg,#0b3d26,#1B5E3A);border-radius:14px;color:#fff;position:relative;padding:15px 17px;border-left:5px solid #ffe08a;animation:announceGlow 3s ease-in-out infinite">
+    <button onclick="dismissAnnounce()" style="position:absolute;top:6px;right:10px;background:rgba(0,0,0,.28);border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:1px 10px;border-radius:8px;z-index:3" aria-label="Închide">×</button>
+    <div style="font-weight:800;font-size:16.5px;margin-bottom:2px">📋 Act adițional la Regulamentul Intern — Nr. 07 / 22.08.2026</div>
+    <div style="font-size:12px;opacity:.9;margin-bottom:8px;font-style:italic">Regimul bunurilor introduse în spațiile societății · completează ROI (v7)</div>
+    <div style="font-size:12.6px;line-height:1.6;color:#eaf7ef">
+      În temeiul art. 241–246 din Legea nr. 53/2003 (Codul muncii), republicată, precum și al obligațiilor ce decurg din Legea contabilității nr. 82/1991 privind justificarea prin documente a operațiunilor economice, administratorul S-COLECT REC S.R.L. dispune completarea Regulamentului Intern cu următoarele prevederi:<br><br>
+      <strong style="color:#ffe08a">Art. 1 — Interdicția introducerii de bunuri din afara gestiunii.</strong> Este interzisă introducerea, în magazinele și în spațiile de depozitare ale societății, a oricăror bunuri care nu provin din gestiunea societății și care nu sunt însoțite de documente legale de intrare (NIR, aviz de însoțire, factură).<br>
+      <span style="opacity:.95">(1) Interdicția se aplică indiferent de valoarea bunurilor, de proveniența lor (bunuri personale, primite, donate) și de intenția salariatului.<br>
+      (2) Interdicția acoperă introducerea bunurilor pentru vânzare, expunere, probă, păstrare temporară sau orice altă formă de prezență în spațiul comercial.<br>
+      (3) Fac excepție obiectele personale de uz curent ale salariatului, cu condiția de a nu fi expuse, oferite spre vânzare ori amestecate cu marfa societății.</span><br><br>
+      <strong style="color:#ffe08a">Art. 2 — Vânzarea bunurilor.</strong> Se pot vinde exclusiv bunuri înregistrate în gestiunea societății. Achiziționarea de marfă de către salariați se face în aceleași condiții ca pentru orice client — la prețul afișat și cu emiterea bonului fiscal.<br><br>
+      <strong style="color:#ffe08a">Art. 3 — Regimul excepțiilor.</strong> Orice excepție de la prevederile Art. 1 și Art. 2 se aprobă exclusiv în prealabil și în scris de către Managerul rețelei de magazine. Acordurile verbale, anterioare sau ulterioare, nu produc efecte. Acordurile date în trecut, în alte condiții de organizare, își încetează aplicabilitatea la data intrării în vigoare a prezentului act.<br><br>
+      <strong style="color:#ffe08a">Art. 4 — Rațiunea măsurii.</strong> Prezenta interdicție protejează deopotrivă societatea și salariatul. Prezența în magazin a unor bunuri neînregistrate afectează integritatea gestiunii, denaturează inventarul și evidența contabilă și poate conduce la interpretarea eronată a unor operațiuni, cu consecințe asupra persoanei responsabile de gestiune.<br><br>
+      <strong style="color:#ffe08a">Art. 5 — Abatere disciplinară.</strong> Nerespectarea prevederilor de mai sus constituie abatere disciplinară, în sensul art. 247 și următoarele din Codul muncii, și se sancționează gradual, potrivit art. 248 alin. (1), în funcție de gravitatea și caracterul repetat al faptei. În situațiile în care se constată un prejudiciu, societatea își rezervă dreptul de a recurge la căile legale prevăzute de lege.<br><br>
+      <strong style="color:#ffe08a">Art. 6 — Intrare în vigoare și aducere la cunoștință.</strong> Prezentul act adițional intră în vigoare la data semnării, se afișează la sediu și în fiecare punct de lucru și se aduce la cunoștința salariaților sub semnătură.<br><br>
+      <span style="opacity:.9">S-COLECT REC S.R.L. — prin reprezentant legal</span><br>
+      <span style="opacity:.85">O. Manager · <strong>Ana Onofrei</strong></span>
+    </div>
+  </div>` + `<div style="margin:0 0 10px;background:linear-gradient(135deg,#155a37,#39a06a);border-radius:14px;color:#fff;position:relative;padding:14px 16px;animation:announceGlow 3s ease-in-out infinite">
     <button onclick="dismissAnnounce()" style="position:absolute;top:6px;right:10px;background:rgba(0,0,0,.28);border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:1px 10px;border-radius:8px;z-index:3" aria-label="Închide">×</button>
     <div style="display:flex;align-items:flex-start;gap:13px">
       <img src="mary.jpg" alt="Mary" style="width:82px;height:82px;border-radius:50%;object-fit:cover;border:3px solid #ffe08a;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.28)" onerror="this.style.display='none'">
@@ -14997,7 +15015,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-20-1100';
+const APP_VERSION = '2026-08-22-1030';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
