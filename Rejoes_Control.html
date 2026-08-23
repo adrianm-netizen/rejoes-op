@@ -835,7 +835,11 @@ function renderAnnounceBanner(){
       <span style="opacity:.9">S-COLECT REC S.R.L. — prin reprezentant legal</span><br>
       <span style="opacity:.85">O. Manager · <strong>Ana Onofrei</strong></span>
     </div>
-  </div>` + `<div style="margin:0 0 10px;background:linear-gradient(135deg,#155a37,#39a06a);border-radius:14px;color:#fff;position:relative;padding:14px 16px;animation:announceGlow 3s ease-in-out infinite">
+  </div>`;
+}
+// ——— Anunțuri arhivate (dezactivate 23 aug 2026; se pot reactiva mutându-le înapoi în renderAnnounceBanner) ———
+function _annArhiva(){
+  return `<div style="margin:0 0 10px;background:linear-gradient(135deg,#155a37,#39a06a);border-radius:14px;color:#fff;position:relative;padding:14px 16px;animation:announceGlow 3s ease-in-out infinite">
     <button onclick="dismissAnnounce()" style="position:absolute;top:6px;right:10px;background:rgba(0,0,0,.28);border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:1px 10px;border-radius:8px;z-index:3" aria-label="Închide">×</button>
     <div style="display:flex;align-items:flex-start;gap:13px">
       <img src="mary.jpg" alt="Mary" style="width:82px;height:82px;border-radius:50%;object-fit:cover;border:3px solid #ffe08a;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.28)" onerror="this.style.display='none'">
@@ -15015,7 +15019,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-22-1030';
+const APP_VERSION = '2026-08-23-1100';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
