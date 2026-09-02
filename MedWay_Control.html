@@ -718,8 +718,13 @@ function dlgShift(iso){
   const staff=STATE.employees.filter(e=>e.active!==false);
   let opts=staff.map(e=>'<option value="'+e.id+'">'+esc(e.name)+' — '+esc(e.jobTitle||'')+'</option>').join('');
   const body=`<label class="f">Angajat</label><select class="t" id="s_emp">${opts}</select>
-    <div class="grid2"><div><label class="f">De la</label><input class="t" id="s_from" type="time" value="09:00"></div>
-    <div><label class="f">Până la</label><input class="t" id="s_to" type="time" value="17:00"></div></div>
+    <label class="f">Ture rapide</label>
+    <div class="row" style="gap:6px;margin-bottom:4px">
+      <button type="button" class="btn sec" style="padding:8px 10px" onclick="document.getElementById('s_from').value='08:00';document.getElementById('s_to').value='16:30'">Tura 1 · 08:00–16:30</button>
+      <button type="button" class="btn sec" style="padding:8px 10px" onclick="document.getElementById('s_from').value='11:30';document.getElementById('s_to').value='19:30'">Tura 2 · 11:30–19:30</button>
+    </div>
+    <div class="grid2"><div><label class="f">De la</label><input class="t" id="s_from" type="time" value="08:00"></div>
+    <div><label class="f">Până la</label><input class="t" id="s_to" type="time" value="16:30"></div></div>
     <label class="f">Notă (opțional)</label><input class="t" id="s_note" placeholder="ex. cabinet 2, gardă">`;
   openModal('Adaugă tură — '+iso.split('-').reverse().join('.'), body, [
     {label:'Adaugă',cls:'btn',fn:()=>{
@@ -966,26 +971,98 @@ function genDecizieAngajare(emp, hr){
 }
 function genROI(){
   const C=co();
-  const inner = docHeader('REGULAMENT INTERN','al '+esc(C.name)+' — clinică medicală')+
-  '<p>Prezentul Regulament intern este întocmit în temeiul art. 241–246 din Legea nr. 53/2003 — Codul muncii, și se aplică tuturor salariaților '+esc(C.name)+', indiferent de durata contractului de muncă.</p>'+
-  '<h2>Cap. I. Dispoziții generale</h2>'+
-  '<p>Regulamentul stabilește regulile de disciplină, drepturile și obligațiile angajatorului și ale salariaților, în special în ceea ce privește activitatea medicală desfășurată în cadrul clinicii.</p>'+
-  '<h2>Cap. II. Reguli de sănătate și securitate în muncă</h2>'+
-  '<p>Salariații au obligația de a respecta normele de securitate și sănătate în muncă (Legea 319/2006), normele de prevenire și stingere a incendiilor, precum și normele specifice privind prevenirea și controlul infecțiilor asociate asistenței medicale.</p>'+
-  '<h2>Cap. III. Reguli privind respectarea demnității și nediscriminarea</h2>'+
-  '<p>În cadrul clinicii sunt interzise orice fapte de discriminare, hărțuire sau atingere a demnității. Relațiile cu pacienții se desfășoară cu respect, confidențialitate și profesionalism.</p>'+
-  '<h2>Cap. IV. Confidențialitatea datelor medicale</h2>'+
-  '<p>Salariații au obligația de a păstra secretul profesional și confidențialitatea datelor pacienților, în conformitate cu legislația privind protecția datelor cu caracter personal (Regulamentul UE 2016/679 — GDPR) și cu legislația sanitară.</p>'+
-  '<h2>Cap. V. Timpul de muncă și de odihnă</h2>'+
-  '<p>Programul de lucru se stabilește potrivit contractelor individuale de muncă și programării turelor. Pontajul se realizează prin aplicația internă a clinicii. Concediile se acordă conform Codului muncii.</p>'+
-  '<h2>Cap. VI. Abateri disciplinare și sancțiuni</h2>'+
-  '<p>Constituie abatere disciplinară orice încălcare a obligațiilor de serviciu, a normelor de conduită sau a prezentului regulament. Sancțiunile disciplinare se aplică gradual, potrivit art. 248 din Codul muncii, în urma unei cercetări disciplinare prealabile.</p>'+
-  '<h2>Cap. VII. Procedura de soluționare a cererilor și reclamațiilor</h2>'+
-  '<p>Cererile și reclamațiile individuale se adresează în scris administratorului și se soluționează în termen de 30 de zile.</p>'+
-  '<h2>Cap. VIII. Dispoziții finale</h2>'+
-  '<p>Prezentul regulament intră în vigoare la data aducerii la cunoștința salariaților și se afișează la sediul clinicii. Orice modificare se comunică salariaților.</p>'+
-  '<div class="sig"><div><b>Administrator,</b><br>'+esc(C.admin)+'<br><br>_______________________</div><div class="muted">Data: '+fmtDate(Date.now())+'</div></div>';
-  openDocWindow('ROI — '+C.name, inner, 'ROI_MedWay');
+  const H=t=>'<h2>'+t+'</h2>';
+  const A=(l,t)=>'<p><span class="art">'+l+'</span> '+t+'</p>';
+  const UL=items=>'<ul>'+items.map(i=>'<li>'+i+'</li>').join('')+'</ul>';
+  let x = docHeader('REGULAMENT INTERN','al societății '+esc(C.name)+' — unitate medicală (clinică)');
+  x += '<p style="text-align:center" class="muted">Aprobat de administrator la data de ____________ · Ediția 1</p>';
+  x += A('Temei legal.','Prezentul Regulament intern este întocmit în temeiul art. 241–246 din Legea nr. 53/2003 — Codul muncii, republicată, precum și al Legii nr. 319/2006 (securitate și sănătate în muncă), Legii nr. 202/2002 (egalitate de șanse), O.G. nr. 137/2000 (nediscriminare), Regulamentului (UE) 2016/679 — GDPR, Legii nr. 95/2006 (reforma în sănătate) și Ordinului M.S. nr. 1.101/2016 (prevenirea infecțiilor asociate asistenței medicale — IAAM).');
+
+  x += H('Capitolul I. Dispoziții generale');
+  x += A('Art. 1.','Regulamentul stabilește regulile de conduită, drepturile și obligațiile angajatorului și ale salariaților, disciplina muncii, răspunderea disciplinară, precum și regulile specifice activității medicale desfășurate în cadrul clinicii.');
+  x += A('Art. 2.','Prevederile se aplică <b>tuturor salariaților</b> '+esc(C.name)+' (denumită „Angajatorul" sau „Clinica"), indiferent de durata contractului, felul muncii, funcție sau forma de organizare a timpului de lucru (normă întreagă, timp parțial, telemuncă), precum și persoanelor detașate, elevilor/studenților în practică și colaboratorilor.');
+  x += A('Art. 3.','Necunoașterea prevederilor Regulamentului nu exonerează salariatul de răspundere. Regulamentul se completează de drept cu dispozițiile legale în vigoare și cu clauzele contractelor individuale de muncă.');
+
+  x += H('Capitolul II. Drepturile și obligațiile Angajatorului');
+  x += A('Art. 4.','Angajatorul are dreptul, în principal: să stabilească organizarea și funcționarea clinicii; să stabilească atribuțiile prin fișa postului; să dea dispoziții cu caracter obligatoriu, sub rezerva legalității; să controleze modul de îndeplinire a sarcinilor; să constate abaterile și să aplice sancțiunile.');
+  x += A('Art. 5.','Angajatorul are obligația, în principal: să asigure condiții de muncă și de securitate și sănătate, inclusiv de prevenire a infecțiilor; să achite drepturile salariale la termen; să elibereze, la cerere, documente care atestă calitatea de salariat; să asigure confidențialitatea datelor personale ale salariaților; să informeze salariații asupra condițiilor de muncă.');
+
+  x += H('Capitolul III. Drepturile și obligațiile salariaților');
+  x += A('Art. 6.','Salariatul are dreptul, în principal: la salarizare; la repaus zilnic și săptămânal și la concediu de odihnă; la securitate și sănătate în muncă; la formare profesională; la demnitate și la protecția datelor personale; la egalitate de tratament și nediscriminare.');
+  x += A('Art. 7.','Salariatul are obligația, în principal: să realizeze atribuțiile din fișa postului; să respecte programul și să efectueze pontajul; să respecte disciplina muncii și dispozițiile legale; să respecte măsurile de securitate și sănătate; <b>să păstreze secretul profesional și confidențialitatea datelor pacienților</b>; să păstreze bunurile clinicii; să aibă un comportament civilizat față de pacienți și colegi.');
+  x += A('Art. 8. (specific medical).','Personalul medical și auxiliar are, suplimentar, obligația: să exercite profesia cu respectarea normelor deontologice; să respecte drepturile pacientului (Legea nr. 46/2003, Legea nr. 95/2006); să respecte procedurile de prevenire și control al infecțiilor (IAAM); să completeze corect documentația medicală; să nu divulge informații despre starea de sănătate a pacienților decât în condițiile legii.');
+
+  x += H('Capitolul IV. Securitatea și sănătatea în muncă');
+  x += A('Art. 9.','Salariații respectă normele de securitate și sănătate în muncă (Legea nr. 319/2006), instrucțiunile proprii și normele PSI. Este obligatorie participarea la instructaje și la controalele de medicina muncii.');
+  x += A('Art. 10.','Salariații: utilizează corect echipamentul de protecție; nu deconectează dispozitivele de securitate; anunță imediat orice defecțiune, accident sau pericol; nu se prezintă la lucru sub influența alcoolului sau a substanțelor interzise.');
+
+  x += H('Capitolul V. Prevenirea și controlul infecțiilor (IAAM)');
+  x += A('Art. 11.','Respectarea măsurilor de prevenire și limitare a infecțiilor asociate asistenței medicale este <b>obligație pentru întreg personalul</b> (Ordinul M.S. nr. 1.101/2016). Nerespectarea constituie abatere disciplinară gravă.');
+  x += A('Art. 12.','Personalul: respectă protocoalele de igienă a mâinilor și de utilizare a echipamentului de protecție; respectă procedurile de curățenie, dezinfecție și sterilizare; gestionează deșeurile medicale periculoase conform reglementărilor; raportează orice suspiciune de infecție asociată asistenței medicale.');
+
+  x += H('Capitolul VI. Nediscriminarea și respectarea demnității');
+  x += A('Art. 13.','Sunt interzise orice fapte de discriminare directă sau indirectă pe criterii de sex, orientare sexuală, vârstă, apartenență națională, rasă, religie, opinie politică, origine socială, handicap sau situație familială.');
+  x += A('Art. 14.','Sunt interzise hărțuirea, inclusiv cea sexuală, și hărțuirea morală (mobbing), precum și orice comportament care aduce atingere demnității. Victimele pot sesiza Angajatorul, care are obligația să analizeze și să soluționeze sesizarea.');
+
+  x += H('Capitolul VII. Secretul profesional și protecția datelor pacienților');
+  x += A('Art. 15.','Datele privind starea de sănătate sunt <b>date sensibile</b> (art. 9 GDPR) și sunt protejate prin secretul profesional. Salariații păstrează confidențialitatea atât pe durata contractului, cât și după încetarea acestuia.');
+  x += A('Art. 16.','Este interzisă: consultarea datelor pacienților în afara scopului profesional; divulgarea, copierea, fotografierea sau transmiterea neautorizată; comunicarea către terți fără temei legal. Încălcarea este abatere disciplinară gravă și poate atrage răspundere civilă, contravențională sau penală.');
+  x += A('Art. 17.','Prelucrarea datelor se face numai în scopurile și cu măsurile tehnice și organizatorice stabilite de Angajator, conform GDPR.');
+
+  x += H('Capitolul VIII. Timpul de muncă și de odihnă');
+  x += A('Art. 18.','Durata timpului de muncă este cea din contractul individual (normă întreagă sau timp parțial). Programul și repartizarea turelor se stabilesc prin programarea internă, comunicată salariaților.');
+  x += A('Art. 19.','Prezența se consemnează prin <b>aplicația internă de pontaj</b>. Salariatul pontează sosirea și plecarea. Falsificarea pontajului este abatere disciplinară gravă.');
+  x += A('Art. 20.','Salariații beneficiază de pauze, de repaus zilnic și săptămânal și de concediu de odihnă anual de minimum 21 de zile lucrătoare (proporțional la timp parțial), precum și de celelalte concedii legale. Cererile de concediu se depun în avans și se aprobă de administrator, în funcție de continuitatea actului medical.');
+
+  x += H('Capitolul IX. Salarizarea');
+  x += A('Art. 21.','Salariul este confidențial. Plata se face lunar, prin virament. Reținerile se efectuează numai în condițiile legii. <b>Aplicarea de amenzi disciplinare este interzisă.</b>');
+
+  x += H('Capitolul X. Reguli concrete de disciplină a muncii');
+  x += A('Art. 22.','Salariații: respectă programul și pontajul; poartă ținuta și echipamentul corespunzătoare; au o conduită profesională și respectuoasă; nu consumă și nu se află sub influența alcoolului sau a substanțelor interzise în program; respectă interdicția fumatului în clinică; nu folosesc bunurile clinicii în interes personal; evită conflictul de interese.');
+
+  x += H('Capitolul XI. Abaterile disciplinare');
+  x += A('Art. 23.','Constituie abatere disciplinară orice faptă în legătură cu munca, săvârșită cu vinovăție, prin care salariatul a încălcat normele legale, prezentul Regulament, contractul individual de muncă ori dispozițiile legale ale conducerii.');
+  x += A('Art. 24. (enumerare exemplificativă).','Constituie abateri disciplinare, între altele:')+UL([
+    'întârzierea repetată, absența nemotivată sau părăsirea locului de muncă fără aprobare;',
+    'falsificarea pontajului sau a documentelor clinicii;',
+    'divulgarea datelor pacienților ori încălcarea secretului profesional (abatere gravă);',
+    'nerespectarea normelor IAAM (abatere gravă);',
+    'neglijența în îndeplinirea atribuțiilor medicale sau administrative;',
+    'prezentarea la lucru sub influența alcoolului sau a substanțelor interzise;',
+    'comportamentul necuviincios, hărțuirea sau discriminarea;',
+    'însușirea, degradarea sau folosirea în interes personal a bunurilor clinicii.'
+  ]);
+
+  x += H('Capitolul XII. Sancțiunile disciplinare');
+  x += A('Art. 25.','Sancțiunile disciplinare (art. 248 Codul muncii) sunt: <b>a)</b> avertismentul scris; <b>b)</b> retrogradarea din funcție, cu salariul corespunzător, pe cel mult 60 de zile; <b>c)</b> reducerea salariului de bază pe 1–3 luni cu 5–10%; <b>d)</b> reducerea salariului de bază și/sau a indemnizației de conducere pe 1–3 luni cu 5–10%; <b>e)</b> desfacerea disciplinară a contractului individual de muncă.');
+  x += A('Art. 26.','Amenzile disciplinare sunt interzise. Pentru aceeași abatere se aplică o singură sancțiune, individualizată în raport cu gravitatea faptei, gradul de vinovăție și comportarea generală a salariatului.');
+  x += A('Art. 27.','Sancțiunea se <b>radiază de drept în 12 luni</b> de la aplicare dacă nu se aplică o nouă sancțiune; radierea se constată prin decizie scrisă a Angajatorului.');
+
+  x += H('Capitolul XIII. Procedura disciplinară');
+  x += A('Art. 28.','Sub sancțiunea nulității absolute, nicio sancțiune (cu excepția avertismentului scris) nu poate fi dispusă înainte de o <b>cercetare disciplinară prealabilă</b> (art. 251).');
+  x += A('Art. 29.','Angajatorul desemnează o persoană/comisie ori un consultant extern. Salariatul este <b>convocat în scris</b>, cu obiectul, data, ora și locul întrevederii, și are dreptul să-și susțină apărările și probele.');
+  x += A('Art. 30.','Sancțiunea se dispune prin <b>decizie scrisă, în 30 de zile calendaristice</b> de la luarea la cunoștință, dar nu mai târziu de 6 luni de la săvârșirea faptei (art. 252), cu elementele obligatorii prevăzute de lege.');
+  x += A('Art. 31.','Decizia se comunică în cel mult 5 zile de la emitere, produce efecte de la comunicare și poate fi <b>contestată la tribunal în 30 de zile</b> calendaristice.');
+
+  x += H('Capitolul XIV. Soluționarea cererilor și reclamațiilor');
+  x += A('Art. 32.','Cererile și reclamațiile individuale se adresează, în scris, administratorului și se soluționează motivat în <b>30 de zile</b> de la înregistrare. Salariatul nemulțumit se poate adresa instanțelor competente.');
+  x += A('Art. 33.','Salariații pot semnala, cu bună-credință, încălcări ale legii de care iau cunoștință în context profesional; sesizările se analizează cu confidențialitate și protecție împotriva represaliilor, în spiritul Legii nr. 361/2022.');
+
+  x += H('Capitolul XV. Evaluarea profesională');
+  x += A('Art. 34.','Evaluarea se face periodic, pe criterii: îndeplinirea atribuțiilor; calitatea actului medical/administrativ; respectarea procedurilor și a disciplinei; comportamentul față de pacienți și colegi; disponibilitatea și inițiativa. Rezultatele se aduc la cunoștința salariatului.');
+
+  x += H('Capitolul XVI. Preavizul');
+  x += A('Art. 35.','Termenele de preaviz, la demisie sau concediere, sunt cele din Codul muncii și din contractul individual. Salariatul care demisionează respectă preavizul și predă lucrările și bunurile din gestiune.');
+
+  x += H('Capitolul XVII. Formarea profesională');
+  x += A('Art. 36.','Angajatorul sprijină participarea salariaților la educația medicală continuă necesară menținerii competenței și a autorizării exercitării profesiei.');
+
+  x += H('Capitolul XVIII. Dispoziții finale');
+  x += A('Art. 37.','Regulamentul intră în vigoare la data aducerii la cunoștința salariaților, prin afișare la sediu și/sau comunicare individuală sub semnătură.');
+  x += A('Art. 38.','Orice modificare se comunică în aceleași condiții. Regulamentul se completează cu prevederile legale în vigoare și cu fișele de post, anexă la contractele individuale de muncă.');
+
+  x += '<div class="sig"><div><b>MEDWAY CLINIC S.R.L.</b><br>Administrator: '+esc(C.admin)+'<br><br>_______________________</div><div class="muted">Data: ____________</div></div>';
+  openDocWindow('ROI — '+C.name, x, 'ROI_MedWay_Clinic');
 }
 
 /* ========================= MODAL ========================= */
