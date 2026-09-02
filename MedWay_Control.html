@@ -173,7 +173,31 @@ const SEED_EMPLOYEES = [
   {id:'mw_margin',  name:'Mărgineanu Sorina-Oana',   jobTitle:'Medic specialist',          cor:'221201', ore:2, pin:'1006', active:true},
   {id:'mw_muntean', name:'Muntean Maria-Mihaela',    jobTitle:'Asistent medical generalist',cor:'222101', ore:8, pin:'1007', active:true},
   {id:'mw_rada',    name:'Rada Cristina',            jobTitle:'Medic medicină de familie', cor:'221108', ore:8, pin:'1009', active:true},
+  /* Inactivi (contracte încetate) — apar la Personal/RH, nu la login/pontaj */
+  {id:'mw_iasmina', name:'Airf Iasmina',             jobTitle:'Asistent medical generalist',cor:'222101', ore:4, pin:'1010', active:false},
+  {id:'mw_faina',   name:'Faina Oana-Roxana',        jobTitle:'Medic specialist',          cor:'221201', ore:4, pin:'1011', active:false},
+  {id:'mw_iura',    name:'Iura Ramona-Mihaela-Iuliana',jobTitle:'Femeie de serviciu',      cor:'911201', ore:2, pin:'1012', active:false},
+  {id:'mw_lupul',   name:'Lupulescu Angelica-Maria', jobTitle:'Medic primar',              cor:'221107', ore:8, pin:'1013', active:false},
 ];
+
+/* ---------- HR data (LOCAL only — never synced to cloud; contains CNP + salary) ----------
+   Source: REGES individual contract extracts, 02.09.2026. Used only by the admin RH module
+   to prefill CIM / decisions / certificates. */
+const HR_SEED = {}; /* PII (CNP/salariu) NU se pune în sursa publică — se importă local din Setări → RH. */
+function loadHR(){ let h=null; try{ const s=localStorage.getItem('mw_hr'); if(s) h=JSON.parse(s); }catch(e){}
+  if(!h){ h=JSON.parse(JSON.stringify(HR_SEED)); } else { let ch=false; Object.keys(HR_SEED).forEach(k=>{ if(!h[k]){ h[k]=JSON.parse(JSON.stringify(HR_SEED[k])); ch=true; } }); }
+  try{ localStorage.setItem('mw_hr',JSON.stringify(h)); }catch(e){} return h; }
+function saveHR(h){ try{ localStorage.setItem('mw_hr',JSON.stringify(h)); }catch(e){} }
+function cnpInfo(cnp){
+  if(!/^\d{13}$/.test(cnp)) return {};
+  const s=+cnp[0]; const yy=+cnp.slice(1,3), mm=+cnp.slice(3,5), dd=+cnp.slice(5,7);
+  const cent = (s===1||s===2)?1900:(s===5||s===6)?2000:(s===3||s===4)?1800:1900;
+  const sex = (s%2===1)?'M':'F';
+  const y=cent+yy;
+  const bd=String(dd).padStart(2,'0')+'.'+String(mm).padStart(2,'0')+'.'+y;
+  let age=null; try{ const t=new Date(); age=t.getFullYear()-y-((t.getMonth()+1<mm||((t.getMonth()+1===mm)&&t.getDate()<dd))?1:0);}catch(e){}
+  return {sex,birth:bd,year:y,age};
+}
 
 /* ---------- State ---------- */
 let DB=null, FB=null;
@@ -227,6 +251,11 @@ function loadState(){
   const s=lsGet('mw_state',null);
   if(s){ STATE=Object.assign(STATE,s); STATE.settings=Object.assign({geofence:null,adminPin:'2468',company:COMPANY},s.settings||{}); }
   if(!STATE.employees || STATE.employees.length===0){ STATE.employees = SEED_EMPLOYEES.map(e=>Object.assign({},e)); lsSet('mw_state',STATE); }
+  else { // merge in any seed employees missing from an already-seeded install
+    let changed=false;
+    SEED_EMPLOYEES.forEach(se=>{ if(!STATE.employees.some(e=>e.id===se.id)){ STATE.employees.push(Object.assign({},se)); changed=true; } });
+    if(changed) lsSet('mw_state',STATE);
+  }
 }
 
 /* ========================= Utilities ========================= */
@@ -324,7 +353,7 @@ function renderView(){
   if(CURRENT_VIEW==='aprobare') return renderAprobare(v);
   if(CURRENT_VIEW==='personal') return renderPersonal(v);
   if(CURRENT_VIEW==='setari') return renderSetari(v);
-  if(CURRENT_VIEW==='rh') return renderSoon(v,'RH / Personal','Generatorul de CIM, ROI și deciziile de angajare/demisie se adaugă în etapa următoare.');
+  if(CURRENT_VIEW==='rh') return renderRH(v);
   if(CURRENT_VIEW==='disponibil') return renderSoon(v,'Disponibilitate','Planificarea turelor se adaugă în etapa următoare.');
 }
 function renderSoon(v,title,msg){ const c=el('div','card'); c.appendChild(el('h3',null,title)); c.appendChild(el('div','muted',msg)); v.appendChild(c); }
@@ -592,6 +621,263 @@ function renderSetari(v){
   note.innerHTML='Versiune: '+APP_VERSION;
   c4.appendChild(note);
   v.appendChild(c4);
+}
+
+/* ========================= RH / PERSONAL ========================= */
+const DOC_CSS = `
+  @page{size:A4;margin:18mm 16mm}
+  *{box-sizing:border-box}
+  body{font-family:'Calibri','Segoe UI',Arial,sans-serif;color:#0C3B23;font-size:11.5pt;line-height:1.45;margin:0}
+  .doc{max-width:800px;margin:0 auto;padding:10px}
+  h1{font-size:15pt;color:#0f6a45;text-align:center;margin:0 0 2px}
+  h2{font-size:12pt;color:#0f6a45;margin:16px 0 6px;border-bottom:1px solid #cfe0d7;padding-bottom:3px}
+  .sub{text-align:center;color:#1f8a5b;font-size:10pt;margin-bottom:14px}
+  .co{font-size:9.5pt;color:#1f8a5b;text-align:center;margin-bottom:4px}
+  p{margin:6px 0;text-align:justify}
+  .art{font-weight:bold;color:#0f6a45}
+  table{width:100%;border-collapse:collapse;margin:8px 0}
+  td,th{border:1px solid #cfe0d7;padding:6px 8px;font-size:10.5pt;text-align:left;vertical-align:top}
+  .sig{display:flex;justify-content:space-between;margin-top:34px}
+  .sig div{width:45%;text-align:center}
+  .muted{color:#5c766a;font-size:9.5pt}
+  .rule{border:none;border-top:2px solid #1B5E3A;margin:6px 0 14px}
+  .toolbar{position:sticky;top:0;background:#004020;padding:10px;text-align:center;display:flex;gap:10px;justify-content:center}
+  .toolbar button{background:#fff;color:#004020;border:none;border-radius:8px;padding:9px 16px;font-weight:600;cursor:pointer;font-family:inherit}
+  @media print{.toolbar{display:none}}
+`;
+function openDocWindow(title, inner, filename){
+  const w=window.open('','_blank');
+  if(!w){ toast('Permite ferestrele pop-up ca să vezi documentul.','err'); return; }
+  const docHtml='<div class="doc">'+inner+'</div>';
+  w.document.write('<!DOCTYPE html><html lang="ro"><head><meta charset="utf-8"><title>'+title+'</title><style>'+DOC_CSS+'</style></head><body>'+
+    '<div class="toolbar"><button onclick="window.print()">🖨️ Printează / PDF</button>'+
+    '<button onclick="dl()">⬇️ Descarcă Word</button></div>'+docHtml+
+    '<script>function dl(){var h=document.querySelector(\'.doc\').outerHTML;'+
+    'var head=\'<html xmlns:o=\\\'urn:schemas-microsoft-com:office:office\\\' xmlns:w=\\\'urn:schemas-microsoft-com:office:word\\\' xmlns=\\\'http://www.w3.org/TR/REC-html40\\\'><head><meta charset=utf-8><style>'+DOC_CSS.replace(/'/g,"\\'").replace(/\n/g,' ')+'</style></head><body>\';'+
+    'var blob=new Blob([\'\\ufeff\',head,h,\'</body></html>\'],{type:\'application/msword\'});'+
+    'var a=document.createElement(\'a\');a.href=URL.createObjectURL(blob);a.download=\''+(filename||'document')+'.doc\';a.click();}<\/script>'+
+    '</body></html>');
+  w.document.close();
+}
+function co(){ return (STATE.settings&&STATE.settings.company)||COMPANY; }
+function normaText(hr){
+  if(hr.norma==='parțial'){ const o=hr.oreZi||4; return 'timp parțial, '+o+' ore/zi ('+(o*5)+' ore/săptămână)'; }
+  return 'normă întreagă, 8 ore/zi (40 ore/săptămână)';
+}
+function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderRH(v){
+  const HR=loadHR();
+  // employee document generator
+  const c=el('div','card'); c.appendChild(el('h3',null,'Documente per angajat'));
+  const sel=el('select','t'); sel.id='rh_emp';
+  STATE.employees.forEach(e=>{ const o=el('option',null,e.name+' — '+(e.jobTitle||'')); o.value=e.id; sel.appendChild(o); });
+  c.appendChild(sel);
+  const info=el('div','muted'); info.id='rh_info'; info.style.margin='10px 0'; c.appendChild(info);
+  const row=el('div','row');
+  const bCim=el('button','btn','📄 Generează CIM');
+  const bAdev=el('button','btn sec','🧾 Adeverință salariat');
+  const bInc=el('button','btn warn','🚪 Decizie încetare');
+  const bEdit=el('button','btn sec','✏️ Editează date HR');
+  row.appendChild(bCim); row.appendChild(bAdev); row.appendChild(bInc); row.appendChild(bEdit);
+  c.appendChild(row); v.appendChild(c);
+  function refreshInfo(){
+    const id=sel.value; const emp=STATE.employees.find(e=>e.id===id); const hr=HR[id]||{};
+    const ci=cnpInfo(hr.cnp||'');
+    info.innerHTML = emp ? ('CNP: '+(hr.cnp||'—')+(ci.birth?' · născut '+ci.birth+(ci.age?' ('+ci.age+' ani)':''):'')+
+      '<br>Funcție: '+(hr.corDen||emp.jobTitle)+' · COR '+(emp.cor||'—')+
+      '<br>Contract: nr. '+(hr.ctrNr||'—')+' din '+(hr.ctrData||'—')+' · început '+(hr.inceput||'—')+' · '+(hr.durata||'—')+
+      '<br>Normă: '+normaText(hr)+' · Salariu brut: '+(hr.sal?Number(hr.sal).toLocaleString('ro-RO')+' lei':'—')) : '';
+  }
+  sel.onchange=refreshInfo; refreshInfo();
+  bCim.onclick=()=>{ const id=sel.value; genCIM(STATE.employees.find(e=>e.id===id), HR[id]||{}); };
+  bAdev.onclick=()=>{ const id=sel.value; genAdeverinta(STATE.employees.find(e=>e.id===id), HR[id]||{}); };
+  bInc.onclick=()=>{ const id=sel.value; dlgIncetare(STATE.employees.find(e=>e.id===id), HR[id]||{}); };
+  bEdit.onclick=()=>{ const id=sel.value; editHR(id, HR, refreshInfo); };
+
+  // new hire
+  const c2=el('div','card'); c2.appendChild(el('h3',null,'Angajare nouă'));
+  c2.appendChild(el('div','muted','Adaugă un angajat nou (nume, funcție, PIN pentru pontaj) și completează datele de contract pentru CIM.'));
+  const add=el('button','btn'); add.textContent='＋ Angajat nou + CIM'; add.style.marginTop='10px';
+  add.onclick=()=>editEmployee(null); c2.appendChild(add); v.appendChild(c2);
+
+  // ROI + decizie angajare templates
+  const c3=el('div','card'); c3.appendChild(el('h3',null,'Documente generale'));
+  const r3=el('div','row');
+  const bRoi=el('button','btn','📕 Generează ROI clinică'); bRoi.onclick=()=>genROI();
+  const bDA=el('button','btn sec','📃 Decizie de angajare'); bDA.onclick=()=>{ const id=$('#rh_emp').value; genDecizieAngajare(STATE.employees.find(e=>e.id===id), HR[id]||{}); };
+  r3.appendChild(bRoi); r3.appendChild(bDA); c3.appendChild(r3); v.appendChild(c3);
+
+  // Import/export HR data (local only)
+  const hrKeys=Object.keys(HR).length;
+  const c4=el('div','card'); c4.appendChild(el('h3',null,'Date HR (CNP, salarii) — local, pe acest dispozitiv'));
+  const st=el('div','banner'); st.style.marginBottom='10px';
+  st.innerHTML = hrKeys ? ('☑ Date HR încărcate pentru '+hrKeys+' persoane, doar pe acest dispozitiv. Nu se urcă în cloud și nu apar în codul public.') :
+    '⚠ Datele HR nu sunt încărcate pe acest dispozitiv. Importă-le mai jos din fișierul privat ca să poți genera CIM-uri cu date completate.';
+  c4.appendChild(st);
+  const fin=el('input'); fin.type='file'; fin.accept='.json,application/json'; fin.style.display='block'; fin.style.marginBottom='8px';
+  fin.onchange=e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
+    rd.onload=()=>{ try{ const j=JSON.parse(rd.result); const cur=loadHR(); Object.assign(cur,j); saveHR(cur); toast('Date HR importate.'); renderRH($('#view')); }
+      catch(err){ toast('Fișier JSON invalid.','err'); } }; rd.readAsText(f); };
+  c4.appendChild(el('div','muted','Importă din fișier JSON:'));
+  c4.appendChild(fin);
+  const ta=el('textarea','t'); ta.id='hr_paste'; ta.rows=4; ta.placeholder='…sau lipește aici conținutul JSON'; ta.style.fontFamily='monospace'; ta.style.fontSize='12px';
+  c4.appendChild(ta);
+  const row4=el('div','row'); row4.style.marginTop='10px';
+  const imp=el('button','btn','Importă din text');
+  imp.onclick=()=>{ let raw=$('#hr_paste').value.trim(); if(!raw){ toast('Lipește JSON-ul mai întâi.','err'); return; }
+    try{ const j=JSON.parse(raw); const cur=loadHR(); Object.assign(cur,j); saveHR(cur); toast('Date HR importate.'); renderRH($('#view')); }
+    catch(e){ toast('JSON invalid.','err'); } };
+  const exp=el('button','btn sec','Exportă (backup)');
+  exp.onclick=()=>{ const blob=new Blob([JSON.stringify(loadHR(),null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='HR_data_MedWay.json'; a.click(); };
+  const wipe=el('button','btn danger','Șterge de pe dispozitiv');
+  wipe.onclick=()=>{ localStorage.removeItem('mw_hr'); toast('Date HR șterse de pe acest dispozitiv.'); renderRH($('#view')); };
+  row4.appendChild(imp); row4.appendChild(exp); row4.appendChild(wipe); c4.appendChild(row4);
+  v.appendChild(c4);
+}
+
+function editHR(id, HR, cb){
+  const hr=HR[id]||{};
+  const body=`
+   <label class="f">CNP</label><input class="t" id="h_cnp" value="${esc(hr.cnp)}" maxlength="13" inputmode="numeric">
+   <label class="f">Domiciliu</label><input class="t" id="h_dom" value="${esc(hr.domiciliu)}" placeholder="localitate, stradă, nr.">
+   <div class="grid2"><div><label class="f">CI seria</label><input class="t" id="h_cis" value="${esc(hr.ciSeria)}"></div>
+   <div><label class="f">CI nr.</label><input class="t" id="h_cin" value="${esc(hr.ciNr)}"></div></div>
+   <div class="grid2"><div><label class="f">Salariu brut (lei)</label><input class="t" id="h_sal" value="${esc(hr.sal)}" inputmode="numeric"></div>
+   <div><label class="f">Funcție (denumire)</label><input class="t" id="h_cor" value="${esc(hr.corDen)}"></div></div>
+   <div class="grid2"><div><label class="f">Contract nr.</label><input class="t" id="h_cnr" value="${esc(hr.ctrNr)}"></div>
+   <div><label class="f">Data contract</label><input class="t" id="h_cdt" value="${esc(hr.ctrData)}" placeholder="zz.ll.aaaa"></div></div>
+   <label class="f">Data început</label><input class="t" id="h_inc" value="${esc(hr.inceput)}" placeholder="zz.ll.aaaa">`;
+  openModal('Date HR — '+(STATE.employees.find(e=>e.id===id)||{}).name, body, [
+    {label:'Salvează',cls:'btn',fn:()=>{
+      HR[id]=Object.assign(hr,{cnp:$('#h_cnp').value.trim(),domiciliu:$('#h_dom').value.trim(),ciSeria:$('#h_cis').value.trim(),ciNr:$('#h_cin').value.trim(),
+        sal:$('#h_sal').value.trim(),corDen:$('#h_cor').value.trim(),ctrNr:$('#h_cnr').value.trim(),ctrData:$('#h_cdt').value.trim(),inceput:$('#h_inc').value.trim()});
+      saveHR(HR); if(cb)cb();
+    }},
+    {label:'Închide',cls:'btn sec',fn:()=>true}
+  ]);
+}
+
+function docHeader(title, sub){
+  const C=co();
+  return '<div class="co"><b>'+esc(C.name)+'</b> · CUI '+esc(C.cui)+' · '+esc(C.regcom)+'<br>'+esc(C.sediu)+'</div>'+
+    '<hr class="rule"><h1>'+title+'</h1>'+(sub?'<div class="sub">'+sub+'</div>':'');
+}
+
+function genCIM(emp, hr){
+  if(!emp) return; const C=co(); const ci=cnpInfo(hr.cnp||'');
+  const locMunca = hr.telemunca ? 'la domiciliul salariatului, în regim de telemuncă (art. 2 din Legea 81/2018), cu deplasări la sediul angajatorului ori de câte ori este necesar'
+                                : 'la sediul/punctul de lucru al angajatorului din '+esc(C.sediu);
+  const durataText = (hr.durata||'nedeterminată')==='nedeterminată' ? 'nedeterminată' : 'determinată';
+  const inner = docHeader('CONTRACT INDIVIDUAL DE MUNCĂ','încheiat și înregistrat sub nr. '+esc(hr.ctrNr||'____')+' din '+esc(hr.ctrData||'__________')+' în registrul general de evidență a salariaților')+
+  '<p>Încheiat în temeiul Legii nr. 53/2003 — Codul muncii, republicată, cu modificările și completările ulterioare, între:</p>'+
+  '<p><span class="art">A. Părțile contractului</span></p>'+
+  '<p><b>Angajator</b> — '+esc(C.name)+', cu sediul în '+esc(C.sediu)+', CUI '+esc(C.cui)+', înregistrată la Registrul Comerțului sub nr. '+esc(C.regcom)+', reprezentată legal prin '+esc(C.admin)+', în calitate de administrator,</p>'+
+  '<p>și</p>'+
+  '<p><b>Salariat</b> — dl./d-na <b>'+esc(emp.name)+'</b>, CNP '+esc(hr.cnp||'_____________')+', '+(ci.birth?'născut(ă) la data de '+ci.birth+', ':'')+
+    'domiciliat(ă) în '+esc(hr.domiciliu||'__________________________')+', legitimat(ă) cu CI seria '+esc(hr.ciSeria||'____')+' nr. '+esc(hr.ciNr||'__________')+',</p>'+
+  '<p>au convenit încheierea prezentului contract individual de muncă, în următoarele condiții:</p>'+
+  '<p><span class="art">B. Obiectul contractului:</span> prestarea muncii de către salariat în funcția prevăzută mai jos, în schimbul unei remunerații plătite de angajator.</p>'+
+  '<p><span class="art">C. Durata contractului:</span> '+durataText+', salariatul urmând să înceapă activitatea la data de <b>'+esc(hr.inceput||'__________')+'</b>.</p>'+
+  '<p><span class="art">D. Locul de muncă:</span> activitatea se desfășoară '+locMunca+'.</p>'+
+  '<p><span class="art">E. Felul muncii:</span> funcția/meseria <b>'+esc(hr.corDen||emp.jobTitle)+'</b>, cod COR <b>'+esc(emp.cor||'______')+'</b>, conform Clasificării Ocupațiilor din România.</p>'+
+  '<p><span class="art">F. Atribuțiile postului</span> sunt prevăzute în fișa postului, anexă la prezentul contract.</p>'+
+  '<p><span class="art">G. Condiții de muncă:</span> activitate care se desfășoară în condiții normale, potrivit Legii nr. 319/2006 a securității și sănătății în muncă.</p>'+
+  '<p><span class="art">H. Durata muncii:</span> '+normaText(hr)+'. Repartizarea programului de lucru se face în regim de ore de zi.</p>'+
+  '<p><span class="art">I. Concediul:</span> durata concediului anual de odihnă este de 21 de zile lucrătoare, în raport cu durata muncii'+(hr.norma==='parțial'?' (acordat proporțional cu timpul efectiv lucrat)':'')+'.</p>'+
+  '<p><span class="art">J. Salarizarea:</span> salariul de bază lunar brut este de <b>'+(hr.sal?Number(hr.sal).toLocaleString('ro-RO'):'________')+' lei</b>. Plata salariului se face lunar, prin virament în contul salariatului.</p>'+
+  '<p><span class="art">K. Drepturi și obligații:</span> părțile își asumă drepturile și obligațiile prevăzute de Codul muncii, de Regulamentul intern și de contractul colectiv de muncă aplicabil, după caz.</p>'+
+  '<p><span class="art">L. Dispoziții finale:</span> prezentul contract se încheie în două exemplare, câte unul pentru fiecare parte, și produce efecte de la data înregistrării în registrul general de evidență a salariaților.</p>'+
+  '<div class="sig"><div><b>Angajator</b><br>'+esc(C.name)+'<br>prin '+esc(C.admin)+'<br><br>_______________________</div>'+
+  '<div><b>Salariat</b><br>'+esc(emp.name)+'<br><br><br>_______________________</div></div>';
+  openDocWindow('CIM — '+emp.name, inner, 'CIM_'+emp.name.replace(/\s+/g,'_'));
+}
+
+function genAdeverinta(emp, hr){
+  if(!emp) return; const C=co(); const today=fmtDate(Date.now());
+  const inner = docHeader('ADEVERINȚĂ DE SALARIAT','nr. ______ din '+today)+
+  '<p>Prin prezenta, '+esc(C.name)+', CUI '+esc(C.cui)+', cu sediul în '+esc(C.sediu)+', adeverește că dl./d-na <b>'+esc(emp.name)+'</b>, '+
+  'CNP '+esc(hr.cnp||'_____________')+', are calitatea de salariat al societății noastre, în funcția de <b>'+esc(hr.corDen||emp.jobTitle)+'</b> (cod COR '+esc(emp.cor||'______')+'), '+
+  'în baza contractului individual de muncă nr. '+esc(hr.ctrNr||'____')+' din '+esc(hr.ctrData||'__________')+', pe durată '+esc(hr.durata||'nedeterminată')+', începând cu data de '+esc(hr.inceput||'__________')+'.</p>'+
+  '<p>Salariul de bază lunar brut este de <b>'+(hr.sal?Number(hr.sal).toLocaleString('ro-RO'):'________')+' lei</b>, cu '+normaText(hr)+'.</p>'+
+  '<p>La data eliberării, salariatul <b>nu are</b> contractul de muncă suspendat.</p>'+
+  '<p>Prezenta adeverință a fost eliberată pentru a-i servi la '+'________________________________'+' și nu ține loc de alte documente prevăzute de lege.</p>'+
+  '<div class="sig"><div><b>Administrator,</b><br>'+esc(C.admin)+'<br><br>_______________________</div><div class="muted">Data: '+today+'</div></div>';
+  openDocWindow('Adeverință — '+emp.name, inner, 'Adeverinta_'+emp.name.replace(/\s+/g,'_'));
+}
+
+function dlgIncetare(emp, hr){
+  if(!emp) return;
+  const body=`
+   <label class="f">Motivul încetării</label>
+   <select class="t" id="i_tip">
+     <option value="demisie">Demisie — art. 81 Codul muncii</option>
+     <option value="acord">Acordul părților — art. 55 lit. b</option>
+     <option value="perioada">Expirarea perioadei — art. 56</option>
+     <option value="pensionare">Pensionare — art. 56 lit. c</option>
+   </select>
+   <div class="grid2"><div><label class="f">Data încetării</label><input class="t" id="i_data" placeholder="zz.ll.aaaa"></div>
+   <div><label class="f">Nr. decizie</label><input class="t" id="i_nr" placeholder="ex. 5"></div></div>
+   <label class="f">Observații (opțional)</label><input class="t" id="i_obs" placeholder="ex. cerere înreg. sub nr. ...">`;
+  openModal('Decizie de încetare — '+emp.name, body, [
+    {label:'Generează',cls:'btn',fn:()=>{ genDecizieIncetare(emp,hr,{tip:$('#i_tip').value,data:$('#i_data').value,nr:$('#i_nr').value,obs:$('#i_obs').value}); }},
+    {label:'Închide',cls:'btn sec',fn:()=>true}
+  ]);
+}
+function genDecizieIncetare(emp, hr, o){
+  const C=co(); const map={
+    demisie:['art. 81 din Legea nr. 53/2003 — Codul muncii (demisie)','ca urmare a demisiei salariatului'],
+    acord:['art. 55 lit. b din Codul muncii (acordul părților)','prin acordul scris al părților'],
+    perioada:['art. 56 din Codul muncii','ca urmare a expirării duratei pentru care a fost încheiat'],
+    pensionare:['art. 56 lit. c din Codul muncii','ca urmare a îndeplinirii condițiilor de pensionare']
+  };
+  const m=map[o.tip]||map.demisie;
+  const inner = docHeader('DECIZIE','nr. '+esc(o.nr||'____')+' din '+esc(o.data||fmtDate(Date.now())))+
+  '<p>'+esc(C.name)+', reprezentată legal prin '+esc(C.admin)+', administrator,</p>'+
+  '<p>având în vedere '+m[1]+(o.obs?', '+esc(o.obs):'')+', în temeiul '+m[0]+',</p>'+
+  '<p style="text-align:center;font-weight:bold;color:#0f6a45;margin:14px 0">DECIDE:</p>'+
+  '<p><span class="art">Art. 1.</span> Începând cu data de <b>'+esc(o.data||'__________')+'</b> încetează contractul individual de muncă nr. '+esc(hr.ctrNr||'____')+' din '+esc(hr.ctrData||'__________')+' al salariatului <b>'+esc(emp.name)+'</b>, CNP '+esc(hr.cnp||'_____________')+', funcția '+esc(hr.corDen||emp.jobTitle)+' (COR '+esc(emp.cor||'______')+').</p>'+
+  '<p><span class="art">Art. 2.</span> La data încetării, salariatului i se vor achita toate drepturile salariale cuvenite până la această dată, inclusiv indemnizația pentru concediul de odihnă neefectuat, dacă este cazul.</p>'+
+  '<p><span class="art">Art. 3.</span> Serviciul de resurse umane va opera încetarea în registrul general de evidență a salariaților (REGES) și va comunica prezenta decizie salariatului.</p>'+
+  '<div class="sig"><div><b>Administrator,</b><br>'+esc(C.admin)+'<br><br>_______________________</div>'+
+  '<div><b>Am luat la cunoștință,</b><br>'+esc(emp.name)+'<br><br>_______________________</div></div>';
+  openDocWindow('Decizie încetare — '+emp.name, inner, 'Decizie_incetare_'+emp.name.replace(/\s+/g,'_'));
+}
+function genDecizieAngajare(emp, hr){
+  if(!emp) return; const C=co();
+  const inner = docHeader('DECIZIE DE ANGAJARE','nr. ______ din '+esc(hr.inceput||fmtDate(Date.now())))+
+  '<p>'+esc(C.name)+', reprezentată legal prin '+esc(C.admin)+', administrator, în temeiul Legii nr. 53/2003 — Codul muncii,</p>'+
+  '<p style="text-align:center;font-weight:bold;color:#0f6a45;margin:14px 0">DECIDE:</p>'+
+  '<p><span class="art">Art. 1.</span> Începând cu data de <b>'+esc(hr.inceput||'__________')+'</b>, dl./d-na <b>'+esc(emp.name)+'</b>, CNP '+esc(hr.cnp||'_____________')+', se angajează în funcția de <b>'+esc(hr.corDen||emp.jobTitle)+'</b> (cod COR '+esc(emp.cor||'______')+'), cu '+normaText(hr)+'.</p>'+
+  '<p><span class="art">Art. 2.</span> Salariul de bază lunar brut este de <b>'+(hr.sal?Number(hr.sal).toLocaleString('ro-RO'):'________')+' lei</b>, conform contractului individual de muncă nr. '+esc(hr.ctrNr||'____')+' din '+esc(hr.ctrData||'__________')+'.</p>'+
+  '<p><span class="art">Art. 3.</span> Atribuțiile sunt cele stabilite prin fișa postului. Salariatul își va desfășura activitatea cu respectarea Regulamentului intern.</p>'+
+  '<div class="sig"><div><b>Administrator,</b><br>'+esc(C.admin)+'<br><br>_______________________</div>'+
+  '<div><b>Am luat la cunoștință,</b><br>'+esc(emp.name)+'<br><br>_______________________</div></div>';
+  openDocWindow('Decizie angajare — '+emp.name, inner, 'Decizie_angajare_'+emp.name.replace(/\s+/g,'_'));
+}
+function genROI(){
+  const C=co();
+  const inner = docHeader('REGULAMENT INTERN','al '+esc(C.name)+' — clinică medicală')+
+  '<p>Prezentul Regulament intern este întocmit în temeiul art. 241–246 din Legea nr. 53/2003 — Codul muncii, și se aplică tuturor salariaților '+esc(C.name)+', indiferent de durata contractului de muncă.</p>'+
+  '<h2>Cap. I. Dispoziții generale</h2>'+
+  '<p>Regulamentul stabilește regulile de disciplină, drepturile și obligațiile angajatorului și ale salariaților, în special în ceea ce privește activitatea medicală desfășurată în cadrul clinicii.</p>'+
+  '<h2>Cap. II. Reguli de sănătate și securitate în muncă</h2>'+
+  '<p>Salariații au obligația de a respecta normele de securitate și sănătate în muncă (Legea 319/2006), normele de prevenire și stingere a incendiilor, precum și normele specifice privind prevenirea și controlul infecțiilor asociate asistenței medicale.</p>'+
+  '<h2>Cap. III. Reguli privind respectarea demnității și nediscriminarea</h2>'+
+  '<p>În cadrul clinicii sunt interzise orice fapte de discriminare, hărțuire sau atingere a demnității. Relațiile cu pacienții se desfășoară cu respect, confidențialitate și profesionalism.</p>'+
+  '<h2>Cap. IV. Confidențialitatea datelor medicale</h2>'+
+  '<p>Salariații au obligația de a păstra secretul profesional și confidențialitatea datelor pacienților, în conformitate cu legislația privind protecția datelor cu caracter personal (Regulamentul UE 2016/679 — GDPR) și cu legislația sanitară.</p>'+
+  '<h2>Cap. V. Timpul de muncă și de odihnă</h2>'+
+  '<p>Programul de lucru se stabilește potrivit contractelor individuale de muncă și programării turelor. Pontajul se realizează prin aplicația internă a clinicii. Concediile se acordă conform Codului muncii.</p>'+
+  '<h2>Cap. VI. Abateri disciplinare și sancțiuni</h2>'+
+  '<p>Constituie abatere disciplinară orice încălcare a obligațiilor de serviciu, a normelor de conduită sau a prezentului regulament. Sancțiunile disciplinare se aplică gradual, potrivit art. 248 din Codul muncii, în urma unei cercetări disciplinare prealabile.</p>'+
+  '<h2>Cap. VII. Procedura de soluționare a cererilor și reclamațiilor</h2>'+
+  '<p>Cererile și reclamațiile individuale se adresează în scris administratorului și se soluționează în termen de 30 de zile.</p>'+
+  '<h2>Cap. VIII. Dispoziții finale</h2>'+
+  '<p>Prezentul regulament intră în vigoare la data aducerii la cunoștința salariaților și se afișează la sediul clinicii. Orice modificare se comunică salariaților.</p>'+
+  '<div class="sig"><div><b>Administrator,</b><br>'+esc(C.admin)+'<br><br>_______________________</div><div class="muted">Data: '+fmtDate(Date.now())+'</div></div>';
+  openDocWindow('ROI — '+C.name, inner, 'ROI_MedWay');
 }
 
 /* ========================= MODAL ========================= */
