@@ -201,7 +201,7 @@ function cnpInfo(cnp){
 
 /* ---------- State ---------- */
 let DB=null, FB=null;
-let STATE = { employees:[], settings:{ geofence:null, adminPin:'2468', company:COMPANY }, };
+let STATE = { employees:[], settings:{ geofence:null, adminPin:'2468', company:COMPANY }, disponibil:{}, program:{} };
 let SESSION = null; // {id,name,role}
 let CURRENT_VIEW = 'pontaj';
 
@@ -250,6 +250,7 @@ function saveState(){ lsSet('mw_state',STATE); fbSet('config/state',STATE); }
 function loadState(){
   const s=lsGet('mw_state',null);
   if(s){ STATE=Object.assign(STATE,s); STATE.settings=Object.assign({geofence:null,adminPin:'2468',company:COMPANY},s.settings||{}); }
+  STATE.disponibil=STATE.disponibil||{}; STATE.program=STATE.program||{};
   if(!STATE.employees || STATE.employees.length===0){ STATE.employees = SEED_EMPLOYEES.map(e=>Object.assign({},e)); lsSet('mw_state',STATE); }
   else { // merge in any seed employees missing from an already-seeded install
     let changed=false;
@@ -354,7 +355,7 @@ function renderView(){
   if(CURRENT_VIEW==='personal') return renderPersonal(v);
   if(CURRENT_VIEW==='setari') return renderSetari(v);
   if(CURRENT_VIEW==='rh') return renderRH(v);
-  if(CURRENT_VIEW==='disponibil') return renderSoon(v,'Disponibilitate','Planificarea turelor se adaugă în etapa următoare.');
+  if(CURRENT_VIEW==='disponibil') return renderDisponibil(v);
 }
 function renderSoon(v,title,msg){ const c=el('div','card'); c.appendChild(el('h3',null,title)); c.appendChild(el('div','muted',msg)); v.appendChild(c); }
 
@@ -621,6 +622,113 @@ function renderSetari(v){
   note.innerHTML='Versiune: '+APP_VERSION;
   c4.appendChild(note);
   v.appendChild(c4);
+}
+
+/* ========================= DISPONIBILITATE + PROGRAM ========================= */
+const DOW=['Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă','Duminică'];
+let dispWeek=null;
+function mondayOf(d){ d=new Date(d); const g=(d.getDay()+6)%7; d.setDate(d.getDate()-g); d.setHours(0,0,0,0); return d; }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function ddmm(d){ return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0'); }
+function weekKey(mon){ return todayKey(mon); }
+function progFor(dateISO){ const wk=weekKey(mondayOf(dateISO===undefined?new Date():dateISO)); return (STATE.program[wk]&&STATE.program[wk][dateISO])||[]; }
+
+function renderDisponibil(v){
+  if(SESSION.role===ROLE_STAFF) return renderDispStaff(v);
+  return renderDispAdmin(v);
+}
+
+function renderDispStaff(v){
+  const my = STATE.disponibil[SESSION.id] || {};
+  const c=el('div','card'); c.appendChild(el('h3',null,'Disponibilitatea mea (săptămânal)'));
+  c.appendChild(el('div','muted','Bifează zilele în care ești disponibil(ă) și intervalul orar. Adminul folosește asta când face programul.'));
+  const wrap=el('div','list'); wrap.style.marginTop='10px';
+  DOW.forEach((d,i)=>{
+    const cur=my[i]||{on:false,from:'09:00',to:'17:00'};
+    const it=el('div','item');
+    const left=el('label'); left.style.display='flex'; left.style.alignItems='center'; left.style.gap='8px';
+    const cb=el('input'); cb.type='checkbox'; cb.checked=!!cur.on; cb.id='d_on_'+i;
+    left.appendChild(cb); left.appendChild(el('b',null,d));
+    const right=el('div','row'); right.style.gap='6px';
+    const f=el('input','t'); f.type='time'; f.value=cur.from||'09:00'; f.id='d_from_'+i; f.style.width='110px';
+    const t=el('input','t'); t.type='time'; t.value=cur.to||'17:00'; t.id='d_to_'+i; t.style.width='110px';
+    right.appendChild(f); right.appendChild(t);
+    it.appendChild(left); it.appendChild(right); wrap.appendChild(it);
+  });
+  c.appendChild(wrap);
+  const save=el('button','btn'); save.textContent='Salvează disponibilitatea'; save.style.marginTop='12px';
+  save.onclick=()=>{ const obj={}; DOW.forEach((d,i)=>{ obj[i]={on:$('#d_on_'+i).checked, from:$('#d_from_'+i).value, to:$('#d_to_'+i).value}; });
+    STATE.disponibil[SESSION.id]=obj; saveState(); toast('Disponibilitate salvată.'); };
+  c.appendChild(save); v.appendChild(c);
+
+  // my program this week
+  const mon=mondayOf(new Date());
+  const c2=el('div','card'); c2.appendChild(el('h3',null,'Programul meu — săptămâna '+ddmm(mon)+'–'+ddmm(addDays(mon,6))));
+  const list=el('div','list'); let any=false;
+  for(let i=0;i<7;i++){ const day=addDays(mon,i); const iso=todayKey(day);
+    const mine=progFor(iso).filter(s=>s.empId===SESSION.id);
+    mine.forEach(s=>{ any=true; const it=el('div','item');
+      it.innerHTML='<div><b>'+DOW[i]+' '+ddmm(day)+'</b><div class="meta">'+s.from+'–'+s.to+(s.note?' · '+s.note:'')+'</div></div>';
+      list.appendChild(it); });
+  }
+  if(!any) list.appendChild(el('div','muted','Nu ai ture programate în această săptămână.'));
+  c2.appendChild(list); v.appendChild(c2);
+}
+
+function renderDispAdmin(v){
+  if(!dispWeek) dispWeek=mondayOf(new Date());
+  const mon=dispWeek;
+  const nav=el('div','card');
+  const top=el('div','row'); top.style.justifyContent='space-between'; top.style.alignItems='center';
+  const prev=el('button','btn sec','‹ Săpt. anterioară'); prev.onclick=()=>{ dispWeek=addDays(mon,-7); renderView(); };
+  const lbl=el('div'); lbl.innerHTML='<b>Program: '+ddmm(mon)+' – '+ddmm(addDays(mon,6))+'</b>'; lbl.style.textAlign='center';
+  const next=el('button','btn sec','Săpt. următoare ›'); next.onclick=()=>{ dispWeek=addDays(mon,7); renderView(); };
+  top.appendChild(prev); top.appendChild(lbl); top.appendChild(next); nav.appendChild(top);
+  const tcur=el('button','btn'); tcur.textContent='Săptămâna curentă'; tcur.style.marginTop='10px';
+  tcur.onclick=()=>{ dispWeek=mondayOf(new Date()); renderView(); }; nav.appendChild(tcur);
+  v.appendChild(nav);
+
+  const wk=weekKey(mon); STATE.program[wk]=STATE.program[wk]||{};
+  for(let i=0;i<7;i++){
+    const day=addDays(mon,i); const iso=todayKey(day);
+    const c=el('div','card');
+    const hd=el('div','row'); hd.style.justifyContent='space-between'; hd.style.alignItems='center';
+    hd.appendChild(el('h3',null,DOW[i]+' · '+ddmm(day)));
+    const add=el('button','btn sec','＋ Tură'); add.onclick=()=>dlgShift(iso);
+    hd.appendChild(add); c.appendChild(hd);
+    const shifts=(STATE.program[wk][iso]||[]).slice().sort((a,b)=>(a.from||'').localeCompare(b.from||''));
+    const list=el('div','list');
+    if(!shifts.length) list.appendChild(el('div','muted','Nicio tură.'));
+    shifts.forEach(s=>{ const emp=STATE.employees.find(e=>e.id===s.empId)||{name:'?'};
+      const it=el('div','item');
+      it.innerHTML='<div><b>'+emp.name+'</b><div class="meta">'+s.from+'–'+s.to+(s.note?' · '+s.note:'')+'</div></div>';
+      const del=el('button','btn danger','✕'); del.style.padding='6px 10px';
+      del.onclick=()=>{ STATE.program[wk][iso]=STATE.program[wk][iso].filter(x=>x.id!==s.id); saveState(); renderView(); };
+      it.appendChild(del); list.appendChild(it);
+    });
+    // availability hint
+    const avail=STATE.employees.filter(e=>e.active!==false && e.admin!==true && STATE.disponibil[e.id] && STATE.disponibil[e.id][i] && STATE.disponibil[e.id][i].on)
+      .map(e=>e.name.split(' ')[0]+' ('+STATE.disponibil[e.id][i].from+'–'+STATE.disponibil[e.id][i].to+')');
+    if(avail.length){ const a=el('div','muted'); a.style.marginTop='6px'; a.innerHTML='Disponibili: '+avail.join(', '); c.appendChild(list); c.appendChild(a); }
+    else c.appendChild(list);
+    v.appendChild(c);
+  }
+}
+function dlgShift(iso){
+  const staff=STATE.employees.filter(e=>e.active!==false);
+  let opts=staff.map(e=>'<option value="'+e.id+'">'+esc(e.name)+' — '+esc(e.jobTitle||'')+'</option>').join('');
+  const body=`<label class="f">Angajat</label><select class="t" id="s_emp">${opts}</select>
+    <div class="grid2"><div><label class="f">De la</label><input class="t" id="s_from" type="time" value="09:00"></div>
+    <div><label class="f">Până la</label><input class="t" id="s_to" type="time" value="17:00"></div></div>
+    <label class="f">Notă (opțional)</label><input class="t" id="s_note" placeholder="ex. cabinet 2, gardă">`;
+  openModal('Adaugă tură — '+iso.split('-').reverse().join('.'), body, [
+    {label:'Adaugă',cls:'btn',fn:()=>{
+      const wk=weekKey(mondayOf(iso)); STATE.program[wk]=STATE.program[wk]||{}; STATE.program[wk][iso]=STATE.program[wk][iso]||[];
+      STATE.program[wk][iso].push({id:uid(),empId:$('#s_emp').value,from:$('#s_from').value,to:$('#s_to').value,note:$('#s_note').value.trim()});
+      saveState(); renderView();
+    }},
+    {label:'Închide',cls:'btn sec',fn:()=>true}
+  ]);
 }
 
 /* ========================= RH / PERSONAL ========================= */
