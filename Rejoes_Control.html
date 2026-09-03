@@ -810,6 +810,13 @@ function _annSection(which, accent){
   return `<div style="margin:-2px 0 14px;padding:0 4px">${list}<button onclick="announceToggleForm('${which}')" style="background:transparent;border:1px solid ${accent};color:${accent};border-radius:999px;padding:3px 12px;font-size:12px;cursor:pointer">✍️ Lasă un mesaj</button><div id="annForm_${which}" style="display:none;margin-top:8px;background:#fff;border:1px solid #e2e8e5;border-radius:10px;padding:10px;max-width:520px"><div style="font-size:11.5px;color:#5b6b62;margin-bottom:6px">Doar persoana desemnată poate posta — introdu codul tău personal.</div><input id="annCode_${which}" type="password" inputmode="numeric" placeholder="cod" style="width:110px;padding:7px;border:1px solid #cdd8d2;border-radius:6px;font-size:14px;letter-spacing:3px;text-align:center"><textarea id="annText_${which}" rows="2" placeholder="Mesajul tău…" style="width:100%;margin-top:8px;padding:8px;border:1px solid #cdd8d2;border-radius:6px;font-size:13px;box-sizing:border-box;resize:vertical"></textarea><div style="margin-top:8px;text-align:right"><button onclick="announcePost('${which}')" style="background:${accent};color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;cursor:pointer;font-weight:600">Trimite</button></div></div></div>`;
 }
 function renderAnnounceBanner(){
+  /* Niciun anunț activ. Bannerul „Act adițional nr. 07 / 22.08.2026" (regimul bunurilor din
+     afara gestiunii) a fost retras la 03.09.2026; textul e păstrat integral în
+     _annActAditional07() de mai jos și se poate reactiva redenumind acea funcție înapoi. */
+  const _b = document.getElementById('announceBanner'); if(_b) _b.remove();
+  return;
+}
+function _annActAditional07(){
   const content = document.getElementById('content'); if(!content) return;
   let el = document.getElementById('announceBanner');
   if(_announceDismissed){ if(el) el.remove(); return; }
