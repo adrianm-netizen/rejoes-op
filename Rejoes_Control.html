@@ -13080,7 +13080,9 @@ function renderPrivChat(){
         <button onclick="_pcLock();renderPrivChat()" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">🔒 Blochează</button>
       </div>
       <div id="pcList" onscroll="_pcActivity()" onmousemove="_pcActivity()" ontouchstart="_pcActivity()" style="height:60vh;min-height:380px;overflow-y:auto;padding:14px;background:#f4f6f4;display:flex;flex-direction:column;gap:8px"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:20px">Se decriptează…</div></div>
+      <div id="pcEmojiPanel" style="display:none;background:#fff;border-top:1px solid var(--border);padding:8px 10px;max-height:168px;overflow-y:auto"></div>
       <div style="background:#fff;border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:6px;align-items:center">
+        <button onclick="_pcToggleEmoji()" title="Emoji" style="background:none;border:1px solid var(--border);border-radius:50%;width:38px;height:38px;min-width:38px;font-size:19px;cursor:pointer;line-height:1">😊</button>
         <input type="text" id="pcInput" placeholder="Mesaj privat…" onkeyup="_pcActivity()" onkeydown="if(event.key==='Enter')_pcSend()" style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:20px;font-size:14px;font-family:inherit">
         <button class="btn btn-primary" onclick="_pcSend()" style="border-radius:20px;padding:8px 18px">Trimite</button>
       </div>
@@ -13140,8 +13142,31 @@ function _pcRender(msgs){
   listEl.innerHTML=html;
   if(nearBottom) listEl.scrollTop=listEl.scrollHeight;
 }
+// Emoji — panou simplu, fără librării externe.
+const PC_EMOJI = ['😊','😄','😁','😉','😍','🥰','😘','😂','🤣','🙂','😌','😎','🤔','😐','😏','🙄','😴','🥱','😢','😭','😤','😡','🤯','😱','🤗','🤫','🤐','🙈','🙊','😬','😅','🥳','💪','👍','👎','👏','🙏','🤝','✌️','👋','🤞','💜','❤️','💔','🔥','✨','🎉','🌸','🍀','☕','🌙','⭐','✅','❌','⚠️','❗','❓','💡','📌','⏰','💰','📈','📉','🚀','🔒','📦','🛍️'];
+function _pcToggleEmoji(){
+  _pcActivity();
+  const p=document.getElementById('pcEmojiPanel'); if(!p) return;
+  if(p.style.display==='none'){
+    if(!p.dataset.built){
+      p.innerHTML = PC_EMOJI.map(e=>`<span onclick="_pcInsertEmoji('${e}')" style="cursor:pointer;font-size:23px;padding:4px 6px;display:inline-block;border-radius:6px" onmouseover="this.style.background='#f0e9f5'" onmouseout="this.style.background='none'">${e}</span>`).join('');
+      p.dataset.built='1';
+    }
+    p.style.display='block';
+  } else p.style.display='none';
+}
+function _pcInsertEmoji(e){
+  _pcActivity();
+  const inp=document.getElementById('pcInput'); if(!inp) return;
+  const s=(inp.selectionStart==null?inp.value.length:inp.selectionStart);
+  const t=(inp.selectionEnd==null?inp.value.length:inp.selectionEnd);
+  inp.value = inp.value.slice(0,s) + e + inp.value.slice(t);
+  const pos = s + e.length;
+  inp.focus(); try{ inp.setSelectionRange(pos,pos); }catch(_){}
+}
 async function _pcSend(){
   if(!_pcKey) return; _pcActivity();
+  try{ const _ep=document.getElementById('pcEmojiPanel'); if(_ep) _ep.style.display='none'; }catch(e){}
   const inp=document.getElementById('pcInput'); const text=inp?inp.value.trim():''; if(!text) return;
   if(!window.FB || !window.FB.db){ toast('⚠ Firebase nu e conectat'); return; }
   try{
