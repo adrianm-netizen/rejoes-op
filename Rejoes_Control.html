@@ -323,7 +323,6 @@ body.simple .sidebar-backdrop.show { display: block; }
       <div style="font-size:12px;color:#5b6b62;margin-top:8px">S Colect REC S.R.L.</div>
     </div>
     <div id="loginUserPick" style="display:grid;gap:10px;margin-bottom:18px">
-      <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#2d6a4f;border-color:#2d6a4f" onclick="pickUser('gabi')">📦 Gabi — manager depozit</button>
       <button class="btn btn-primary" style="padding:14px;font-size:15px;background:#1f6b4c;border-color:#1f6b4c" onclick="pickUser('panou')">🏆 Panou magazine (break-even &amp; premii)</button>
     </div>
     <div id="loginAdminBox" style="display:none;margin-bottom:18px">
@@ -443,7 +442,7 @@ const SEED = {
     {id:"ANG-003", nume:"BAKAITY EDINA", prenume:"", rol:"lucrător comercial", magazin:"MAG-005", program:"8h L-V + 4h Sb", status:"Inactiv", nrContract:"", cnp:"2951003350036", serieCard:"9603111997", obs:"plecată — nu mai lucrează, exclusă din pontaj"},
     {id:"ANG-004", nume:"ANDREEA BOSINCEANU", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"8h/zi L-V", status:"Concediu maternitate", nrContract:"7", cnp:"2871009020109", obs:"fostă BOTAS, în concediu de maternitate", serieCard:"9602579974"},
     {id:"ANG-005", nume:"BRSTYAK CLAUDIA", prenume:"", rol:"lucrător comercial", magazin:"MAG-006", program:"8h L-V + 4h Sb", status:"Activ", nrContract:"44", cnp:"2770509350316", serieCard:"9603170076"},
-    {id:"ANG-006", nume:"CIOBANICA GABRIELA", prenume:"", rol:"manager depozit", magazin:"MAG-002", program:"8h/zi L-V", status:"Activ", nrContract:"13", cnp:"2860516350081", obs:"Gabi — mutată la Bujorilor (aug 2026), fostă depozit", serieCard:"9602607531"},
+    {id:"ANG-006", nume:"CIOBANICA GABRIELA", prenume:"", rol:"manager depozit", magazin:"MAG-002", program:"8h/zi L-V", status:"Inactiv", nrContract:"13", cnp:"2860516350081", obs:"a încetat CIM 05.09.2026 — exclusă din pontaj (dată provizorie, de confirmat din decizia de încetare)", serieCard:"9602607531"},
     {id:"ANG-007", nume:"CIOBANU GIANINA", prenume:"", rol:"lucrător comercial", magazin:"MAG-001", program:"10h, 2+2", status:"Activ", nrContract:"40", cnp:"2900103350046", serieCard:"9603170077"},
     {id:"ANG-008", nume:"CIOBANU LUMINITA", prenume:"", rol:"lucrător comercial", magazin:"MAG-004", program:"8h L-V + 4h Sb", status:"Inactiv", nrContract:"35", cnp:"2750603057068", serieCard:"9603083191", obs:"plecată — exclusă din pontaj"},
     {id:"ANG-009", nume:"CUCU PETRONELA", prenume:"", rol:"lucrător comercial", magazin:"MAG-002", program:"10h, 2+2", status:"Inactiv", nrContract:"48", cnp:"6021003114540", serieCard:"9603194760", obs:"plecată (Uber), aug 2026 — exclusă din pontaj"},
@@ -473,7 +472,6 @@ const SEED = {
     // Sursa de adevăr = hash-uri SHA-256 în cloud (cheia `userPinsJson`). Vezi verifyPin / cloudPushPins / publishPinsBaseline.
     ana: { pin: "", role: "operator", nume: "Ana" },
     adrian: { pin: "", role: "admin", nume: "Adrian" },
-    gabi: { pin: "", role: "manager-depozit", nume: "Gabi" },
     dana: { pin: "", role: "contabil-sef", nume: "Dana" },
     olga: { pin: "", role: "owner", nume: "Olga" },
     ozan: { pin: "", role: "owner", nume: "Ozan" },
@@ -5459,7 +5457,7 @@ function renderSetari() {
           Ca admin, poți reseta PIN-ul oricui dacă l-a uitat. Nu necesită PIN-ul curent.
         </p>
         <div class="form-row">
-          <div class="form-field"><label>Utilizator</label><select id="pinUser">${Object.keys(DB.users).filter(u=>u!==me).map(u=>`<option value="${u}">${DB.users[u].nume} (${roleLabel(DB.users[u].role)})</option>`).join('')}${Object.keys(DB.users).length<=1?'<option value="">(doar tine există)</option>':''}</select></div>
+          <div class="form-field"><label>Utilizator</label><select id="pinUser">${Object.keys(DB.users).map(u=>`<option value="${u}"${u===me?' selected':''}>${DB.users[u].nume} (${roleLabel(DB.users[u].role)})${u===me?' — tu':''}</option>`).join('')}</select></div>
           <div class="form-field"><label>PIN nou</label><input type="password" id="pinResetNew" autocomplete="off" placeholder="••••"></div>
         </div>
         <div id="pinResetMsg" style="font-size:12px;min-height:18px;margin-bottom:8px"></div>
@@ -8687,7 +8685,9 @@ async function changePin(user, requireCurrent) {
   const newp = document.getElementById('pinNew').value;
   const conf = document.getElementById('pinConf').value;
   msgEl.style.color = 'var(--danger)';
-  if (requireCurrent && DB.users[user].pin !== cur) { msgEl.textContent = 'PIN-ul curent este greșit'; return; }
+  // FIX 11 sep 2026: verifica PIN-ul curent contra hash-ului din cloud (sursa de adevar),
+  // nu contra PIN-ului local in clar — care dupa securizarea din 18 iul e gol si bloca formularul.
+  if (requireCurrent && !(await verifyPin(user, cur))) { msgEl.textContent = 'PIN-ul curent este greșit'; return; }
   if (newp.length < 4) { msgEl.textContent = 'PIN-ul nou trebuie să aibă cel puțin 4 caractere'; return; }
   if (newp !== conf) { msgEl.textContent = 'PIN-urile nu se potrivesc'; return; }
   if (newp === cur) { msgEl.textContent = 'PIN-ul nou este identic cu cel curent'; return; }
@@ -9198,7 +9198,9 @@ async function doLogin() {
   const pin = document.getElementById('loginPin').value;
   const _ok = await verifyPin(pickedUser, pin);
   if (!_ok) {
-    document.getElementById('loginErr').textContent = 'PIN incorect, încearcă din nou';
+    document.getElementById('loginErr').textContent = _pinHashesLoaded
+      ? 'PIN incorect, încearcă din nou'
+      : 'Fără conexiune — PIN-ul nu poate fi verificat. Verifică internetul și reîncearcă.';
     return false;
   }
   DB.session = { user: pickedUser, role: DB.users[pickedUser].role };
@@ -9244,7 +9246,9 @@ async function doAdminLogin(){
   }
   u=aliases[u]||u;
   if(!DB.users[u] || !(await verifyPin(u, pin))){
-    document.getElementById('loginAdminErr').textContent='Utilizator sau PIN incorect';
+    document.getElementById('loginAdminErr').textContent = _pinHashesLoaded
+      ? 'Utilizator sau PIN incorect'
+      : 'Fără conexiune — PIN-ul nu poate fi verificat. Verifică internetul și reîncearcă.';
     return;
   }
   pickedUser=u;
@@ -12726,7 +12730,7 @@ function renderMesaje() {
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
             <strong style="font-size:15px">💬 Grup Rejoes</strong>
-            <div style="font-size:11px;opacity:.85;margin-top:2px" id="msgPresence">Ana, Adrian, Gabi</div>
+            <div style="font-size:11px;opacity:.85;margin-top:2px" id="msgPresence">Ana, Adrian</div>
           </div>
           <div style="font-size:11px;opacity:.85" id="msgStatus">${window.FB && window.FB.db ? '🟢 Conectat' : '🔴 Firebase indisponibil'}</div>
         </div>
@@ -15699,11 +15703,23 @@ async function publishPinsBaseline(){
 async function verifyPin(user, pin){
   if(!DB.users[user]) return false;
   if(!_pinHashesLoaded){ try{ await cloudPullPins(); }catch(e){} }
+  // FIX 11 sep 2026: daca hash-urile nu se pot citi (offline / Firebase indisponibil) NU mai cadem
+  // pe PIN-ul local in clar — altfel PIN-uri vechi, ramase pe dispozitive de dinainte de 18 iul,
+  // redevin valabile exact cand conexiunea e proasta. Fara cloud nu se autentifica nimeni.
+  if(!_pinHashesLoaded) return false;
   if(PIN_HASHES && PIN_HASHES[user]){
-    try{ return (await pinHash(user, pin)) === PIN_HASHES[user]; }catch(e){}
+    let ok = false;
+    try{ ok = (await pinHash(user, pin)) === PIN_HASHES[user]; }catch(e){ return false; }
+    // La prima autentificare reusita, sterge PIN-ul in clar ramas local pe acest dispozitiv.
+    if(ok && DB.users[user].pin){ DB.users[user].pin = ''; try{ save(); }catch(e){} }
+    return ok;
   }
-  // fallback: pre-migrare / offline / user încă fără hash. PIN gol NU dă acces.
-  return DB.users[user].pin !== '' && DB.users[user].pin === pin;
+  // User inca fara hash in cloud (pre-migrare): accepta PIN-ul local, dar publica imediat hash-ul.
+  if(DB.users[user].pin !== '' && DB.users[user].pin === pin){
+    try{ await cloudPushPins([user]); }catch(e){}
+    return true;
+  }
+  return false;
 }
 // Buton admin din Setări → Cont
 async function securePinsNow(){
@@ -15767,6 +15783,18 @@ try{
     console.log('Alin Tileagă adăugat (Sibiu).');
   }
 }catch(e){ console.warn('add Alin', e); }
+// 11 sep 2026 — Gabi nu mai lucrează la noi: se elimină contul de acces de pe orice dispozitiv.
+// Istoricul (pontaj, sortări, mișcări de marfă, dosar de angajat) NU se atinge.
+try{
+  if(DB.users && DB.users.gabi){ delete DB.users.gabi; save(); }
+  if(DB.session && DB.session.user==='gabi'){ DB.session={user:null,role:null}; save(); location.reload(); }
+  if(!DB._gabiOut && Array.isArray(DB.angajati)){
+    const a=DB.angajati.find(x=>x&&x.cnp==='2860516350081');
+    if(a){ a.status='Inactiv'; a.obs='a încetat CIM 05.09.2026 — exclusă din pontaj (dată provizorie, de confirmat din decizia de încetare)'; }
+    DB._gabiOut=true; save();
+  }
+}catch(e){}
+
 // Reconciliere roster 19 aug 2026 — structura reală: 2 fete/magazin mare, 1/magazin mic; Moravița închisă.
 try{
   if(!DB._rosterAug19b && Array.isArray(DB.angajati)){
