@@ -9088,14 +9088,21 @@ async function exportPontajIndividual(){
       sh.mergeCells(r,1,r,6); sh.getCell(r,1).value=`PONTAJ INDIVIDUAL — ${(a.nume+' '+(a.prenume||'')).trim()}`; sh.getCell(r,1).font={bold:true,size:12,color:{argb:'FF1F4A3A'}}; r++;
       sh.mergeCells(r,1,r,6); sh.getCell(r,1).value=`Funcție: ${a.rol||'—'} · Punct de lucru: ${p} · ${lunaNume} ${an} · CNP: ${a.cnp||'—'}`; sh.getCell(r,1).font={size:10,color:{argb:'FF666666'}}; r++;
       ['Data','Ziua','Oră venire','Oră plecare','Ore','Semnătură'].forEach((h,j)=>{ const c=sh.getCell(r,j+1); c.value=h; c.font={bold:true,color:{argb:'FFFFFFFF'},size:10}; c.fill=_fill('FF1F4A3A'); c.alignment={horizontal:'center'}; c.border=_bord(); }); r++;
-      let totOre=0;
+      let totOre=0; const rPrimaZi=r;
       for(let z=1;z<=nzile;z++){ const rec=byday[a.nume+'|'+z]; const v=rec?tipCelula(rec.tipZi,rec.oreLucrate):''; const lucrat=(typeof v==='number');
         const row=[`${an}-${String(luna).padStart(2,'0')}-${String(z).padStart(2,'0')}`, ZIRO[dow(z)], lucrat?(rec.oraStart==='—'?'':rec.oraStart||''):'', lucrat?(rec.oraSfarsit==='—'?'':rec.oraSfarsit||''):'', lucrat?v:v, ''];
         row.forEach((val,j)=>{ const c=sh.getCell(r,j+1); c.value=val; c.font={size:9}; c.alignment={horizontal:(j===0||j===1)?'left':'center'}; c.border=_bord(); });
+        // 13 sep 2026 — coloana Ore devine formula vie: se recalculeaza singura daca se
+        // corecteaza manual ora de venire sau de plecare direct in fisier. Se pune formula
+        // si pe zilele goale, ca sa se activeze cand se completeaza orele. Marcajele de tip
+        // zi (CO, CM etc.) raman text, ca sa nu se piarda.
+        if(lucrat || v===''){
+          sh.getCell(r,5).value={ formula:`IF(OR(C${r}="",D${r}=""),"",ROUND((TIMEVALUE(D${r})-TIMEVALUE(C${r}))*24,2))`, result:(lucrat?v:'') };
+        }
         if(dow(z)>=5){ for(let j=1;j<=6;j++) sh.getCell(r,j).fill=_fill('FFF7F7F7'); }
         if(lucrat) totOre+=v; r++;
       }
-      sh.getCell(r,4).value='TOTAL ore:'; sh.getCell(r,4).font={bold:true}; sh.getCell(r,5).value=Math.round(totOre*10)/10; sh.getCell(r,5).font={bold:true}; for(let j=1;j<=6;j++) sh.getCell(r,j).border=_bord(); r++;
+      sh.getCell(r,4).value='TOTAL ore:'; sh.getCell(r,4).font={bold:true}; sh.getCell(r,5).value={ formula:`ROUND(SUM(E${rPrimaZi}:E${r-1}),1)`, result:Math.round(totOre*10)/10 }; sh.getCell(r,5).font={bold:true}; for(let j=1;j<=6;j++) sh.getCell(r,j).border=_bord(); r++;
       sh.mergeCells(r,1,r,6); sh.getCell(r,1).value='Semnătura se acceptă și fără. Document pentru dosarul punctului de lucru.'; sh.getCell(r,1).font={italic:true,size:8,color:{argb:'FF999999'}}; r+=2;
     }
     sh.getColumn(1).width=13; sh.getColumn(2).width=11; sh.getColumn(3).width=12; sh.getColumn(4).width=12; sh.getColumn(5).width=8; sh.getColumn(6).width=22;
