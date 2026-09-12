@@ -9075,7 +9075,12 @@ async function exportPontajIndividual(){
   const dow=d=>{const x=new Date(an,luna-1,d).getDay(); return (x+6)%7;};
   const recs=DB.pontaj.filter(p=>isLunaSelectata(p.data,an,luna));
   const _mEndYMD=`${an}-${String(luna).padStart(2,'0')}-${String(nzile).padStart(2,'0')}`;
-  const activi=DB.angajati.filter(a=>a.status==='Activ' && (!a.dataAngajare || a.dataAngajare<=_mEndYMD));
+  // FIX 13 sep 2026: pana acum filtrul era doar status==='Activ', iar cine pleca disparea
+  // RETROACTIV din toate lunile trecute — inclusiv din cele in care chiar lucrase si pe baza
+  // carora i se calculeaza ultimul salariu. Acum se include oricine ARE pontaj in luna
+  // selectata, indiferent de statusul de azi. Inactivii fara nicio zi lucrata nu apar.
+  const _areRecs={}; recs.forEach(r=>{ _areRecs[r.angajat]=true; });
+  const activi=DB.angajati.filter(a=>(!a.dataAngajare || a.dataAngajare<=_mEndYMD) && (a.status==='Activ' || _areRecs[a.nume]));
   const byday={}; recs.forEach(r=>{ const zi=parseInt(String(r.data).slice(8,10)); byday[r.angajat+'|'+zi]=r; });
   const grup={}; activi.forEach(a=>{ const p=mag(a.magazin)||a.magazin||'(fără punct)'; (grup[p]=grup[p]||[]).push(a); });
   const puncte=Object.keys(grup).sort();
