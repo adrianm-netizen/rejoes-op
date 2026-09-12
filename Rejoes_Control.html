@@ -9102,7 +9102,11 @@ async function exportPontajIndividual(){
         // si pe zilele goale, ca sa se activeze cand se completeaza orele. Marcajele de tip
         // zi (CO, CM etc.) raman text, ca sa nu se piarda.
         if(lucrat || v===''){
-          sh.getCell(r,5).value={ formula:`IF(OR(C${r}="",D${r}=""),"",ROUND((TIMEVALUE(D${r})-TIMEVALUE(C${r}))*24,2))`, result:(lucrat?v:'') };
+          // Scaderea directa merge si daca orele sunt text ("10:00"), si daca sunt valori de
+          // timp reale — Excel le converteste singur. TIMEVALUE ar da #VALUE! pe valori reale,
+          // iar asta se intampla de indata ce cineva corecteaza manual o ora in fisier.
+          // MOD(...;1) acopera si turele care trec de miezul noptii.
+          sh.getCell(r,5).value={ formula:`IF(OR(C${r}="",D${r}=""),"",ROUND(MOD(D${r}-C${r},1)*24,2))`, result:(lucrat?v:'') };
         }
         if(dow(z)>=5){ for(let j=1;j<=6;j++) sh.getCell(r,j).fill=_fill('FFF7F7F7'); }
         if(lucrat) totOre+=v; r++;
