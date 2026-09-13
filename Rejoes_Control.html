@@ -467,6 +467,8 @@ const SEED = {
   inventar: [],
   tasks: [],           // {id, titlu, descriere, responsabil, locatie, termen, prioritate, reminder, done, creatLa, doneLa}
   disponibilitate: {},   // { [weekMondayISO]: { [angajatId]: { d:[7 statuses ''|'D'|'I'|'P'], obs, updatedLa } } } — centralizat (Ana)
+  concediiDrepturi: {},  // { [an]: { [numeAngajat]: { drept:21, reportat:0 } } } — dreptul anual de concediu
+  concediiCereri: [],    // {id, angajat, tip, from, to, zile, status:'ceruta'|'aprobata'|'respinsa'|'anulata', motiv, cerutDe, cerutLa, decisDe, decisLa, obsDecizie}
   users: {
     // ⚠ PIN-urile NU se mai țin în clar aici (erau vizibile în „view source" + funcționau ca backdoor pe orice telefon nou).
     // Sursa de adevăr = hash-uri SHA-256 în cloud (cheia `userPinsJson`). Vezi verifyPin / cloudPushPins / publishPinsBaseline.
@@ -1731,6 +1733,172 @@ function renderAprobarePontaj(){ try{pontajPullCloud();}catch(e){} _pjDrafts=pon
 
 // --- Concedii / Absențe (Ana) — scrie direct în DB.pontaj ---
 let _absRows=[];
+
+// ===== CONCEDII — sold, cereri, aprobări (13 sep 2026) =====
+// Sursa de adevăr pentru CONSUM = DB.pontaj (zilele marcate „Concediu Odihnă").
+// DB.concediiCereri = doar traseul hârtiei (cine a cerut, cine a aprobat, când).
+// Astfel nu se poate dubla numărătoarea între cereri și pontaj.
+const SARBATORI_LEGALE = {
+  2025: ['2025-01-01','2025-01-02','2025-01-06','2025-01-07','2025-01-24','2025-04-18','2025-04-20','2025-04-21','2025-05-01','2025-06-01','2025-06-08','2025-06-09','2025-08-15','2025-11-30','2025-12-01','2025-12-25','2025-12-26'],
+  2026: ['2026-01-01','2026-01-02','2026-01-06','2026-01-07','2026-01-24','2026-04-10','2026-04-12','2026-04-13','2026-05-01','2026-05-31','2026-06-01','2026-08-15','2026-11-30','2026-12-01','2026-12-25','2026-12-26'],
+  2027: ['2027-01-01','2027-01-02','2027-01-06','2027-01-07','2027-01-24','2027-04-30','2027-05-01','2027-05-02','2027-05-03','2027-06-01','2027-06-20','2027-06-21','2027-08-15','2027-11-30','2027-12-01','2027-12-25','2027-12-26']
+};
+const CO_DREPT_IMPLICIT = 21;   // zile lucrătoare/an (minimul legal e 20 — art. 145 Codul muncii)
+const CO_TIP = 'Concediu Odihnă';
+let _coAn = new Date().getFullYear();
+let _coAngs = [];               // lista randată, ca să nu trec nume cu diacritice prin onclick
+
+function _coEsteSarbatoare(iso){ const l=SARBATORI_LEGALE[+String(iso).slice(0,4)]; return !!l && l.indexOf(iso)>=0; }
+// Zi care CONSUMĂ din sold: luni–vineri, mai puțin sărbătorile legale (convenția standard din RO).
+function _coZiConsum(iso){ if(_coEsteSarbatoare(iso)) return false; const d=new Date(iso+'T12:00:00').getDay(); return d>=1&&d<=5; }
+function _coProgAng(nume){ const a=(DB.angajati||[]).find(x=>x.nume===nume); const p=a&&PROGRAME[a.program]; return p||null; }
+// Zi care se MARCHEAZĂ în pontaj: ziua în care persoana chiar ar fi trebuit să lucreze.
+function _coZiDeMarcat(nume,iso){
+  if(_coEsteSarbatoare(iso)) return false;
+  const d=new Date(iso+'T12:00:00').getDay(); const p=_coProgAng(nume);
+  if(!p) return d>=1&&d<=5;
+  if(p.ciclu) return d!==0;                       // 2+2: fără calendar de ture, aproximăm L–Sb
+  if(d===0) return (p.sun||0)>0;
+  if(d===6) return (p.sat||0)>0;
+  return (p.mFri||0)>0;
+}
+function _coInterval(from,to){ const out=[]; if(!from||!to||from>to) return out; let d=new Date(from+'T12:00:00'); const end=new Date(to+'T12:00:00'); while(d<=end){ out.push(_absISO(d)); d.setDate(d.getDate()+1);} return out; }
+function _coZileConsum(from,to){ return _coInterval(from,to).filter(_coZiConsum); }
+function _coZileMarcate(nume,from,to){ return _coInterval(from,to).filter(x=>_coZiDeMarcat(nume,x)); }
+
+function _coDrept(nume,an){ const y=(DB.concediiDrepturi||{})[an]||{}; const r=y[nume]||{}; return { drept:(r.drept===undefined||r.drept===null||r.drept==='')?CO_DREPT_IMPLICIT:Number(r.drept), reportat:Number(r.reportat||0) }; }
+function _coSetDrept(nume,an,camp,val){
+  if(!DB.concediiDrepturi) DB.concediiDrepturi={};
+  if(!DB.concediiDrepturi[an]) DB.concediiDrepturi[an]={};
+  if(!DB.concediiDrepturi[an][nume]) DB.concediiDrepturi[an][nume]={};
+  DB.concediiDrepturi[an][nume][camp]=(val===''?'':Number(val)||0);
+  save();
+}
+// Consumul citit DIN PONTAJ — separat în efectuate (până azi) și planificate (în viitor).
+function _coConsum(nume,an){
+  const t=(typeof todayISO==='function'?todayISO():new Date().toISOString().slice(0,10));
+  let ef=0, pl=0;
+  (DB.pontaj||[]).forEach(p=>{
+    if(p.angajat!==nume) return;
+    if(!p.tipZi || String(p.tipZi).indexOf(CO_TIP)<0) return;
+    if(String(p.data).slice(0,4)!==String(an)) return;
+    if(!_coZiConsum(p.data)) return;
+    if(p.data<=t) ef++; else pl++;
+  });
+  return {ef,pl};
+}
+function _coSold(nume,an){ const d=_coDrept(nume,an), c=_coConsum(nume,an); return { drept:d.drept, reportat:d.reportat, ef:c.ef, pl:c.pl, ramase:d.drept+d.reportat-c.ef-c.pl }; }
+// Dreptul se acordă PROPORȚIONAL cu perioada lucrată în anul respectiv (art. 145 alin. 2 Codul muncii).
+// Contează la angajări în cursul anului și, mai ales, la încetarea contractului.
+function _coZileAn(an){ return ((an%4===0&&an%100!==0)||an%400===0)?366:365; }
+function _coCuvenit(nume,an,panaLa){
+  const a=(DB.angajati||[]).find(x=>x.nume===nume)||{};
+  const d=_coDrept(nume,an), anStart=an+'-01-01', anEnd=an+'-12-31';
+  let s=anStart; if(a.dataAngajare && a.dataAngajare>s) s=a.dataAngajare;
+  let e=panaLa||anEnd; if(e>anEnd) e=anEnd;
+  if(e<s) return 0;
+  const zile=Math.round((new Date(e+'T12:00:00')-new Date(s+'T12:00:00'))/86400000)+1;
+  return Math.round(d.drept*zile/_coZileAn(an)*100)/100;
+}
+function _coEfectuatePanaLa(nume,an,panaLa){
+  let n=0; (DB.pontaj||[]).forEach(p=>{
+    if(p.angajat!==nume || !p.tipZi || String(p.tipZi).indexOf(CO_TIP)<0) return;
+    if(String(p.data).slice(0,4)!==String(an) || p.data>panaLa) return;
+    if(_coZiConsum(p.data)) n++;
+  });
+  return n;
+}
+function _coAngajati(){ return (DB.angajati||[]).filter(a=>a.status==='Activ'&&!pontajExempt(a.nume)).sort((a,b)=>a.nume.localeCompare(b.nume,'ro')); }
+function _coCereri(){ if(!Array.isArray(DB.concediiCereri)) DB.concediiCereri=[]; return DB.concediiCereri; }
+
+function coSetAn(v){ _coAn=Number(v)||new Date().getFullYear(); renderAbsente(); }
+function coEditDrept(i,camp,val){ const a=_coAngs[i]; if(!a)return; _coSetDrept(a.nume,_coAn,camp,val); renderAbsente(); }
+function coPreview(){
+  const sel=document.getElementById('coAng'), from=document.getElementById('coFrom').value, to=document.getElementById('coTo').value;
+  const el=document.getElementById('coPrev'); if(!el) return;
+  if(!sel||!sel.value||!from||!to){ el.innerHTML='<span style="color:var(--text-muted)">alege persoana și perioada</span>'; return; }
+  if(from>to){ el.innerHTML='<span style="color:#c0392b">„Până la" e înainte de „De la"</span>'; return; }
+  const nume=sel.value, zile=_coZileConsum(from,to).length, marcate=_coZileMarcate(nume,from,to).length;
+  const s=_coSold(nume,_coAn), dupa=s.ramase-zile;
+  el.innerHTML=`<strong>${zile}</strong> ${zile===1?'zi lucrătoare':'zile lucrătoare'} din sold`
+    + (marcate!==zile?` · <span style="color:var(--text-muted)">${marcate} zile marcate în pontaj</span>`:'')
+    + ` · rămân <strong style="color:${dupa<0?'#c0392b':'#1f6b4c'}">${dupa}</strong>`
+    + (dupa<0?' <span style="color:#c0392b">⚠ depășește soldul</span>':'');
+}
+function coCerere(){
+  const nume=document.getElementById('coAng').value, from=document.getElementById('coFrom').value, to=document.getElementById('coTo').value, motiv=document.getElementById('coMotiv').value.trim();
+  if(!nume||!from||!to){ toast('Completează persoana și perioada'); return; }
+  if(from>to){ toast('„Până la" e înainte de „De la"'); return; }
+  const zile=_coZileConsum(from,to).length;
+  if(!zile){ toast('Intervalul nu conține nicio zi lucrătoare'); return; }
+  _coCereri().push({ id:'CO-'+Date.now().toString(36), angajat:nume, tip:CO_TIP, from, to, zile, status:'ceruta', motiv,
+    cerutDe:(DB.session&&DB.session.user)||'', cerutLa:(typeof nowISO==='function'?nowISO():new Date().toISOString()) });
+  save(); toast(`📝 Cerere înregistrată — ${_beFirstName(nume)}, ${zile} zile`); renderAbsente();
+}
+function coAproba(id){
+  const c=_coCereri().find(x=>x.id===id); if(!c) return;
+  const s=_coSold(c.angajat,+String(c.from).slice(0,4));
+  if(s.ramase-c.zile<0 && !confirm(`Depășește soldul cu ${Math.abs(s.ramase-c.zile)} zile.\nAprobi oricum?`)) return;
+  const zile=_coZileMarcate(c.angajat,c.from,c.to);
+  const t=TIPURI_ZI.find(x=>x.id===CO_TIP); const tipZi=`${t.id} ${t.emoji}`;
+  zile.forEach(ds=>{
+    const rec={data:ds, angajat:c.angajat, locatie:'', tipZi, oraStart:'—', oraSfarsit:'—', oreLucrate:'—', observatii:'', absenta:true, cerereId:c.id, salvatLa:(typeof nowISO==='function'?nowISO():new Date().toISOString())};
+    const i=DB.pontaj.findIndex(p=>p.data===ds&&p.angajat===c.angajat);
+    if(i>=0) DB.pontaj[i]=Object.assign({},DB.pontaj[i],rec); else DB.pontaj.push(rec);
+  });
+  c.status='aprobata'; c.decisDe=(DB.session&&DB.session.user)||''; c.decisLa=(typeof nowISO==='function'?nowISO():new Date().toISOString());
+  save(); toast(`✅ Aprobat — ${_beFirstName(c.angajat)}, ${zile.length} zile în pontaj`); renderAbsente();
+}
+function coRespinge(id){
+  const c=_coCereri().find(x=>x.id===id); if(!c) return;
+  const m=prompt('Motivul respingerii (se vede în istoric):',''); if(m===null) return;
+  c.status='respinsa'; c.obsDecizie=m; c.decisDe=(DB.session&&DB.session.user)||''; c.decisLa=(typeof nowISO==='function'?nowISO():new Date().toISOString());
+  save(); toast('Respinsă'); renderAbsente();
+}
+function coAnuleaza(id){
+  const c=_coCereri().find(x=>x.id===id); if(!c) return;
+  if(!confirm(`Anulezi concediul lui ${_beFirstName(c.angajat)} (${c.from} – ${c.to})?\nZilele se scot din pontaj și revin în sold.`)) return;
+  _coZileMarcate(c.angajat,c.from,c.to).forEach(ds=>{
+    const i=DB.pontaj.findIndex(p=>p.data===ds&&p.angajat===c.angajat&&p.tipZi&&String(p.tipZi).indexOf(CO_TIP)>=0);
+    if(i>=0) DB.pontaj.splice(i,1);
+  });
+  c.status='anulata'; c.decisDe=(DB.session&&DB.session.user)||''; c.decisLa=(typeof nowISO==='function'?nowISO():new Date().toISOString());
+  save(); toast('Anulat — zilele au revenit în sold'); renderAbsente();
+}
+// Calculator pentru încetarea contractului: compensarea în bani a concediului neefectuat
+// (art. 146 alin. 4 — singurul caz în care CO se poate plăti în loc să fie efectuat).
+function coCompensatie(){
+  const el=document.getElementById('ccOut'); if(!el) return;
+  const nume=document.getElementById('ccAng').value, dataInc=document.getElementById('ccData').value;
+  const media=parseFloat(String(document.getElementById('ccMedia').value).replace(',','.'))||0;
+  if(!nume||!dataInc){ el.innerHTML='<span style="color:var(--text-muted)">alege persoana și data încetării</span>'; return; }
+  const an=+String(dataInc).slice(0,4), d=_coDrept(nume,an);
+  const cuv=_coCuvenit(nume,an,dataInc), ef=_coEfectuatePanaLa(nume,an,dataInc);
+  const rest=Math.round((cuv+d.reportat-ef)*100)/100, plata=Math.ceil(rest);
+  const a=(DB.angajati||[]).find(x=>x.nume===nume)||{};
+  const start=(a.dataAngajare && a.dataAngajare>an+'-01-01')?a.dataAngajare:(an+'-01-01');
+  const zileLucrate=Math.round((new Date(dataInc+'T12:00:00')-new Date(start+'T12:00:00'))/86400000)+1;
+  const _d=x=>(typeof _dmy==='function'?_dmy(x):x);
+  el.innerHTML=`
+    <div style="font-size:13px;line-height:1.75">
+      <div><strong>${escapeHtml(_beFirstName(nume))}</strong> — încetare la ${_d(dataInc)}</div>
+      <div style="color:var(--text-muted)">Drept anual ${d.drept} zile · perioadă lucrată în ${an}: ${zileLucrate} din ${_coZileAn(an)} zile</div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:7px 0">
+      <div>Cuvenit proporțional: <strong>${cuv.toFixed(2)}</strong> zile${d.reportat?` &nbsp;+&nbsp; reportat ${d.reportat}`:''}</div>
+      <div>Efectuat până la data încetării: <strong>${ef}</strong> zile</div>
+      <div style="margin-top:5px;font-size:15px">Neefectuat: <strong style="color:${rest<0?'#c0392b':'#1B5E3A'}">${rest.toFixed(2)}</strong> zile${rest>0?` → de compensat <strong>${plata}</strong> zile`:''}</div>
+      ${rest<0?'<div style="color:#c0392b;font-size:12px">⚠ A efectuat mai mult decât i se cuvenea — diferența se reține din lichidare.</div>':''}
+      ${(media&&rest>0)?`<div style="margin-top:7px;padding:7px 10px;background:#fff;border-radius:6px">Indemnizație estimată: <strong>${plata} × ${media.toFixed(2)} = ${(plata*media).toFixed(2)} lei</strong> brut</div>`:''}
+      <div style="margin-top:8px;font-size:11.5px;color:var(--text-muted)">Indemnizația se calculează ca medie zilnică a salariului din ultimele 3 luni anterioare lunii încetării, conform art. 150. Cifra de mai sus e orientativă — se confirmă cu contabilitatea.</div>
+    </div>`;
+}
+function coStergeCerere(id){
+  const i=_coCereri().findIndex(x=>x.id===id); if(i<0) return;
+  const c=_coCereri()[i];
+  if(c.status==='aprobata'){ toast('Anulează întâi concediul, apoi se poate șterge'); return; }
+  if(!confirm('Ștergi definitiv această cerere din istoric?')) return;
+  DB.concediiCereri.splice(i,1); save(); renderAbsente();
+}
 function _absISO(d){ const p=x=>String(x).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
 function absAdd(){
   const ang=document.getElementById('absAng').value, tipId=document.getElementById('absTip').value, from=document.getElementById('absFrom').value, to=document.getElementById('absTo').value;
@@ -1755,27 +1923,139 @@ function renderAbsente(){
     return `<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px">${typeof _dmy==='function'?_dmy(r.data):r.data}</td><td style="padding:6px;font-weight:600">${escapeHtml(_beFirstName(r.angajat))}</td><td style="padding:6px">${t?t.emoji+' '+t.label:escapeHtml(r.tipZi)}</td><td style="padding:6px"><button class="btn" style="font-size:11px;padding:3px 8px;color:#c0392b" onclick="absDel(${i})">șterge</button></td></tr>`; }).join('')
     : '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-muted)">Nicio absență înregistrată.</td></tr>';
   const angOpts=angajati.map(nm=>`<option value="${escapeHtml(nm)}">${escapeHtml(_beFirstName(nm))} — ${escapeHtml(nm)}</option>`).join('');
+  const ccOpts=(DB.angajati||[]).filter(a=>!pontajExempt(a.nume)).sort((a,b)=>a.nume.localeCompare(b.nume,'ro'))
+    .map(a=>`<option value="${escapeHtml(a.nume)}">${escapeHtml(_beFirstName(a.nume))} — ${escapeHtml(a.nume)}${a.status!=='Activ'?' (inactiv)':''}</option>`).join('');
+
+  // ---- Sold concedii ----
+  _coAngs=_coAngajati();
+  const aniOpts=[_coAn-1,_coAn,_coAn+1].map(y=>`<option value="${y}"${y===_coAn?' selected':''}>${y}</option>`).join('');
+  const _coAzi=(typeof todayISO==='function'?todayISO():new Date().toISOString().slice(0,10));
+  const soldRows=_coAngs.map((a,i)=>{ const s=_coSold(a.nume,_coAn);
+    const col=s.ramase<0?'#c0392b':(s.ramase<=3?'#b45309':'#1f6b4c');
+    const cuv=_coCuvenit(a.nume,_coAn,(_coAn<(+_coAzi.slice(0,4)))?null:_coAzi);
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 4px;font-weight:600">${escapeHtml(_beFirstName(a.nume))}<div style="font-size:10.5px;color:var(--text-muted);font-weight:400">${escapeHtml(a.program||'')}</div></td>
+      <td style="padding:6px 4px;text-align:center"><input type="number" min="0" max="60" value="${s.drept}" onchange="coEditDrept(${i},'drept',this.value)" style="width:52px;text-align:center;padding:3px;border:1px solid var(--border);border-radius:5px"></td>
+      <td style="padding:6px 4px;text-align:center"><input type="number" min="0" max="60" value="${s.reportat}" onchange="coEditDrept(${i},'reportat',this.value)" style="width:52px;text-align:center;padding:3px;border:1px solid var(--border);border-radius:5px"></td>
+      <td style="padding:6px 4px;text-align:center;color:var(--text-muted)" title="Cât i se cuvine proporțional cu perioada lucrată, până azi">${cuv.toFixed(1)}</td>
+      <td style="padding:6px 4px;text-align:center">${s.ef}</td>
+      <td style="padding:6px 4px;text-align:center">${s.pl?`<span style="color:#b45309">${s.pl}</span>`:'—'}</td>
+      <td style="padding:6px 4px;text-align:center;font-weight:700;font-size:15px;color:${col}">${s.ramase}</td>
+    </tr>`; }).join('');
+  const totalRamase=_coAngs.reduce((t,a)=>t+_coSold(a.nume,_coAn).ramase,0);
+
+  // ---- Cereri ----
+  const cereri=_coCereri();
+  const asteptare=cereri.filter(c=>c.status==='ceruta').sort((a,b)=>a.from<b.from?-1:1);
+  const istoric=cereri.filter(c=>c.status!=='ceruta').sort((a,b)=>a.from<b.from?1:-1).slice(0,40);
+  const _d=x=>(typeof _dmy==='function'?_dmy(x):x);
+  const astHtml=asteptare.length? asteptare.map(c=>{ const s=_coSold(c.angajat,+String(c.from).slice(0,4)); const dupa=s.ramase-c.zile;
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:7px 5px;font-weight:600">${escapeHtml(_beFirstName(c.angajat))}</td>
+      <td style="padding:7px 5px">${_d(c.from)} – ${_d(c.to)}</td>
+      <td style="padding:7px 5px;text-align:center"><strong>${c.zile}</strong></td>
+      <td style="padding:7px 5px;text-align:center;color:${dupa<0?'#c0392b':'var(--text-muted)'}">${dupa}${dupa<0?' ⚠':''}</td>
+      <td style="padding:7px 5px;font-size:11.5px;color:var(--text-muted)">${escapeHtml(c.motiv||'')}</td>
+      <td style="padding:7px 5px;white-space:nowrap">
+        <button class="btn btn-primary" style="font-size:11.5px;padding:4px 9px" onclick="coAproba('${c.id}')">Aprobă</button>
+        <button class="btn" style="font-size:11.5px;padding:4px 9px;color:#c0392b" onclick="coRespinge('${c.id}')">Respinge</button>
+      </td></tr>`; }).join('')
+    : '<tr><td colspan="6" style="padding:14px;text-align:center;color:var(--text-muted)">Nicio cerere în așteptare.</td></tr>';
+  const _stMeta={ aprobata:{t:'✅ aprobată',c:'#1f6b4c'}, respinsa:{t:'✕ respinsă',c:'#c0392b'}, anulata:{t:'↩ anulată',c:'#888'} };
+  const istHtml=istoric.length? istoric.map(c=>{ const m=_stMeta[c.status]||{t:c.status,c:'#888'};
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 5px;font-weight:600">${escapeHtml(_beFirstName(c.angajat))}</td>
+      <td style="padding:6px 5px">${_d(c.from)} – ${_d(c.to)}</td>
+      <td style="padding:6px 5px;text-align:center">${c.zile}</td>
+      <td style="padding:6px 5px;color:${m.c};font-weight:600;font-size:12px">${m.t}</td>
+      <td style="padding:6px 5px;font-size:11px;color:var(--text-muted)">${escapeHtml(c.decisDe||'')} ${escapeHtml(c.obsDecizie||'')}</td>
+      <td style="padding:6px 5px;white-space:nowrap">${c.status==='aprobata'?`<button class="btn" style="font-size:11px;padding:3px 8px;color:#b45309" onclick="coAnuleaza('${c.id}')">anulează</button>`:`<button class="btn" style="font-size:11px;padding:3px 8px;color:#c0392b" onclick="coStergeCerere('${c.id}')">șterge</button>`}</td>
+    </tr>`; }).join('')
+    : '<tr><td colspan="6" style="padding:14px;text-align:center;color:var(--text-muted)">Nimic în istoric.</td></tr>';
+
   document.getElementById('content').innerHTML=`
-    <div style="max-width:820px;margin:0 auto">
+    <div style="max-width:980px;margin:0 auto">
+
       <div class="card">
-        <div style="font-weight:700;font-size:16px;margin-bottom:4px">🏖️ Concedii / Absențe</div>
-        <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px">Marchează rapid concediile, zilele libere sau medicalul. Intră direct în pontaj — nu se completează manual.</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-weight:700;font-size:16px">🏖️ Concedii — sold pe ${_coAn}</div>
+            <div style="font-size:12.5px;color:var(--text-muted)">Zilele se scad din sold doar luni–vineri, fără sărbătorile legale. „Drept" și „Reportat" se editează direct în tabel.</div>
+          </div>
+          <select onchange="coSetAn(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-weight:600">${aniOpts}</select>
+        </div>
+        <div style="overflow-x:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="text-align:center;border-bottom:2px solid var(--border)">
+            <th style="padding:6px 4px;text-align:left">Angajat</th><th style="padding:6px 4px">Drept</th><th style="padding:6px 4px">Reportat</th>
+            <th style="padding:6px 4px" title="Proporțional cu perioada lucrată, până azi">Cuvenit la zi</th>
+            <th style="padding:6px 4px">Efectuate</th><th style="padding:6px 4px">Planificate</th><th style="padding:6px 4px">Rămase</th>
+          </tr></thead>
+          <tbody>${soldRows||'<tr><td colspan="7" style="padding:14px;text-align:center;color:var(--text-muted)">Niciun angajat activ.</td></tr>'}</tbody>
+          <tfoot><tr style="border-top:2px solid var(--border);font-weight:700"><td style="padding:7px 4px">TOTAL</td><td colspan="5"></td><td style="padding:7px 4px;text-align:center">${totalRamase}</td></tr></tfoot>
+        </table></div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">📝 Cerere de concediu de odihnă</div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px">Se înregistrează întâi ca cerere. Zilele intră în pontaj abia la aprobare.</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+          <div class="form-field"><label>Persoană</label><select id="coAng" onchange="coPreview()"><option value="">— alege —</option>${angOpts}</select></div>
+          <div class="form-field"><label>De la</label><input type="date" id="coFrom" value="${t0}" onchange="coPreview()"></div>
+          <div class="form-field"><label>Până la</label><input type="date" id="coTo" value="${t0}" onchange="coPreview()"></div>
+          <div class="form-field"><label>Observație</label><input type="text" id="coMotiv" placeholder="ex. nuntă, plecare în Moldova"></div>
+        </div>
+        <div id="coPrev" style="margin-top:10px;padding:9px 12px;background:#E8F1EC;border-radius:7px;font-size:13px"><span style="color:var(--text-muted)">alege persoana și perioada</span></div>
+        <div style="margin-top:12px"><button class="btn btn-primary" onclick="coCerere()">➕ Înregistrează cererea</button></div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;margin-bottom:8px">⏳ Cereri în așteptare${asteptare.length?` <span class="badge badge-info">${asteptare.length}</span>`:''}</div>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="text-align:left;border-bottom:2px solid var(--border)"><th style="padding:6px 5px">Persoană</th><th style="padding:6px 5px">Perioada</th><th style="padding:6px 5px;text-align:center">Zile</th><th style="padding:6px 5px;text-align:center">Rămân</th><th style="padding:6px 5px">Observație</th><th style="padding:6px 5px"></th></tr></thead>
+          <tbody>${astHtml}</tbody>
+        </table></div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">🧮 Compensare la încetarea contractului</div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px">Câte zile de concediu neefectuat trebuie plătite la lichidare. Include și persoanele inactive.</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+          <div class="form-field"><label>Persoană</label><select id="ccAng" onchange="coCompensatie()"><option value="">— alege —</option>${ccOpts}</select></div>
+          <div class="form-field"><label>Data încetării</label><input type="date" id="ccData" value="${t0}" onchange="coCompensatie()"></div>
+          <div class="form-field"><label>Media zilnică brută (opțional)</label><input type="text" id="ccMedia" placeholder="ex. 138,50" oninput="coCompensatie()"></div>
+        </div>
+        <div id="ccOut" style="margin-top:10px;padding:10px 13px;background:#E8F1EC;border-radius:7px;font-size:13px"><span style="color:var(--text-muted)">alege persoana și data încetării</span></div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">🏥 Marcare directă — medical, învoire, zi liberă</div>
+        <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px">Pentru ce nu se cere dinainte. Intră imediat în pontaj, fără aprobare, pe toate zilele din interval.</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
           <div class="form-field"><label>Persoană</label><select id="absAng">${angOpts}</select></div>
-          <div class="form-field"><label>Tip</label><select id="absTip">${tipuri.map(t=>`<option value="${t.id}">${t.emoji} ${t.label}</option>`).join('')}</select></div>
+          <div class="form-field"><label>Tip</label><select id="absTip">${tipuri.map(t=>`<option value="${t.id}"${t.id===CO_TIP?' disabled':''}>${t.emoji} ${t.label}${t.id===CO_TIP?' (folosește cererea de mai sus)':''}</option>`).join('')}</select></div>
           <div class="form-field"><label>De la</label><input type="date" id="absFrom" value="${t0}"></div>
           <div class="form-field"><label>Până la</label><input type="date" id="absTo" value="${t0}"></div>
         </div>
-        <div style="margin-top:12px"><button class="btn btn-primary" onclick="absAdd()">➕ Marchează</button></div>
+        <div style="margin-top:12px"><button class="btn" onclick="absAdd()">➕ Marchează</button></div>
       </div>
+
       <div class="card">
-        <div style="font-weight:600;margin-bottom:8px">Absențe înregistrate (ultimele)</div>
+        <div style="font-weight:700;font-size:15px;margin-bottom:8px">📚 Istoric cereri</div>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="text-align:left;border-bottom:2px solid var(--border)"><th style="padding:6px 5px">Persoană</th><th style="padding:6px 5px">Perioada</th><th style="padding:6px 5px;text-align:center">Zile</th><th style="padding:6px 5px">Stare</th><th style="padding:6px 5px">Decis de</th><th style="padding:6px 5px"></th></tr></thead>
+          <tbody>${istHtml}</tbody>
+        </table></div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600;margin-bottom:8px">Absențe în pontaj (ultimele)</div>
         <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr style="text-align:left;border-bottom:2px solid var(--border)"><th style="padding:6px">Data</th><th style="padding:6px">Persoană</th><th style="padding:6px">Tip</th><th style="padding:6px"></th></tr></thead>
           <tbody>${listHtml}</tbody>
         </table></div>
       </div>
     </div>`;
+  coPreview(); coCompensatie();
 }
 
 // --- Alarme pontaj: motor anomalii + paznic (sunet + banner + notificare) ---
@@ -15788,6 +16068,8 @@ async function securePinsNow(){
 if (!DB.users) DB.users = JSON.parse(JSON.stringify(SEED.users));
 if (!DB.session) DB.session = { user: null, role: null };
 if (!DB.tasks) DB.tasks = [];
+if (!DB.concediiDrepturi || Array.isArray(DB.concediiDrepturi)) DB.concediiDrepturi = {};
+if (!Array.isArray(DB.concediiCereri)) DB.concediiCereri = [];
 
 // Sincronizare automată roluri + nume cu SEED (PIN-urile rămân personalizate)
 Object.keys(SEED.users).forEach(u => {
