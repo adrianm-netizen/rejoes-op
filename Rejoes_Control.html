@@ -1753,11 +1753,14 @@ function _coEsteSarbatoare(iso){ const l=SARBATORI_LEGALE[+String(iso).slice(0,4
 function _coZiConsum(iso){ if(_coEsteSarbatoare(iso)) return false; const d=new Date(iso+'T12:00:00').getDay(); return d>=1&&d<=5; }
 function _coProgAng(nume){ const a=(DB.angajati||[]).find(x=>x.nume===nume); const p=a&&PROGRAME[a.program]; return p||null; }
 // Zi care se MARCHEAZĂ în pontaj: ziua în care persoana chiar ar fi trebuit să lucreze.
+// ⚠ Pentru programul „10h, 2+2" (Aradului, Bujorilor, Sibiu — două colege prin rotație)
+// aplicația NU are calendarul turelor, deci NU ghicește: zilele se bifează manual.
+function _coEsteCiclu(nume){ const p=_coProgAng(nume); return !!(p&&p.ciclu); }
 function _coZiDeMarcat(nume,iso){
   if(_coEsteSarbatoare(iso)) return false;
   const d=new Date(iso+'T12:00:00').getDay(); const p=_coProgAng(nume);
   if(!p) return d>=1&&d<=5;
-  if(p.ciclu) return d!==0;                       // 2+2: fără calendar de ture, aproximăm L–Sb
+  if(p.ciclu) return false;                       // 2+2: se bifează manual, nu se presupune
   if(d===0) return (p.sun||0)>0;
   if(d===6) return (p.sat||0)>0;
   return (p.mFri||0)>0;
@@ -1813,33 +1816,68 @@ function _coCereri(){ if(!Array.isArray(DB.concediiCereri)) DB.concediiCereri=[]
 
 function coSetAn(v){ _coAn=Number(v)||new Date().getFullYear(); renderAbsente(); }
 function coEditDrept(i,camp,val){ const a=_coAngs[i]; if(!a)return; _coSetDrept(a.nume,_coAn,camp,val); renderAbsente(); }
+// Zilele bifate pentru cererea în curs de completare — cheia previne păstrarea bifelor
+// de la o persoană/perioadă la alta.
+let _coSel={ key:'', zile:{} };
+const _CO_ZILE_SCURT=['Du','Lu','Ma','Mi','Jo','Vi','Sâ'];
+function _coSelSync(nume,from,to){
+  const key=nume+'|'+from+'|'+to;
+  if(_coSel.key===key) return;
+  _coSel={ key, zile:{} };
+  _coInterval(from,to).forEach(iso=>{ _coSel.zile[iso]=_coZiDeMarcat(nume,iso); });
+}
+function coToggleZi(iso){ _coSel.zile[iso]=!_coSel.zile[iso]; coPreview(); }
+function _coSelBifate(){ return Object.keys(_coSel.zile).filter(k=>_coSel.zile[k]).sort(); }
 function coPreview(){
-  const sel=document.getElementById('coAng'), from=document.getElementById('coFrom').value, to=document.getElementById('coTo').value;
-  const el=document.getElementById('coPrev'); if(!el) return;
-  if(!sel||!sel.value||!from||!to){ el.innerHTML='<span style="color:var(--text-muted)">alege persoana și perioada</span>'; return; }
-  if(from>to){ el.innerHTML='<span style="color:#c0392b">„Până la" e înainte de „De la"</span>'; return; }
-  const nume=sel.value, zile=_coZileConsum(from,to).length, marcate=_coZileMarcate(nume,from,to).length;
+  const sel=document.getElementById('coAng'), fEl=document.getElementById('coFrom'), tEl=document.getElementById('coTo');
+  const el=document.getElementById('coPrev'), strip=document.getElementById('coStrip'); if(!el||!fEl||!tEl) return;
+  const from=fEl.value, to=tEl.value;
+  if(!sel||!sel.value||!from||!to){ el.innerHTML='<span style="color:var(--text-muted)">alege persoana și perioada</span>'; if(strip)strip.innerHTML=''; return; }
+  if(from>to){ el.innerHTML='<span style="color:#c0392b">„Până la" e înainte de „De la"</span>'; if(strip)strip.innerHTML=''; return; }
+  const nume=sel.value;
+  _coSelSync(nume,from,to);
+  const ciclu=_coEsteCiclu(nume);
+  // Zilele bifate = zilele MARCATE în pontaj (turele efectiv pierdute).
+  const marcate=_coSelBifate();
+  // Consumul din sold rămâne în zile lucrătoare standard (L–V fără sărbători), ca cele 21 de zile
+  // să însemne același timp de odihnă pentru toată lumea, indiferent de program.
+  const zile=_coZileConsum(from,to).length;
   const s=_coSold(nume,_coAn), dupa=s.ramase-zile;
-  el.innerHTML=`<strong>${zile}</strong> ${zile===1?'zi lucrătoare':'zile lucrătoare'} din sold`
-    + (marcate!==zile?` · <span style="color:var(--text-muted)">${marcate} zile marcate în pontaj</span>`:'')
-    + ` · rămân <strong style="color:${dupa<0?'#c0392b':'#1f6b4c'}">${dupa}</strong>`
-    + (dupa<0?' <span style="color:#c0392b">⚠ depășește soldul</span>':'');
+  if(strip){
+    strip.innerHTML=_coInterval(from,to).map(iso=>{
+      const d=new Date(iso+'T12:00:00'), on=!!_coSel.zile[iso], sar=_coEsteSarbatoare(iso);
+      const bg=on?'#1f6b4c':(sar?'#f6e7c9':'#f2f2f2'), fg=on?'#fff':(sar?'#8a5e0c':'#666');
+      return `<button type="button" onclick="coToggleZi('${iso}')" title="${sar?'sărbătoare legală':'click pentru a bifa/debifa'}"
+        style="min-width:44px;padding:5px 4px;border:1px solid #cfd8e3;border-radius:6px;background:${bg};color:${fg};cursor:pointer;font-size:11px;line-height:1.3">
+        <div>${_CO_ZILE_SCURT[d.getDay()]}</div><div style="font-weight:700;font-size:12.5px">${String(d.getDate()).padStart(2,'0')}</div></button>`;
+    }).join('');
+  }
+  el.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:baseline">
+      <div>Se scad din sold: <strong>${zile}</strong> ${zile===1?'zi':'zile'} · rămân <strong style="color:${dupa<0?'#c0392b':'#1f6b4c'}">${dupa}</strong>${dupa<0?' <span style="color:#c0392b">⚠ depășește soldul</span>':''}</div>
+      <div style="color:var(--text-muted)">Se marchează în pontaj: <strong style="color:${marcate.length?'#1B5E3A':'#c0392b'}">${marcate.length}</strong> ${marcate.length===1?'zi':'zile'}</div>
+    </div>`
+    + (ciclu?`<div style="margin-top:6px;font-size:12px;color:#8a5e0c">⚠ Program „10h, 2+2" — aplicația nu știe rotația turelor. Bifează mai jos zilele în care ea chiar era de serviciu.</div>`:'')
+    + (!zile&&marcate.length?`<div style="margin-top:6px;font-size:12px;color:#c0392b">⚠ Intervalul nu conține nicio zi lucrătoare (L–V). Dacă sunt doar ture de weekend, e schimb de tură sau învoire, nu concediu de odihnă.</div>`:'');
 }
 function coCerere(){
   const nume=document.getElementById('coAng').value, from=document.getElementById('coFrom').value, to=document.getElementById('coTo').value, motiv=document.getElementById('coMotiv').value.trim();
   if(!nume||!from||!to){ toast('Completează persoana și perioada'); return; }
   if(from>to){ toast('„Până la" e înainte de „De la"'); return; }
+  _coSelSync(nume,from,to);
+  const zileMarcate=_coSelBifate();
+  if(!zileMarcate.length){ toast('Bifează cel puțin o zi de lucru din interval'); return; }
   const zile=_coZileConsum(from,to).length;
-  if(!zile){ toast('Intervalul nu conține nicio zi lucrătoare'); return; }
-  _coCereri().push({ id:'CO-'+Date.now().toString(36), angajat:nume, tip:CO_TIP, from, to, zile, status:'ceruta', motiv,
+  if(!zile && !confirm('Intervalul nu conține nicio zi lucrătoare (L–V), deci nu se scade nimic din sold.\nÎnregistrezi oricum?')) return;
+  _coCereri().push({ id:'CO-'+Date.now().toString(36), angajat:nume, tip:CO_TIP, from, to, zile, zileMarcate, status:'ceruta', motiv,
     cerutDe:(DB.session&&DB.session.user)||'', cerutLa:(typeof nowISO==='function'?nowISO():new Date().toISOString()) });
-  save(); toast(`📝 Cerere înregistrată — ${_beFirstName(nume)}, ${zile} zile`); renderAbsente();
+  _coSel={ key:'', zile:{} };
+  save(); toast(`📝 Cerere înregistrată — ${_beFirstName(nume)}, ${zile} zile din sold`); renderAbsente();
 }
 function coAproba(id){
   const c=_coCereri().find(x=>x.id===id); if(!c) return;
   const s=_coSold(c.angajat,+String(c.from).slice(0,4));
   if(s.ramase-c.zile<0 && !confirm(`Depășește soldul cu ${Math.abs(s.ramase-c.zile)} zile.\nAprobi oricum?`)) return;
-  const zile=_coZileMarcate(c.angajat,c.from,c.to);
+  const zile=(Array.isArray(c.zileMarcate)&&c.zileMarcate.length)?c.zileMarcate:_coZileMarcate(c.angajat,c.from,c.to);
   const t=TIPURI_ZI.find(x=>x.id===CO_TIP); const tipZi=`${t.id} ${t.emoji}`;
   zile.forEach(ds=>{
     const rec={data:ds, angajat:c.angajat, locatie:'', tipZi, oraStart:'—', oraSfarsit:'—', oreLucrate:'—', observatii:'', absenta:true, cerereId:c.id, salvatLa:(typeof nowISO==='function'?nowISO():new Date().toISOString())};
@@ -1858,7 +1896,7 @@ function coRespinge(id){
 function coAnuleaza(id){
   const c=_coCereri().find(x=>x.id===id); if(!c) return;
   if(!confirm(`Anulezi concediul lui ${_beFirstName(c.angajat)} (${c.from} – ${c.to})?\nZilele se scot din pontaj și revin în sold.`)) return;
-  _coZileMarcate(c.angajat,c.from,c.to).forEach(ds=>{
+  ((Array.isArray(c.zileMarcate)&&c.zileMarcate.length)?c.zileMarcate:_coZileMarcate(c.angajat,c.from,c.to)).forEach(ds=>{
     const i=DB.pontaj.findIndex(p=>p.data===ds&&p.angajat===c.angajat&&p.tipZi&&String(p.tipZi).indexOf(CO_TIP)>=0);
     if(i>=0) DB.pontaj.splice(i,1);
   });
@@ -1953,7 +1991,7 @@ function renderAbsente(){
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:7px 5px;font-weight:600">${escapeHtml(_beFirstName(c.angajat))}</td>
       <td style="padding:7px 5px">${_d(c.from)} – ${_d(c.to)}</td>
-      <td style="padding:7px 5px;text-align:center"><strong>${c.zile}</strong></td>
+      <td style="padding:7px 5px;text-align:center"><strong>${c.zile}</strong>${(Array.isArray(c.zileMarcate)&&c.zileMarcate.length!==c.zile)?`<div style="font-size:10.5px;color:var(--text-muted);font-weight:400">${c.zileMarcate.length} în pontaj</div>`:''}</td>
       <td style="padding:7px 5px;text-align:center;color:${dupa<0?'#c0392b':'var(--text-muted)'}">${dupa}${dupa<0?' ⚠':''}</td>
       <td style="padding:7px 5px;font-size:11.5px;color:var(--text-muted)">${escapeHtml(c.motiv||'')}</td>
       <td style="padding:7px 5px;white-space:nowrap">
@@ -2005,6 +2043,8 @@ function renderAbsente(){
           <div class="form-field"><label>Observație</label><input type="text" id="coMotiv" placeholder="ex. nuntă, plecare în Moldova"></div>
         </div>
         <div id="coPrev" style="margin-top:10px;padding:9px 12px;background:#E8F1EC;border-radius:7px;font-size:13px"><span style="color:var(--text-muted)">alege persoana și perioada</span></div>
+        <div id="coStrip" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:9px"></div>
+        <div style="font-size:11.5px;color:var(--text-muted);margin-top:5px">Verde = zi de lucru pierdută, se marchează în pontaj. Click pe o zi ca s-o bifezi sau s-o scoți. Zilele bej sunt sărbători legale.</div>
         <div style="margin-top:12px"><button class="btn btn-primary" onclick="coCerere()">➕ Înregistrează cererea</button></div>
       </div>
 
