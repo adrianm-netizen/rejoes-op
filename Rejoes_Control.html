@@ -810,11 +810,32 @@ function _annSection(which, accent){
   return `<div style="margin:-2px 0 14px;padding:0 4px">${list}<button onclick="announceToggleForm('${which}')" style="background:transparent;border:1px solid ${accent};color:${accent};border-radius:999px;padding:3px 12px;font-size:12px;cursor:pointer">✍️ Lasă un mesaj</button><div id="annForm_${which}" style="display:none;margin-top:8px;background:#fff;border:1px solid #e2e8e5;border-radius:10px;padding:10px;max-width:520px"><div style="font-size:11.5px;color:#5b6b62;margin-bottom:6px">Doar persoana desemnată poate posta — introdu codul tău personal.</div><input id="annCode_${which}" type="password" inputmode="numeric" placeholder="cod" style="width:110px;padding:7px;border:1px solid #cdd8d2;border-radius:6px;font-size:14px;letter-spacing:3px;text-align:center"><textarea id="annText_${which}" rows="2" placeholder="Mesajul tău…" style="width:100%;margin-top:8px;padding:8px;border:1px solid #cdd8d2;border-radius:6px;font-size:13px;box-sizing:border-box;resize:vertical"></textarea><div style="margin-top:8px;text-align:right"><button onclick="announcePost('${which}')" style="background:${accent};color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;cursor:pointer;font-weight:600">Trimite</button></div></div></div>`;
 }
 function renderAnnounceBanner(){
-  /* Niciun anunț activ. Bannerul „Act adițional nr. 07 / 22.08.2026" (regimul bunurilor din
-     afara gestiunii) a fost retras la 03.09.2026; textul e păstrat integral în
-     _annActAditional07() de mai jos și se poate reactiva redenumind acea funcție înapoi. */
-  const _b = document.getElementById('announceBanner'); if(_b) _b.remove();
-  return;
+  /* Anunț activ din 27.09.2026: „Bravo, Sibiu!" — laudă pentru Diana și Alin + îndemn la interacțiunea cu clienții.
+     Bannerul „Act adițional nr. 07 / 22.08.2026" a fost retras la 03.09.2026; textul e păstrat integral în
+     _annActAditional07() de mai jos. Pentru a retrage anunțul curent: pune `return;` la începutul funcției. */
+  const content = document.getElementById('content'); if(!content) return;
+  let el = document.getElementById('announceBanner');
+  if(_announceDismissed){ if(el) el.remove(); return; }
+  if(!document.getElementById('announceMarqueeStyle')){ const s=document.createElement('style'); s.id='announceMarqueeStyle'; s.textContent='@keyframes announceMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}@keyframes announceGlow{0%,100%{box-shadow:0 0 6px rgba(255,224,138,.25)}50%{box-shadow:0 0 18px rgba(255,224,138,.7)}}'; document.head.appendChild(s); }
+  if(!el){ el = document.createElement('div'); el.id = 'announceBanner'; content.parentNode.insertBefore(el, content); }
+  el.innerHTML = `<div style="margin:0 0 10px;background:linear-gradient(135deg,#0b3d26,#1B5E3A);border-radius:14px;color:#fff;position:relative;padding:15px 17px;border-left:5px solid #ffe08a;animation:announceGlow 3s ease-in-out infinite">
+    <button onclick="dismissAnnounce()" style="position:absolute;top:6px;right:10px;background:rgba(0,0,0,.28);border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:1px 10px;border-radius:8px;z-index:3" aria-label="Închide">×</button>
+    <div style="font-weight:800;font-size:17px;margin-bottom:8px;padding-right:36px">👏 Bravo, Sibiu! Și o vorbă pentru toți</div>
+    <div style="font-size:12.8px;line-height:1.6;color:#eaf7ef">
+      Am fost la Sibiu și vrem să spunem asta tuturor: magazinul arată <strong>impecabil</strong>. Curat, ordonat, marfa aranjată cu gust, standurile pline, totul la locul lui. Se vede că cineva ține la magazinul ăsta, iar clientul simte asta din prima clipă. <strong style="color:#ffe08a">Mulțumim, Diana și Alin!</strong><br><br>
+      Un magazin frumos e jumătate din drum. Cealaltă jumătate o faceți voi, cu clienții.<br><br>
+      <strong style="color:#ffe08a">O cifră pe care merită s-o țineți minte:</strong> același magazin, în aceeași zi, în același interval orar, cu același număr de clienți care intră pe ușă, vinde <strong style="color:#ffe08a">cu peste 150% mai mult</strong> atunci când stăm de vorbă cu oamenii și le propunem ceva, față de zilele în care clienții sunt lăsați să se descurce singuri sau primesc doar un <em>„dacă aveți nevoie de ceva, îmi spuneți”</em>.<br><br>
+      Nu e vorba să ne ținem după clienți sau să-i copleșim!! Totul este despre o vorbă bună pentru fiecare și de o mână de ajutor oferită la momentul potrivit:
+      <ul style="margin:6px 0 10px;padding-left:22px">
+        <li>„Știați că am primit marfă nouă? Vă arăt unde e.”</li>
+        <li>„Primim marfă nouă săptămâna viitoare, dar haideți să vedem împreună dacă găsim și acum ceva pe placul dumneavoastră.”</li>
+        <li>„Căutați ceva anume? Poate vă pot scurta drumul.”</li>
+        <li>„Asta v-ar veni bine, doriți să probați?”</li>
+      </ul>
+      O mână de ajutor sinceră e întotdeauna binevenită. Clientul care a fost băgat în seamă cumpără mai mult, se întoarce și povestește și altora.<br><br>
+      <strong>Ținem magazinele frumoase, ca la Sibiu, și ne ocupăm de oameni. Restul vine de la sine.</strong> 💚
+    </div>
+  </div>`;
 }
 function _annActAditional07(){
   const content = document.getElementById('content'); if(!content) return;
@@ -15401,7 +15422,7 @@ try { setTimeout(function(){ try{ pontajPullCloud(); }catch(e){} }, 2500); setIn
 // ---------- AUTO-UPDATE: forțează versiunea nouă pe telefoanele fetelor, fără Ctrl+F5 ----------
 // La fiecare deploy se bumpează APP_VERSION + version.json (aceeași valoare). Apps verifică periodic
 // version.json (no-cache); dacă diferă → se reîncarcă singură cu un cache-buster ?u=timestamp.
-const APP_VERSION = '2026-08-23-1100';
+const APP_VERSION = '2026-09-27-1000';
 async function _verCheck(){
   try{
     if(window._pjActiveUntil && Date.now() < window._pjActiveUntil) return; // nu întrerupe o pontare în curs (selfie)
